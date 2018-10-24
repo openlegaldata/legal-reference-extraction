@@ -226,7 +226,7 @@ class LawRefExtractorMixin(object):
 
         return content, markers
 
-    def handle_multiple_law_refs(self, ref_str, law_ids):
+    def handle_multiple_law_refs(self, ref_str, law_ids) -> List[Ref]:
         # Search for multiple refs
         mms = self.get_law_ref_match_multi(ref_str)
 
@@ -268,7 +268,7 @@ class LawRefExtractorMixin(object):
                 for between_sect in range(int(prev_sect)+1, int(sect)):
                     # print(between_sect)
 
-                    refs_tmp.append(Ref(ref_type=RefType.LAW, book=prev_book, section=between_sect))
+                    refs_tmp.append(Ref(ref_type=RefType.LAW, book=prev_book, section=str(between_sect)))
             else:
                 prev_sect = sect
                 prev_book = book
@@ -350,7 +350,7 @@ class LawRefExtractorMixin(object):
             sects = []
 
             for sect in range(start, end):
-                sects.append(sect)
+                sects.append(str(sect))
 
             return sects
 

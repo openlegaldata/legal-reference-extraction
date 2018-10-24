@@ -8,6 +8,11 @@ Supported countries:
 ## Install
 
 ```
+# from git
+pip install git+https://github.com/openlegaldata/legal-reference-extraction.git#egg=legal-reference-extraction
+
+
+# Local dev
 pip install -r requirements.txt
 ```
 
@@ -18,7 +23,7 @@ from refex.extractor import RefExtractor
 
 extractor = RefExtractor()
 
-content, markers = self.extractor.extract('<p>Ein Satz mit § 3b AsylG, und weiteren Sachen.</p>')
+content, markers = extractor.extract('<p>Ein Satz mit § 3b AsylG, und weiteren Sachen.</p>')
 ```
 
 ## License

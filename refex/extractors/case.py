@@ -264,7 +264,7 @@ class CaseRefExtractorMixin(object):
                             continue
 
                         ref_ids = [
-                            Ref(ref_type=RefType.CASE, court=court_name, date=None, file_number=fn, ecli=None)
+                            Ref(ref_type=RefType.CASE, court=court_name, file_number=fn)  # TODO date field
                         ]
                         # TODO maintain order for case+law refs
                         marker = RefMarker(text=focus,

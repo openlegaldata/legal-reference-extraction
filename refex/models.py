@@ -1,6 +1,7 @@
 import logging
 import uuid
 from enum import Enum
+from functools import total_ordering
 from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,10 @@ class BaseRef(object):
 
     def __repr__(self):
         return 'Ref<%s>' % self.__dict__
+        # return 'Ref<%s>' % sorted(self.__dict__.items(), key=lambda x: x[0])
+
+    def __hash__(self):
+        return hash(self.__repr__())
 
 
 class CaseRefMixin(BaseRef):
@@ -34,12 +39,20 @@ class LawRefMixin(BaseRef):
     sentence = '' # type: str
 
 
+@total_ordering
 class Ref(LawRefMixin, CaseRefMixin, BaseRef):
     """
     A reference can point to all available types (RefType). Currently either law or case supported.
 
     """
-    pass
+
+    def __lt__(self, other):
+        assert isinstance(other, Ref)
+        return self.__dict__ < other.__dict__
+
+    def __eq__(self, other):
+        assert isinstance(other, Ref) # assumption for this example
+        return self.__dict__ == other.__dict__
 
 
 class RefMarker(object):
