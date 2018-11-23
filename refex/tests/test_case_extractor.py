@@ -1,9 +1,11 @@
+import logging
+import os
 import re
-
-from datetime import date
 
 from refex.models import RefType, Ref
 from refex.tests import BaseRefExTest
+
+logger = logging.getLogger(__name__)
 
 
 class CaseRefExTest(BaseRefExTest):
@@ -45,9 +47,12 @@ class CaseRefExTest(BaseRefExTest):
         fns_matches = list(re.finditer(self.extractor.get_court_name_regex(), text))
 
         for f in fns_matches:
-            actual.append(f.group())
+            actual.append(f.group('court'))
 
-        self.assertListEqual(expected, actual, 'Invalid court names extracted')
+        logger.debug('Actual:   %s' % actual)
+        logger.debug('Expected: %s' % expected)
+
+        self.assertListEqual(sorted(actual), sorted(expected), 'Invalid court names extracted')
 
 
     def test_clean_text(self):
@@ -87,3 +92,76 @@ class CaseRefExTest(BaseRefExTest):
         ]
 
         self.assert_refs(fixtures)
+
+    def test_get_file_number_regex(self):
+        pattern = self.extractor.get_file_number_regex()
+
+        matched = 0
+        not_matched = 0
+
+        with open(os.path.join(self.resource_dir, 'case/file_numbers.txt')) as f:
+            for line in f.readlines():
+                line = line.strip()
+                if not re.search(pattern, line):
+                    print(line)
+                    not_matched += 1
+                else:
+                    matched += 1
+
+        print('matched: %i' % matched)
+        print('not_matched: %i' % not_matched)
+
+        print(pattern)
+
+    def test_extract(self):
+        self.assert_refs([
+            {
+                'resource': 'bsg_2018-06-27.txt',
+                'refs': [
+                    Ref(ref_type=RefType.CASE, court='BGH', file_number='6 KA 45/13'),
+                    Ref(ref_type=RefType.CASE, court='BGH', file_number='IX ZR 165/12'),
+                    Ref(ref_type=RefType.CASE, court='BGH', file_number='IX ZR 165/12'),
+                    Ref(ref_type=RefType.CASE, court='BVerfG', file_number='1 BvL 7/14'),
+                    Ref(ref_type=RefType.CASE, court='LSG Nordrhein-Westfalen', file_number='11 KA 67/10'),
+                    Ref(ref_type=RefType.CASE, court='LSG Nordrhein-Westfalen', file_number='24 K 120/10'),
+                    Ref(ref_type=RefType.CASE, court='LSG Nordrhein-Westfalen', file_number='7 U 199/05'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='19 U 98/97'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='2 U 553/13'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='6 KA 39/17'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='6 KA 40/17'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='IX ZR 103/14'),
+                    # Ref(ref_type=RefType.CASE, court='', file_number=''),
+                    # Ref(ref_type=RefType.CASE, court='', file_number=''),
+
+                    # Ref(ref_type=RefType.LAW, book='baunvo', section='2'),
+                    # Ref(ref_type=RefType.LAW, book='baunvo', section='3'),
+                    # Ref(ref_type=RefType.LAW, book='baunvo', section='4'),
+
+                ]
+            }
+        ])
+
+    def test_extract_html(self):
+        self.assert_refs([
+            {
+                'resource': 'bsg_2018-06-27.html',
+                'refs': [
+                    Ref(ref_type=RefType.CASE, court='BGH', file_number='6 KA 45/13'),
+                    Ref(ref_type=RefType.CASE, court='BGH', file_number='IX ZR 165/12'),
+                    Ref(ref_type=RefType.CASE, court='BGH', file_number='IX ZR 165/12'),
+                    Ref(ref_type=RefType.CASE, court='BVerfG', file_number='1 BvL 7/14'),
+                    Ref(ref_type=RefType.CASE, court='LSG Nordrhein-Westfalen', file_number='11 KA 67/10'),
+                    Ref(ref_type=RefType.CASE, court='LSG Nordrhein-Westfalen', file_number='24 K 120/10'),
+                    Ref(ref_type=RefType.CASE, court='LSG Nordrhein-Westfalen', file_number='7 U 199/05'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='19 U 98/97'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='2 U 553/13'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='6 KA 39/17'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='6 KA 40/17'),
+                    Ref(ref_type=RefType.CASE, court='OLG Koblenz', file_number='IX ZR 103/14'),
+
+                ]
+            }
+        ])
+
+    def test_get_codes(self):
+        self.extractor.get_codes()

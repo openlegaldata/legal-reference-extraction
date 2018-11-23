@@ -1,5 +1,7 @@
-from refex.models import Ref, RefType
+import os
+from unittest import skip
 
+from refex.models import Ref, RefType
 from refex.tests import BaseRefExTest
 
 
@@ -60,11 +62,10 @@ class LawRefExTest(BaseRefExTest):
         self.assertEqual(1, len(markers), 'Invalid marker count')
         self.assertEqual('20', markers[0].references[0].section, 'Invalid section')
 
-
     def test_handle_multiple_law_refs(self):
         ref_str = '§§ 10000 Abs. 3 ZPO, 151, 153 VwGO'
 
-        actual = self.extractor.handle_multiple_law_refs(ref_str, [])
+        actual = self.extractor.handle_multiple_law_refs(self.extractor.get_law_book_codes(), ref_str, [])
         expected = [
             Ref(ref_type=RefType.LAW, book='vwgo', section='153'),
             Ref(ref_type=RefType.LAW, book='vwgo', section='151'),
@@ -94,74 +95,124 @@ class LawRefExTest(BaseRefExTest):
 
         self.assert_refs(expected)
 
-
-
-    def test_extract_law_refs_detailed(self):
-
-        expected = [
+    def test_extract2(self):
+        self.assert_refs([
             {
-                'content': 'Die Zulassung der Berufung folgt aus §§ 124 Abs. 2 Nr. 3, 124 a Abs. 1 Satz 1 VwGO wegen grundsätzlicher Bedeutung.',
+                'resource': 'law/extract2.txt',
                 'refs': [
-                    Ref(ref_type=RefType.LAW, book='vwgo', section='124a'),
                     Ref(ref_type=RefType.LAW, book='vwgo', section='124'),
+                    Ref(ref_type=RefType.LAW, book='vwgo', section='124a'),
                 ]
-            },
+            }
+        ])
+
+    def test_extract3(self):
+        self.assert_refs([
             {
-                'content': 'Die Entscheidung über die vorläufige Vollstreckbarkeit folgt '
-                           'aus § 167 VwGO i.V.m. §§ 708 Nr. 11, 711 ZPO.',
+                'resource': 'law/extract3.txt',
                 'refs': [
-                    # '§ 167 VwGO',
-                    # '§§ 708 Nr. 11, 711 ZPO'
                     Ref(ref_type=RefType.LAW, book='vwgo', section='167'),
-                    Ref(ref_type=RefType.LAW, book='zpo', section='711'),
                     Ref(ref_type=RefType.LAW, book='zpo', section='708'),
+                    Ref(ref_type=RefType.LAW, book='zpo', section='711'),
                 ]
-            },
+            }
+        ])
+
+    def test_extract4(self):
+        self.assert_refs([
             {
-                'content': 'Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO. Die außergerichtlichen Kosten des '
-                           'beigeladenen Ministeriums waren für erstattungsfähig zu erklären, da dieses einen '
-                           'Sachantrag gestellt hat und damit ein Kostenrisiko eingegangen ist '
-                           '(vgl. §§ 162 Abs. 3 ZPO, 151, 153 VwGO).',
-                'refs': [
-                    Ref(ref_type=RefType.LAW, book='vwgo', section='154'),
-                    Ref(ref_type=RefType.LAW, book='vwgo', section='153'),
-                    Ref(ref_type=RefType.LAW, book='vwgo', section='151'),
-                    Ref(ref_type=RefType.LAW, book='zpo', section='162'),
-                ]
-            },
-            {
-                'content': 'Dies gilt grundsätzlich für die planerisch ausgewiesenen und die faktischen '
-                           '(§ 34 Abs. 2 BauGB) Baugebiete nach §§ 2 bis 4 BauNVO, die Ergebnis eines typisierenden '
-                           'Ausgleichs möglicher Nutzungskonflikte sind. Setzt die Gemeinde einen entsprechenden Gebietstyp fest',
+                'resource': 'law/extract4.txt',
                 'refs': [
                     Ref(ref_type=RefType.LAW, book='baugb', section='34'),
-                    Ref(ref_type=RefType.LAW, book='baunvo', section='4'),
-                    Ref(ref_type=RefType.LAW, book='baunvo', section='3'),
                     Ref(ref_type=RefType.LAW, book='baunvo', section='2'),
+                    Ref(ref_type=RefType.LAW, book='baunvo', section='3'),
+                    Ref(ref_type=RefType.LAW, book='baunvo', section='4'),
+
                 ]
-            },
+            }
+        ])
+
+    def test_extract5(self):
+        self.assert_refs([
             {
-                'content': 'Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO. Die außergerichtlichen Kosten des'
-                           ' beigeladenen Ministeriums waren für erstattungsfähig zu erklären, da dieses einen '
-                           'Sachantrag gestellt hat und damit ein Kostenrisiko eingegangen ist '
-                           '(vgl. §§ 162 Abs. 3, 154 Abs. 3 VwGO).',
-                # 'content': 'Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO. ',
-                # 'content': '(vgl. §§ 162 Abs. 3, 154 Abs. 3 VwGO).',
-                'refs': [ # TODO main regex not working for §§ 162 Abs. 3, 154 Abs. 3 VwG
+                'resource': 'law/extract5.txt',
+                'refs': [
                     Ref(ref_type=RefType.LAW, book='vwgo', section='154'),
                     Ref(ref_type=RefType.LAW, book='vwgo', section='154'),
                     Ref(ref_type=RefType.LAW, book='vwgo', section='162'),
                 ]
-            },
+            }
+        ])
+
+    def test_extract6(self):
+        self.assert_refs([
             {
-                'content': '2. Der Klagantrag zu 2. ist unzulässig. Es handelt sich um einen Anfechtungsantrag '
-                           'nach § 42 Abs. 1 Alt. 1 VwGO bezüglich der seitens des beigeladenen Ministeriums '
-                           'getroffenen ergänzenden Abweichungsentscheidung vom 13.05.2016 in Gestalt des'
-                           ' Widerspruchsbescheides vom 14.08.2016.',
+                'resource': 'law/extract6.txt',
                 'refs': [
-                    Ref(ref_type=RefType.LAW, book='vwgo', section='42'),
+                    Ref(ref_type=RefType.LAW, book='vwgo', section='42')
                 ]
             }
-        ]
+        ])
 
-        self.assert_refs(expected)
+
+    def test_extract7(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract7.txt',
+                'refs': [
+                    Ref(ref_type=RefType.LAW, book='vwgo', section='154'),
+                    Ref(ref_type=RefType.LAW, book='vwgo', section='154'),
+                    Ref(ref_type=RefType.LAW, book='vwgo', section='162'),
+                ]
+            }
+        ])
+
+    def test_extract8(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract8.txt',
+                'refs': [
+                    # § 77 Abs. 1 Satz 1, 1. Halbsatz AsylG
+                    Ref(ref_type=RefType.LAW, book='asylg', section='77')
+                ]
+            }
+        ])
+
+    def test_extract9(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract9.txt',
+                'refs': [
+                    # §§ 52 Abs. 1; 53 Abs. 2 Nr. 1; 63 Abs. 2 StPO
+                    Ref(ref_type=RefType.LAW, book='stpo', section='52'),
+                    Ref(ref_type=RefType.LAW, book='stpo', section='53'),
+                    Ref(ref_type=RefType.LAW, book='stpo', section='63'),
+
+                ]
+            }
+        ])
+
+    @skip
+    def test_extract10(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract10.txt',
+                'refs': [
+                    # Art 12 Abs 1 GG
+                    Ref(ref_type=RefType.LAW, book='gg', section='1'),
+                    Ref(ref_type=RefType.LAW, book='gg', section='2'),
+                    Ref(ref_type=RefType.LAW, book='gg', section='3'),
+                    Ref(ref_type=RefType.LAW, book='gg', section='12'),
+
+                    # Ref(ref_type=RefType.LAW, book='stpo', section='53'),
+                    # Ref(ref_type=RefType.LAW, book='stpo', section='63'),
+
+                ]
+            }
+        ])
+
+    @skip
+    def test_citation_styles(self):
+        # TODO insert citation styles into text, random location, single and multiple occurences, test on marker text
+        with open(os.path.join(self.resource_dir, 'citation_styles.txt')) as f:
+            print([l.strip() for l in f.readlines()])

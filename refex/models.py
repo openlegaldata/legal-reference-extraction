@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class RefType(Enum):
+    """Type of referenced document"""
     CASE = 'case'
     LAW = 'law'
 
@@ -48,7 +49,9 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
 
     def __lt__(self, other):
         assert isinstance(other, Ref)
-        return self.__dict__ < other.__dict__
+        # return self.__repr__() < other.__repr__()
+        return (self.ref_type.value, self.book, self.section, self.court, self.file_number) < \
+               (other.ref_type.value, other.book, other.section, other.court, other.file_number)
 
     def __eq__(self, other):
         assert isinstance(other, Ref) # assumption for this example

@@ -18,3 +18,14 @@ class RefExTest(BaseRefExTest):
         print(new_content)
         print('Markers: %s' % markers)
 
+    def test_extract_bsg(self):
+
+        self.assert_refs([
+            {
+                'resource': 'bsg_2018-06-27.txt',
+                'refs': [
+
+                ]
+            }
+        ])
+

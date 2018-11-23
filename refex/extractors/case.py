@@ -1,10 +1,9 @@
+import collections
 import logging
+import os
 import re
-from typing import Tuple, List
+from typing import Tuple, List, Set, Match
 
-import nltk
-
-from refex.errors import RefExError, AmbiguousReferenceError
 from refex.models import RefMarker, Ref, RefType
 
 logger = logging.getLogger(__name__)
@@ -12,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 class CaseRefExtractorMixin(object):
     court_context = None
+    codes = [
+        'Sa',
+    ]
 
     def clean_text_for_tokenizer(self, text):
         """
@@ -83,13 +85,15 @@ class CaseRefExtractorMixin(object):
         ]
         state_courts = [
             'OVG',
-            'VGH'
+            'VGH',
+            'LSG',
         ]
         cities = [
             'Baden-Baden',
             'Berlin-Brbg.'
             'Wedding',
-            'Schleswig'
+            'Schleswig',
+            'Koblenz',
         ]
         city_courts = [
             'Amtsgericht', 'AG',
@@ -98,33 +102,59 @@ class CaseRefExtractorMixin(object):
             'OVG'
         ]
 
-        pattern = None
-        for court in federal_courts:
-            if pattern is None:
-                pattern = r'('
-            else:
-                pattern += '|'
+        options = []
 
-            pattern += court
+        for court in federal_courts:
+            options.append(court)
 
         for court in state_courts:
             for state in states:
-                pattern += '|' + court + ' ' + state
-                pattern += '|' + state + ' ' + court
+                options.append(court + ' ' + state)
+                options.append(state + ' ' + court)
 
         for c in city_courts:
             for s in cities:
-                pattern += '|' + c + ' ' + s
-                pattern += '|' + s + ' ' + c
-
-        pattern += ')'
-
+                options.append(c + ' ' + s)
+                options.append(s + ' ' + c)
         # logger.debug('Court regex: %s' % pattern)
 
-        return pattern
+        return r'(?P<court>' + ('|'.join(options)) + ')(\s|\.|;|,|:|\))'
 
     def get_file_number_regex(self):
-        return r'([0-9]+)\s([a-zA-Z]{,3})\s([0-9]+)/([0-9]+)'
+        """
+        Examples:
+
+        1 O 137/15
+        Au 5 K 17.31263
+
+        <chamber> <code> <number> / <year>
+
+        - chamber: zuständige Richter bzw. Spruchkörper (arabic or roman numbers)
+        - code: Registerzeichen
+        - number: laufende Nummer (numeric only)
+        - separater: / or ,
+        - year: Eingangsjahr (numeric, length = 2)
+
+        Note: Bavaria has a different order - <year>.<number>
+
+        <chamber> <code> <year>.<number>
+
+        :return:
+        """
+
+        # |' + ('|'.join(self.get_codes())) + ')' \
+
+        pattern = r'(?P<chamber>([0-9]+)[a-z]?|([IVX]+))' \
+            + '\s' \
+            + '(?P<code>[A-Za-z]{1,6})' \
+            + '(\s\(([A-Za-z]{1,6})\))?' \
+            + '(\s([A-Za-z]{1,6}))?' \
+            + '\s' \
+            + '(?P<number>[0-9]{1,6})' \
+            + '\/' \
+            + '(?P<year>[0-9]{2})'
+
+        return pattern
 
     def extract_case_ref_markers(self, content: str) -> Tuple[str, List[RefMarker]]:
         """
@@ -174,118 +204,84 @@ class CaseRefExtractorMixin(object):
         refs = []
         original = content
         text = content
-
-        # print('Before = %s'  % text)
-
-        # Clean up text; replacing all chars that can lead to wrong sentences
-        text = self.clean_text_for_tokenizer(text)
-
-        # TODO
-        from nltk.tokenize.punkt import PunktParameters
-        punkt_param = PunktParameters()
-        abbreviation = ['1', 'e', 'i']
-        punkt_param.abbrev_types = set(abbreviation)
-        # tokenizer = PunktSentenceTokenizer(punkt_param)
-
-        offset = 0
         marker_offset = 0
 
-        for start, end in nltk.PunktSentenceTokenizer().span_tokenize(text):
-            length = end - start
-            sentence = text[start:end]
-            original_sentence = original[start:end]
+        # TODO More intelligent by search only in sentences.
 
-            matches = list(re.finditer(r'\((.*?)\)', original_sentence))
+        # Find all file numbers
+        for match in re.finditer(self.get_file_number_regex(), content):  # type: Match
+            court = None
 
-            logger.debug('Sentence (matches: %i): %s' % (len(matches), sentence))
-            logger.debug('Sentence (orignal): %s' % (original_sentence))
+            # Search in surroundings for court names
+            for diff in [100, 200, 500]:
+                # TODO maybe search left first, then to the right
 
-            for m in matches:
-                # pass
-                # print('offset = %i, len = %i' % (offset, len(sentence)))
-                #
-                # print('MANGLED: ' + sentence)
-                logger.debug('Full sentence // UNMANGLED: ' + original_sentence)
+                start = max(0, match.start(0) - diff)
+                end = min(len(content), match.end(0) + diff)
+                surrounding = content[start:end]
 
-                # focus_all = original[start+m.start(1):start+m.end(1)].split(',')
-                focus_all = original_sentence[m.start(1):m.end(1)].split(',')
+                print('Surroundings: %s'  % content[start:end])
 
+                # File number position in surroundings
+                fn_pos = match.start(0) - start
+                candidates = collections.OrderedDict()
 
-                # print(m.group(1))
-                logger.debug('In parenthesis = %s' % focus_all)
+                for court_match in re.finditer(self.get_court_name_regex(), surrounding):
+                    candidate_pos = round((court_match.start(0) + court_match.end(0)) / 2)  # Position = center
+                    candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
 
-                # Split
-                for focus in focus_all:
+                    print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
 
-                    # Search for file number
-                    fns_matches = list(re.finditer(self.get_file_number_regex(), focus))
-
-                    if len(fns_matches) == 1:
-                        fn = fns_matches[0].group(0)
-                        pos = fns_matches[0].start(0)
-
-                        logger.debug('File number found: %s' % fn)
-
-                        # Find court
-                        court_name = None
-                        court_pos = 999999
-                        court_matches = list(re.finditer(self.get_court_name_regex(), original_sentence))
-
-                        if len(court_matches) == 1:
-                            # Yeah everything is fine
-                            court_name = court_matches[0].group(0)
-
-                        elif len(court_matches) > 0:
-                            # Multiple results, choose the one that is closest to file number
-                            for cm in court_matches:
-                                if court_name is None or abs(pos - cm.start()) < court_pos:
-                                    court_name = cm.group(0)
-                                    court_pos = abs(pos - cm.start())
-                        else:
-                            # no court found, guess by search query
-                            # probably the court of the current case? test for "die kammer"
-                            pass
-
-                        # Find date
-                        # TODO
-
-                        logger.debug('Filename = %s' % fn)
-                        logger.debug('Courtname = %s' % court_name)
-
-                        ref_start = start + m.start(1) + pos
-                        ref_end = ref_start + len(fn)
-
-                        if court_name is None:
-
-                            # raise )
-                            # TODO Probably same court as current case (use court context)
-                            logger.error(AmbiguousReferenceError('No court name found - FN: %s' % fn))
-                            # logger.debug('Sentence: %s' % (fn, original_sentence)))
-                            continue
-
-                        ref_ids = [
-                            Ref(ref_type=RefType.CASE, court=court_name, file_number=fn)  # TODO date field
-                        ]
-                        # TODO maintain order for case+law refs
-                        marker = RefMarker(text=focus,
-                                                  start=ref_start,
-                                                  end=ref_end,
-                                                  line=0)  # TODO line number
-                        marker.set_uuid()
-                        marker.set_references(ref_ids)
-
-                        refs.append(
-                            marker
-                        )
-
-                        content, marker_offset = marker.replace_content(content, marker_offset)
-
-                        pass
-                    elif len(fns_matches) > 1:
-                        logger.warning('More file numbers found: %s' % fns_matches)
-
-                        pass
+                    if candidate_dist not in candidates:
+                        candidates[candidate_dist] = court_match
                     else:
-                        logger.debug('No file number found')
+                        logger.warning('Court candidate with same distance exist already: %s' % court_match)
+
+                # Court is the candidate with smallest distance to file number
+                if len(candidates) > 0:
+                    court = next(iter(candidates.values())).group('court')
+                    # Stop searching if court was found with this range
+                    break
+
+            if court is None:
+                court = ''
+
+            file_number = match.group(0)
+            ref_ids = [
+                Ref(ref_type=RefType.CASE, court=court, file_number=file_number)  # TODO date field
+            ]
+            # TODO maintain order for case+law refs
+            marker = RefMarker(text=file_number,
+                               start=match.start(0),
+                               end=match.end(0),
+                               line=0)  # TODO line number
+            marker.set_uuid()
+            marker.set_references(ref_ids)
+
+            refs.append(
+                marker
+            )
+
+            content, marker_offset = marker.replace_content(content, marker_offset)
+
+            # print(match.start(0))
 
         return content, refs
+
+
+    def get_codes(self) -> Set[str]:
+        """Codes used in file numbers"""
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+        code_path = os.path.join(data_dir, 'file_number_codes.csv')
+
+        with open(code_path, 'r') as f:
+            codes = []
+            for line in f.readlines():
+                cols = line.strip().split(',', 2)
+
+                # Strip parenthesis
+                code = re.sub(r'\((.*?)\)', '', cols[0])
+
+                codes.append(code)
+
+            return set(codes)
