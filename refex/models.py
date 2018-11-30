@@ -4,6 +4,8 @@ from enum import Enum
 from functools import total_ordering
 from typing import List, Tuple
 
+from refex import MARKER_OPEN_FORMAT, MARKER_CLOSE_FORMAT
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,14 +87,14 @@ class RefMarker(object):
         self.line = line
 
     def replace_content(self, content, marker_offset) -> Tuple[str, int]:
-        marker_close = '[/ref]'
 
         start = self.start + marker_offset
         end = self.end + marker_offset
 
         # marker_open = '[ref=%i]' % key
         # Instead of key use uuid
-        marker_open = '[ref=%s]' % self.uuid
+        marker_open = MARKER_OPEN_FORMAT % self.__dict__
+        marker_close = MARKER_CLOSE_FORMAT % self.__dict__
 
         marker_offset += len(marker_open) + len(marker_close)
 
@@ -114,5 +116,14 @@ class RefMarker(object):
     def get_references(self) -> List[Ref]:
         return self.references
 
+    def get_start_position(self):
+        return self.start
+
+    def get_end_positon(self):
+        return self.end
+
+    def get_length(self):
+        return self.end - self.start
+
     def __repr__(self):
-        return 'RefMarker<%s>' % self.__dict__
+        return '<RefMarker(%s)>' % self.__dict__

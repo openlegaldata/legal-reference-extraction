@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Tuple, List
+from typing import List
 
 from refex.errors import RefExError
 from refex.models import RefMarker, Ref, RefType
@@ -34,13 +34,13 @@ class LawRefExtractorMixin(object):
     default_law_book_codes = ['AsylG', 'BGB', 'GG', 'VwGO', 'GkG', 'stbstg', 'lbo', 'ZPO', 'LVwG', 'AGVwGO SH', 'BauGB',
                                 'BauNVO', 'ZWStS', 'SbStG', 'StPO', 'TKG']
 
-    def extract_law_ref_markers(self, content: str) -> Tuple[str, List[RefMarker]]:
+    def extract_law_ref_markers(self, content: str) -> List[RefMarker]:
         """
 
         The main extraction method. Takes input content and returns content with markers and list of extracted references.
 
         :param content: Plain-text or even HTML
-        :return: Content with reference markers, List of reference markers
+        :return: List of reference markers
         """
 
         logger.debug('Extracting from: %s' % content)
@@ -77,9 +77,8 @@ class LawRefExtractorMixin(object):
             marker.set_references(references)
 
             markers.append(marker)
-            content, marker_offset = marker.replace_content(content, marker_offset)
 
-        return content, markers
+        return markers
 
     def get_law_book_codes(self):
         """Book identifiers to build regex"""
@@ -379,9 +378,9 @@ class LawRefExtractorMixin(object):
                 # print('-------')
 
         # Sort by start and replace markers
-        markers.sort(key=lambda r: r.start, reverse=False)
-        marker_offset = 0
-        for key, ref in enumerate(markers):
-            content, marker_offset = ref.replace_content(content, marker_offset)
+        # markers.sort(key=lambda r: r.start, reverse=False)
+        # marker_offset = 0
+        # for key, ref in enumerate(markers):
+        #     content, marker_offset = ref.replace_content(content, marker_offset)
 
-        return content, markers
+        return markers

@@ -2,7 +2,7 @@ import collections
 import logging
 import os
 import re
-from typing import Tuple, List, Set, Match
+from typing import List, Set, Match
 
 from refex.models import RefMarker, Ref, RefType
 
@@ -156,7 +156,7 @@ class CaseRefExtractorMixin(object):
 
         return pattern
 
-    def extract_case_ref_markers(self, content: str) -> Tuple[str, List[RefMarker]]:
+    def extract_case_ref_markers(self, content: str) -> List[RefMarker]:
         """
         BVerwG, Urteil vom 20. Februar 2013, - 10 C 23.12 -
         BVerwG, Urteil vom 27. April 2010 - 10 C 5.09 -
@@ -262,11 +262,9 @@ class CaseRefExtractorMixin(object):
                 marker
             )
 
-            content, marker_offset = marker.replace_content(content, marker_offset)
-
             # print(match.start(0))
 
-        return content, refs
+        return refs
 
 
     def get_codes(self) -> Set[str]:
