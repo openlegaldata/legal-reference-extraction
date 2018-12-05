@@ -1,6 +1,7 @@
 import os
 from unittest import skip
 
+from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
 from refex.models import Ref, RefType
 from refex.tests import BaseRefExTest
 
@@ -62,19 +63,19 @@ class LawRefExTest(BaseRefExTest):
         self.assertEqual(1, len(markers), 'Invalid marker count')
         self.assertEqual('20', markers[0].references[0].section, 'Invalid section')
 
-    def test_handle_multiple_law_refs(self):
-        ref_str = '§§ 10000 Abs. 3 ZPO, 151, 153 VwGO'
-
-        actual = self.extractor.handle_multiple_law_refs(self.extractor.get_law_book_codes(), ref_str, [])
-        expected = [
-            Ref(ref_type=RefType.LAW, book='vwgo', section='153'),
-            Ref(ref_type=RefType.LAW, book='vwgo', section='151'),
-            Ref(ref_type=RefType.LAW, book='zpo', section='10000')]
-
-        # print(actual)
-        # print(expected)
-        # self.assertNotEqual(Ref(ref_type=RefType.LAW, book='vwgo', section='153'), Ref(ref_type=RefType.LAW, book='vwgo', section='153x'))
-        self.assertListEqual(expected, actual, 'Invalid references')
+    # def test_handle_multiple_law_refs(self):
+    #     ref_str = '§§ 10000 Abs. 3 ZPO, 151, 153 VwGO'
+    #
+    #     actual = self.extractor.e(self.extractor.get_law_book_codes(), ref_str, [])
+    #     expected = [
+    #         Ref(ref_type=RefType.LAW, book='vwgo', section='153'),
+    #         Ref(ref_type=RefType.LAW, book='vwgo', section='151'),
+    #         Ref(ref_type=RefType.LAW, book='zpo', section='10000')]
+    #
+    #     # print(actual)
+    #     # print(expected)
+    #     # self.assertNotEqual(Ref(ref_type=RefType.LAW, book='vwgo', section='153'), Ref(ref_type=RefType.LAW, book='vwgo', section='153x'))
+    #     self.assertListEqual(expected, actual, 'Invalid references')
 
     def test_timeout_ref(self):
         expected = [
@@ -212,7 +213,39 @@ class LawRefExTest(BaseRefExTest):
         ])
 
     @skip
+    def test_extract11(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract11.txt',
+                'refs': [
+                    # §§ 556d, 556g BGB
+                    Ref(ref_type=RefType.LAW, book='bgb', section='556d'),
+                    Ref(ref_type=RefType.LAW, book='bgb', section='556e'),
+
+                ]
+            }
+        ])
+
     def test_citation_styles(self):
         # TODO insert citation styles into text, random location, single and multiple occurences, test on marker text
         with open(os.path.join(self.resource_dir, 'citation_styles.txt')) as f:
-            print([l.strip() for l in f.readlines()])
+            x = DivideAndConquerLawRefExtractorMixin()
+
+            content = f.read()
+            # print([l.strip() for l in f.readlines()])
+
+            markers = x.extract_law_ref_markers(content)
+
+            c = self.extractor.replace_content(content, markers)
+
+
+            print('-----\nOUT:\n %s' % c)
+
+
+            print('\n\n\nIN:\n %s' % content)
+
+
+            self.assertEqual('', '')
+
+
+

@@ -112,6 +112,8 @@ class LawRefExtractorMixin(object):
         if group_name:
             raise ValueError('group_name=True not supported')
 
+        logger.debug('Law book ref with %i books' % len(law_book_codes))
+
         return '|'.join([code.lower() if to_lower else code for code in law_book_codes])
 
     def get_law_ref_regex(self, law_book_codes) -> str:
@@ -137,7 +139,7 @@ class LawRefExtractorMixin(object):
                  + self.get_law_book_ref_regex(law_book_codes, optional=False, group_name=False) + ')+'
         regex += '\s(' + self.get_law_book_ref_regex(law_book_codes, optional=False, group_name=False) + ')'
 
-        logger.debug('Regex: %s' % regex)
+        # logger.debug('Regex: %s' % regex)
 
         return regex
 
@@ -250,7 +252,8 @@ class LawRefExtractorMixin(object):
             elif book is not None:
                 id_tmp.book = book
             else:
-                raise RefExError('Cannot determine law book (Should never happen): %s' % ref_str)
+                # raise RefExError('Cannot determine law book (Should never happen): %s' % ref_str)
+                continue
 
             law_ids.append(id_tmp)
 

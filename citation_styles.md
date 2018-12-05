@@ -23,7 +23,8 @@ The following citation styles are supported and (should be) check with unit test
 § 6 Abs. 5 Satz 1 LBO
 §§ 80 a Abs. 3, 80 Abs. 5 VwGO
 § 1 Satz 2 SbStG
-§ 2 ZWStS
+§ 2 BGB
+§ 2 Nr 1 BGB
 § 6 Abs. 2 S. 2 ZWStS
 
 ```
@@ -31,5 +32,6 @@ The following citation styles are supported and (should be) check with unit test
 ## Case Law
 
 ```
+Um der daraus erwachsenden Gefahr von Fehlentscheidungen des Verbrauchers zu begegnen, wird ihm ein Widerrufsrecht eingeräumt (vgl. BGH, Urteil vom 19. März 2003 - VIII ZR 295/01, BGHZ 154, 239, 242 f. zu § 3 FernAbsG; Urteil vom 30. November 2010 - VIII ZR 337/09, BGHZ 187, 268 Rn. 23; Urteil vom 12. November 2015 - I ZR 168/14, WM 2016, 968 Rn. 30)
 
 ```

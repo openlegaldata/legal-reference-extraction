@@ -19,6 +19,7 @@ class BaseRef(object):
     ref_type = None  # type: RefType
 
     def __init__(self, **kwargs):
+
         self.__dict__.update(kwargs)
 
     def __repr__(self):
@@ -73,7 +74,7 @@ class RefMarker(object):
     uuid = ''
     start = 0
     end = 0
-    line = ''
+    line = ''  # Line cannot be used with HTML content
     references = []  # type: List<Ref>
 
     # Set by django
@@ -99,13 +100,19 @@ class RefMarker(object):
         marker_offset += len(marker_open) + len(marker_close)
 
         # double replacements
+        # alternative: content[start:end]
         content = content[:start] \
                   + marker_open \
-                  + content[start:end] \
+                  + self.text \
                   + marker_close \
                   + content[end:]
 
         return content, marker_offset
+
+    def replace_content_with_mask(self, content):
+        mask = '_' * self.get_length() # length of marker
+
+        return content[:self.start] + mask + content[self.end:]
 
     def set_uuid(self):
         self.uuid = uuid.uuid4()
