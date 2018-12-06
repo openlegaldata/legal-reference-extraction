@@ -212,7 +212,7 @@ class LawRefExTest(BaseRefExTest):
             }
         ])
 
-    @skip
+    # @skip
     def test_extract11(self):
         self.assert_refs([
             {
@@ -221,6 +221,21 @@ class LawRefExTest(BaseRefExTest):
                     # §§ 556d, 556g BGB
                     Ref(ref_type=RefType.LAW, book='bgb', section='556d'),
                     Ref(ref_type=RefType.LAW, book='bgb', section='556e'),
+
+                ]
+            }
+        ])
+
+    def test_extract12(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract12.txt',
+                'refs': [
+                    # §§ 1, 2 Abs. 2, 3, 10 Abs. 1 Nr. 1 BGB
+                    Ref(ref_type=RefType.LAW, book='bgb', section='1'),
+                    Ref(ref_type=RefType.LAW, book='bgb', section='2'),
+                    Ref(ref_type=RefType.LAW, book='bgb', section='3'),
+                    Ref(ref_type=RefType.LAW, book='bgb', section='10'),
 
                 ]
             }
@@ -238,14 +253,16 @@ class LawRefExTest(BaseRefExTest):
 
             c = self.extractor.replace_content(content, markers)
 
-
             print('-----\nOUT:\n %s' % c)
-
 
             print('\n\n\nIN:\n %s' % content)
 
-
             self.assertEqual('', '')
+
+            for marker in markers:
+                for ref in marker.get_references():
+                    print(ref)
+            # refs = [m.get_references() for m in markers]
 
 
 

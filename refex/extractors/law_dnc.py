@@ -34,12 +34,6 @@ class DivideAndConquerLawRefExtractorMixin(object):
     default_law_book_codes = ['AsylG', 'BGB', 'GG', 'VwGO', 'GkG', 'stbstg', 'lbo', 'ZPO', 'LVwG', 'AGVwGO SH', 'BauGB',
                                 'BauNVO', 'ZWStS', 'SbStG', 'StPO', 'TKG']
 
-    def clean_book(self, book):
-        return book.strip().lower()
-
-    def clean_section(self, sect):
-        return sect.replace(' ', '').lower()
-
     def extract_law_ref_markers(self, content: str) -> List[RefMarker]:
         """
 
@@ -74,58 +68,59 @@ class DivideAndConquerLawRefExtractorMixin(object):
             refs_waiting_for_book = []
 
             # print('>> ' + marker_text)
+            logger.debug('Multi Match with: %s' % marker_text)
+
+            # Books by position in text
+            book_positions = {}  # Can we ensure that book_position is in order?
+            for book_match in re.finditer(book_pattern, marker_text):
+                book_positions[book_match.start()] = book_match.group(0)
+
+            # We cannot work without knowing the book
+            if len(book_positions) < 0:
+                logger.error('No book found in marker text: %s' % marker_text)
+                continue
 
             # Extract references from marker text
-            pattern = r'(?P<delimiter>§§|,|;|und|bis)\s?'
-            pattern += '((?P<sect>([0-9]+)(\s?([a-z]\s|,)?))\s?'  # TODO test 11
-            pattern += '((\s|,|;))?)'  # Use \s|, to avoid matching "bis" and "Abs", ...
-            pattern += '(\s?(Abs\.|Abs)\s?([0-9]+))*'
-            pattern += '(\s?(S\.|Satz|Halbsatz)\s?([0-9]+))*'
-            pattern += '(\s?(f\.|ff\.))*'
-            pattern += '\s?(?:(?P<book>' + book_pattern + '))?'
+            # - find for <separator §§|,|..> + <section>
+            # - ignore Abs, Nr, ...
+            # - corresponding book is the closest to right
+            a = '([0-9]+)\s(?=bis|und)'
+            b = '([0-9]+)\s?[a-z]'
+            c = '([0-9]+)'
+            pattern = '(?P<sep>§§|,|;|und|bis)\s?(?P<sect>(' + a + '|' + b + '|' + c + '))'
 
-            # Iterate over reference matches
             for ref_match in re.finditer(re.compile(pattern), marker_text):
-                book = ref_match.group('book')
-                sect = self.clean_section(ref_match.group('sect'))
-                # print(ref_match.group(0))
+                sect = ref_match.group('sect')
+
+                logger.debug('Found ref: %s' % ref_match.group())
+
+                if len(book_positions) == 1:
+                    book = next(iter(book_positions.values()))
+                else:
+                    book = None
+                    pos = ref_match.start()
+
+                    for bp in book_positions:
+                        if bp > pos:
+                            # Take the first book that is right to section position
+                            book = book_positions[bp]
+                            break
+
+                if book is None:
+                    logger.error('No book after reference found: %s - %s' % (ref_match.group(0), marker_text))
+                    continue
 
                 # Check for 'between' (range sections)
-                if ref_match.group('delimiter') == 'bis':
-                    from_sect = refs_waiting_for_book[-1].section  # last section
+                if ref_match.group('sep') == 'bis' and len(refs) > 0:
+                    from_sect = refs[-1].section  # last section
 
                     # Both sections should be integers (no a-z sections)
                     if sect.isdigit() and from_sect.isdigit():
                         for between_sect in range(int(from_sect) + 1, int(sect)):
                             # Add to queue
-                            refs_waiting_for_book.append(Ref(ref_type=RefType.LAW, section=str(between_sect)))
+                            refs.append(Ref.init_law(book=book, section=str(between_sect)))
 
-
-                if book is None:
-                    # Add to queue
-                    refs_waiting_for_book.append(Ref(ref_type=RefType.LAW, section=sect))
-                else:
-                    # Add to finished refs
-                    book = self.clean_book(book)
-                    refs.append(Ref(ref_type=RefType.LAW, section=sect, book=book))
-
-                    # Set book for queue
-                    for ref in refs_waiting_for_book:
-                        ref.book = book
-                        refs.append(ref)
-                    refs_waiting_for_book = []
-
-                # print('%s      Book: %s / %s' % (ref_match.group(0), book, sect))
-
-            # Check for remaining refs
-            if len(refs_waiting_for_book) > 0:
-                # Take any book in marker text
-                res = re.search('(' + book_pattern + ')', marker_text)
-                if res:
-                    # Set book for all refs in queue
-                    for ref in refs_waiting_for_book:
-                        ref.book = self.clean_book(res.group(0))
-                        refs.append(ref)
+                refs.append(Ref.init_law(book=book, section=sect))
 
             # Prepare marker
             marker = RefMarker(text=marker_text,
@@ -144,7 +139,8 @@ class DivideAndConquerLawRefExtractorMixin(object):
                 logger.warning('No references found in marker: %s ' % marker_text)
 
 
-        ##############
+        # Single refs
+
         sect_pattern = '(?P<sect>([0-9]+)(\s?[a-z]?))'
         patterns = [
             # § 3 BGB, § 3d BGB, § 83 d BGB
@@ -162,11 +158,11 @@ class DivideAndConquerLawRefExtractorMixin(object):
             for marker_match in re.finditer(re.compile(pattern), content):  # All matches
                 marker_text = marker_match.group(0)
                 if 'book' in marker_match.groupdict():
-                    book = self.clean_book(marker_match.group('book'))
+                    book = Ref.clean_book(marker_match.group('book'))
                 else:
                     book = None
 
-                ref = Ref(ref_type=RefType.LAW, section=self.clean_section(marker_match.group('sect')))
+                ref = Ref.init_law(section=marker_match.group('sect'), book=None)
 
                 marker = RefMarker(text=marker_text,
                                    start=marker_match.start(),

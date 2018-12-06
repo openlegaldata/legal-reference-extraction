@@ -22,9 +22,6 @@ class BaseRef(object):
 
         self.__dict__.update(kwargs)
 
-    def __repr__(self):
-        return 'Ref<%s>' % self.__dict__
-        # return 'Ref<%s>' % sorted(self.__dict__.items(), key=lambda x: x[0])
 
     def __hash__(self):
         return hash(self.__repr__())
@@ -36,11 +33,30 @@ class CaseRefMixin(BaseRef):
     court = ''
     date = ''
 
+    def get_case_repr(self):
+        return '%s/%s/%s' % (self.court, self.file_number, self.date)
 
 class LawRefMixin(BaseRef):
     book = ''  # type: str
     section = ''  # type: str
     sentence = '' # type: str
+
+    @staticmethod
+    def init_law(book, section):
+        return Ref(ref_type=RefType.LAW, book=LawRefMixin.clean_book(book), section=LawRefMixin.clean_section(section))
+
+    @staticmethod
+    def clean_book(book):
+        if book is None:
+            return None
+        return book.strip().lower()
+
+    @staticmethod
+    def clean_section(sect):
+        return sect.replace(' ', '').lower()
+
+    def get_law_repr(self):
+        return '%s/%s' % (self.book, self.section)
 
 
 @total_ordering
@@ -59,6 +75,19 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
     def __eq__(self, other):
         assert isinstance(other, Ref) # assumption for this example
         return self.__dict__ == other.__dict__
+
+
+    def __repr__(self):
+        if self.ref_type == RefType.LAW:
+            data = self.get_law_repr()
+        elif self.ref_type == RefType.CASE:
+            data = self.get_case_repr()
+        else:
+            raise ValueError('Unsupported ref type: %s' % self.ref_type)
+
+        return '<Ref(%s: %s)>' % (self.ref_type.value, data)
+        # return 'Ref<%s>' % self.__dict__
+        # return 'Ref<%s>' % sorted(self.__dict__.items(), key=lambda x: x[0])
 
 
 class RefMarker(object):
