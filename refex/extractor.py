@@ -50,16 +50,16 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
         content = self.remove_markers(content_html)
 
         if self.do_law_refs:
-            refs = self.extract_law_ref_markers(content)
-            reference_markers.extend(refs)
+            markers = self.extract_law_ref_markers(content)
+            reference_markers.extend(markers)
 
-            logger.debug('Extracted law refs: %i' % len(refs))
+            logger.debug('Extracted law ref markers: %i' % len(markers))
 
         if self.do_case_refs:
-            refs = self.extract_case_ref_markers(content)
-            reference_markers.extend(refs)
+            markers = self.extract_case_ref_markers(content)
+            reference_markers.extend(markers)
 
-            logger.debug('Extracted case refs: %i' % len(refs))
+            logger.debug('Extracted case ref markers: %i' % len(markers))
 
         # Add markers to content
         content_with_markers = self.replace_content(content, reference_markers)

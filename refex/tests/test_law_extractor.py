@@ -241,6 +241,21 @@ class LawRefExTest(BaseRefExTest):
             }
         ])
 
+    def test_extract13(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract13.txt',
+                'refs': [
+                    # § 3d AsylG, aber auch § 123 VwGO. ... auch §§ 3, 3b AsylG
+                    Ref(ref_type=RefType.LAW, book='asylg', section='3'),
+                    Ref(ref_type=RefType.LAW, book='asylg', section='3b'),
+                    Ref(ref_type=RefType.LAW, book='asylg', section='3d'),
+                    Ref(ref_type=RefType.LAW, book='vwgo', section='123'),
+
+                ]
+            }
+        ])
+
     def test_citation_styles(self):
         # TODO insert citation styles into text, random location, single and multiple occurences, test on marker text
         with open(os.path.join(self.resource_dir, 'citation_styles.txt')) as f:
