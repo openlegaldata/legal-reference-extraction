@@ -220,7 +220,7 @@ class CaseRefExtractorMixin(object):
                 end = min(len(content), match.end(0) + diff)
                 surrounding = content[start:end]
 
-                print('Surroundings: %s'  % content[start:end])
+                # print('Surroundings: %s'  % content[start:end])
 
                 # File number position in surroundings
                 fn_pos = match.start(0) - start
@@ -230,7 +230,7 @@ class CaseRefExtractorMixin(object):
                     candidate_pos = round((court_match.start(0) + court_match.end(0)) / 2)  # Position = center
                     candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
 
-                    print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
+                    # print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
 
                     if candidate_dist not in candidates:
                         candidates[candidate_dist] = court_match

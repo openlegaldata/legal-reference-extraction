@@ -33,9 +33,9 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
 
         for i, marker in enumerate(sorted_markers):
             # Check on overlaps
-            if i > 0 and sorted_markers[i - 1].get_end_positon() >= marker.get_start_position():
+            if i > 0 and sorted_markers[i - 1].get_end_position() >= marker.get_start_position():
                 raise ValueError('Marker overlaps with previous marker: %s' % marker)
-            elif i + 1 < len(sorted_markers) and sorted_markers[i + 1].get_start_position() <= marker.get_end_positon():
+            elif i + 1 < len(sorted_markers) and sorted_markers[i + 1].get_start_position() <= marker.get_end_position():
                 raise ValueError('Marker overlaps with next marker: %s' % marker)
             else:
                 # Everything fine, replace content

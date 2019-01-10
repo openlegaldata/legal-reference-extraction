@@ -155,7 +155,7 @@ class RefMarker(object):
     def get_start_position(self):
         return self.start
 
-    def get_end_positon(self):
+    def get_end_position(self):
         return self.end
 
     def get_length(self):
