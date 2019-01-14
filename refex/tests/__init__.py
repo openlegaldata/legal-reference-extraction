@@ -15,6 +15,13 @@ class BaseRefExTest(TestCase):
 
     extractor = RefExtractor()
 
+    def get_book_codes_from_file(self, file_name='law_book_codes.txt'):
+        app_dir = os.path.dirname(os.path.dirname(__file__))
+
+        with open(os.path.join(app_dir, 'data', file_name)) as f:
+            return [line.strip() for line in f.readlines()]
+
+
     def assert_refs(self, fixtures):
         for i, test in enumerate(fixtures):
             if 'resource' in test and 'content' not in test:

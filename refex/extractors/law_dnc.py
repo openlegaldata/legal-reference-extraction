@@ -64,6 +64,8 @@ class DivideAndConquerLawRefExtractorMixin(object):
 
         # Any content
         any_content = '(\s?([0-9]{1,5}(\.{,1})|[a-z]{1,2}|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s))*'
+        any_content = '([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*'
+
 
         multi_pattern = '§§ (\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s'+ book_pattern + ')+\s(' + book_pattern + ')' + book_look_ahead
 
@@ -159,6 +161,9 @@ class DivideAndConquerLawRefExtractorMixin(object):
         markers_waiting_for_book = []  # type: List[RefMarker]
 
         for pattern in patterns:  # Iterate over all patterns
+
+            # logger.debug('Pattern: %s' % pattern)
+
             for marker_match in re.finditer(re.compile(pattern), content):  # All matches
                 marker_text = marker_match.group(0)
                 if 'book' in marker_match.groupdict():
@@ -249,7 +254,14 @@ class DivideAndConquerLawRefExtractorMixin(object):
 
         logger.debug('Law book ref with %i books' % len(law_book_codes))
 
-        return '|'.join([code.lower() if to_lower else code for code in law_book_codes])
+        # return '|'.join([code.lower() if to_lower else code for code in law_book_codes])
+
+        # alternative regex:
+        # start with capital char
+        # optional, max length chars
+        # ends with V,G,O or B
+        # optional space + roman numbers (e.g. SGB IX)
+        return '([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?'
 
     def extract_law_ref_markers_with_context(self, content):
         """

@@ -1,5 +1,6 @@
 from unittest import skip
 
+from refex.models import RefType, Ref
 from refex.tests import BaseRefExTest
 
 
@@ -36,3 +37,15 @@ class RefExTest(BaseRefExTest):
             }
         ])
 
+    def test_catastrophic_backtracking(self):
+        self.extractor.law_book_codes = self.get_book_codes_from_file()
+        self.assert_refs([
+            {
+                'resource': 'bgh_2018-08-16.html',
+                'refs': [
+                    # catastrophic_backtracking
+                    Ref(ref_type=RefType.LAW, book='zpo', section='253'),
+                    # Ref(ref_type=RefType.CASE, file_number='III ZR 126/15')
+                ]
+            }
+        ])

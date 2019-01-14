@@ -1,4 +1,5 @@
 import os
+import re
 from unittest import skip
 
 from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
@@ -269,7 +270,6 @@ class LawRefExTest(BaseRefExTest):
             }
         ])
 
-
     def test_citation_styles(self):
         # TODO insert citation styles into text, random location, single and multiple occurences, test on marker text
         with open(os.path.join(self.resource_dir, 'citation_styles.txt')) as f:
@@ -294,4 +294,10 @@ class LawRefExTest(BaseRefExTest):
             # refs = [m.get_references() for m in markers]
 
 
+    @skip
+    def test_alternative_law_book_regex(self):
+        pattern = re.compile(r'([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]*)(V|G|O|B)')
+        for code in self.get_book_codes_from_file() + ['SGB X', 'SGG', 'SGB IV']:
+            if not pattern.search(code):
+                print(code)
 
