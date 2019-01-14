@@ -135,9 +135,14 @@ class CaseRefExtractorMixin(object):
         - separater: / or ,
         - year: Eingangsjahr (numeric, length = 2)
 
-        Note: Bavaria has a different order - <year>.<number>
+        Note:
 
-        <chamber> <code> <year>.<number>
+        TODO Special cases
+
+        BSG: B 6 KA 45/13 R, S 8 AL 144/12
+        Bavaria has a different order - <year>.<number>
+        - <chamber> <code> <year>.<number>
+
 
         :return:
         """

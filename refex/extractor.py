@@ -2,6 +2,7 @@ import logging
 import re
 from typing import List
 
+from refex.errors import RefExError
 from refex.extractors.case import CaseRefExtractorMixin
 from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
 from refex.models import RefMarker
@@ -34,9 +35,9 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
         for i, marker in enumerate(sorted_markers):
             # Check on overlaps
             if i > 0 and sorted_markers[i - 1].get_end_position() >= marker.get_start_position():
-                raise ValueError('Marker overlaps with previous marker: %s' % marker)
+                raise RefExError('Marker overlaps with previous marker: %s' % marker)
             elif i + 1 < len(sorted_markers) and sorted_markers[i + 1].get_start_position() <= marker.get_end_position():
-                raise ValueError('Marker overlaps with next marker: %s' % marker)
+                raise RefExError('Marker overlaps with next marker: %s' % marker)
             else:
                 # Everything fine, replace content
                 content_with_markers, marker_offset = marker.replace_content(content_with_markers, marker_offset)

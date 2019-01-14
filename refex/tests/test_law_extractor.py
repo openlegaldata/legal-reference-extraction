@@ -256,6 +256,20 @@ class LawRefExTest(BaseRefExTest):
             }
         ])
 
+    def test_extract14(self):
+        self.assert_refs([
+            {
+                'resource': 'law/extract14.txt',
+                'refs': [
+                    # duplicated book code parts
+                    Ref(ref_type=RefType.LAW, book='sgg', section='136'),
+                    Ref(ref_type=RefType.LAW, book='sgb x', section='48'),
+
+                ]
+            }
+        ])
+
+
     def test_citation_styles(self):
         # TODO insert citation styles into text, random location, single and multiple occurences, test on marker text
         with open(os.path.join(self.resource_dir, 'citation_styles.txt')) as f:

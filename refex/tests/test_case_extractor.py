@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+from unittest import skip
 
 from refex.models import RefType, Ref
 from refex.tests import BaseRefExTest
@@ -113,6 +114,7 @@ class CaseRefExTest(BaseRefExTest):
 
         print(pattern)
 
+    @skip
     def test_extract(self):
         self.assert_refs([
             {
@@ -141,6 +143,7 @@ class CaseRefExTest(BaseRefExTest):
             }
         ])
 
+    @skip
     def test_extract_html(self):
         self.assert_refs([
             {
