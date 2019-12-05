@@ -57,17 +57,20 @@ class DivideAndConquerLawRefExtractorMixin(object):
         # Init
         markers = []
 
+        # Replace special characters if working with html
+        if is_html:
+            sectionSign = '&#167;'
+            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|&rdquo;|\'|&lt;|&gt;|&amp;'
+        else:
+            sectionSign = '§'
+
+
+
         book_look_ahead = '(?=' + self.word_delimiter + ')'  # book code should be followed by a word separator, e.g. space.
 
         # Single ref
         book_pattern = self.get_law_book_ref_regex(self.get_law_book_codes())
 
-
-        #replace § if working with html
-        if is_html:
-            sectionSign = '&#167;'
-        else:
-            sectionSign = '§'
 
 
         # Any content
@@ -75,7 +78,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
         any_content = '([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*'
 
 
-        multi_pattern = sectionSign + sectionSign + '(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s'+ book_pattern + ')+\s(' + book_pattern + ')' + book_look_ahead
+        multi_pattern = sectionSign + sectionSign + ' (\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s'+ book_pattern + ')+\s(' + book_pattern + ')' + book_look_ahead
 
 
 
