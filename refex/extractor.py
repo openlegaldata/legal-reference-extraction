@@ -44,9 +44,7 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
 
         return content_with_markers
 
-    def extract(self, content_html: str):
-        #select if imput is html or not
-        is_html = True
+    def extract(self, content_html: str, is_html: bool=False):
 
         reference_markers = []  # type: List[RefMarker]
 
