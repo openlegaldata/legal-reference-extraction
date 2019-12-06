@@ -60,7 +60,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
         # Replace special characters if working with html
         if is_html:
             sectionSign = '&#167;'
-            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|&rdquo;|\'|&lt;|&gt;|&amp;'
+            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|&#8221;|\&#8216;|\&#8217;|&#60;|&#62;|&#38;'
         else:
             sectionSign = '§'
 
