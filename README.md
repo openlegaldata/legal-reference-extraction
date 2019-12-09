@@ -1,5 +1,7 @@
 # Legal Reference Extraction
 
+[![Build Status](https://travis-ci.org/openlegaldata/legal-reference-extraction.svg?branch=master)](https://travis-ci.org/openlegaldata/legal-reference-extraction)
+
 Toolkit for extracting references from legal documents. References to law sections and case files are supported.
 
 Supported countries:
