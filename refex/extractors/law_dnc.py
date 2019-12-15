@@ -37,7 +37,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
     # All text non-word symbols
     word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|"|\'|<|>|&'
 
-    def extract_law_ref_markers(self, content: str, is_html: bool) -> List[RefMarker]:
+    def extract_law_ref_markers(self, content: str, is_html: bool=False) -> List[RefMarker]:
         """
 
         The main extraction method. Takes input content and returns content with markers and list of extracted references.
@@ -60,9 +60,10 @@ class DivideAndConquerLawRefExtractorMixin(object):
         # Replace special characters if working with html
         if is_html:
             sectionSign = '&#167;'
-            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|&#8221;|\&#8216;|\&#8217;|&#60;|&#62;|&#38;|&rdquo;|\&lsquo;|\&rsquo;|&lt;|&gt;|&amp;'
+            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|&#8221;|\&#8216;|\&#8217;|&#60;|&#62;|&#38;|&rdquo;|\&lsquo;|\&rsquo;|&lt;|&gt;|&amp;|"|\'|<|>|&'
         else:
             sectionSign = '§'
+            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|"|\'|<|>|&'
 
 
 
