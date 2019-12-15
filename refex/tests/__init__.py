@@ -22,13 +22,13 @@ class BaseRefExTest(TestCase):
             return [line.strip() for line in f.readlines()]
 
 
-    def assert_refs(self, fixtures):
+    def assert_refs(self, fixtures, is_html: bool=False):
         for i, test in enumerate(fixtures):
             if 'resource' in test and 'content' not in test:
                 with open(os.path.join(self.resource_dir, test['resource'])) as f:
                     test['content'] = ''.join(f.readlines())
 
-            new_content, markers = self.extractor.extract(test['content'])
+            new_content, markers = self.extractor.extract(test['content'], is_html)
 
             ref_ids = []
             for ref in markers:  # type: RefMarker
