@@ -37,7 +37,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
     # All text non-word symbols
     word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|"|\'|<|>|&'
 
-    def extract_law_ref_markers(self, content: str) -> List[RefMarker]:
+    def extract_law_ref_markers(self, content: str, is_html: bool=False) -> List[RefMarker]:
         """
 
         The main extraction method. Takes input content and returns content with markers and list of extracted references.
@@ -57,17 +57,32 @@ class DivideAndConquerLawRefExtractorMixin(object):
         # Init
         markers = []
 
+        # Replace special characters if working with html
+        if is_html:
+            sectionSign = '&#167;'
+            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|&#8221;|\&#8216;|\&#8217;|&#60;|&#62;|&#38;|&rdquo;|\&lsquo;|\&rsquo;|&lt;|&gt;|&amp;|"|\'|<|>|&'
+        else:
+            sectionSign = '§'
+            self.word_delimiter = '\s|\.|,|;|:|!|\?|\(|\)|\[|\]|"|\'|<|>|&'
+
+
+
         book_look_ahead = '(?=' + self.word_delimiter + ')'  # book code should be followed by a word separator, e.g. space.
 
         # Single ref
         book_pattern = self.get_law_book_ref_regex(self.get_law_book_codes())
+
+
 
         # Any content
         any_content = '(\s?([0-9]{1,5}(\.{,1})|[a-z]{1,2}|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s))*'
         any_content = '([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*'
 
 
-        multi_pattern = '§§ (\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s'+ book_pattern + ')+\s(' + book_pattern + ')' + book_look_ahead
+        multi_pattern = sectionSign + sectionSign + ' (\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s'+ book_pattern + ')+\s(' + book_pattern + ')' + book_look_ahead
+
+
+
 
         for marker_match in re.finditer(re.compile(multi_pattern), content):  # All matches
             marker_text = marker_match.group(0)
@@ -94,7 +109,8 @@ class DivideAndConquerLawRefExtractorMixin(object):
             a = '([0-9]+)\s(?=bis|und)'
             b = '([0-9]+)\s?[a-z]'
             c = '([0-9]+)'
-            pattern = '(?P<sep>§§|,|;|und|bis)\s?(?P<sect>(' + a + '|' + b + '|' + c + '))'
+            pattern = '(?P<sep>' + sectionSign + sectionSign + '|,|;|und|bis)\s?(?P<sect>(' + a + '|' + b + '|' + c + '))'
+
 
             for ref_match in re.finditer(re.compile(pattern), marker_text):
                 sect = ref_match.group('sect')
@@ -150,14 +166,15 @@ class DivideAndConquerLawRefExtractorMixin(object):
         sect_pattern = '(?P<sect>([0-9]+)(\s?[a-z]?))'
         patterns = [
             # § 3 BGB, § 3d BGB, § 83 d BGB
-            '§ ' + sect_pattern + ' (?P<book>' + book_pattern + ')' + book_look_ahead,
+            sectionSign + ' ' + sect_pattern + ' (?P<book>' + book_pattern + ')' + book_look_ahead,
             # Abs OR Nr
             # § 42 Abs. 1 Alt. 1 VwGO
-            '§ ' + sect_pattern + ' Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>' + book_pattern + ')' + book_look_ahead,
-            '§ (?P<sect>([0-9]+)(\s?[a-z]?)) ' + any_content + ' (?P<book>(' + book_pattern + '))' + book_look_ahead,
-            '§ (?P<sect>([0-9]+)(\s?[a-z]?)) ' + any_content + ' (?P<next_book>(i\.V\.m\.|iVm))' + book_look_ahead,
+            sectionSign + ' ' + sect_pattern + ' Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>' + book_pattern + ')' + book_look_ahead,
+            sectionSign + ' (?P<sect>([0-9]+)(\s?[a-z]?)) ' + any_content + ' (?P<book>(' + book_pattern + '))' + book_look_ahead,
+            sectionSign + ' (?P<sect>([0-9]+)(\s?[a-z]?)) ' + any_content + ' (?P<next_book>(i\.V\.m\.|iVm))' + book_look_ahead,
 
         ]
+
         markers_waiting_for_book = []  # type: List[RefMarker]
 
         for pattern in patterns:  # Iterate over all patterns

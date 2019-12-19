@@ -63,11 +63,12 @@ class CaseRefExtractorMixin(object):
             'Bundespatentgericht', 'BPatG',
             'Truppendienstgericht Nord', 'TDG Nord',
             'Truppendienstgericht Süd', 'TDG Süd',
-            'EUGH',
+            'EUGH', 'Truppendienstgericht S&#252;d',
+            'TDG S&#252;d',
         ]
         states = [
             'Berlin',
-            'Baden-Württemberg', 'BW',
+            'Baden-Württemberg', 'BW', 'Baden-W&#252;rttemberg',
             'Brandenburg', 'Brandenburgisches',
             'Bremen',
             'Hamburg',
@@ -81,7 +82,7 @@ class CaseRefExtractorMixin(object):
             'Sachsen',
             'Sachsen-Anhalt',
             'Schleswig-Holstein', 'Schl.-Holst.', 'SH',
-            'Thüringen'
+            'Thüringen', 'Th&#252;ringen',
         ]
         state_courts = [
             'OVG',

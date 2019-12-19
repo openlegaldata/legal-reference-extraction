@@ -16,7 +16,7 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
     Reference marker format: [ref=UUID]...[/ref]
 
     """
-
+		
     do_law_refs = True
     do_case_refs = True
 
@@ -44,14 +44,15 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
 
         return content_with_markers
 
-    def extract(self, content_html: str):
+    def extract(self, content_html: str, is_html: bool=False):
+
         reference_markers = []  # type: List[RefMarker]
 
         # Remove all reference markers (HTML or MarkDown)
         content = self.remove_markers(content_html)
 
         if self.do_law_refs:
-            markers = self.extract_law_ref_markers(content)
+            markers = self.extract_law_ref_markers(content, is_html)
             reference_markers.extend(markers)
 
             logger.debug('Extracted law ref markers: %i' % len(markers))
