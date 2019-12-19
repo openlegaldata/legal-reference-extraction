@@ -35,7 +35,7 @@ setup(
     author_email='hello@openlegaldata.io',
     packages=find_packages(),
     install_requires=[
-        'nltk==3.2.2',
+        'nltk==3.4.5',
         # 'Markdown==2.6.11',
         # 'lxml==3.7.3',
         # 'beautifulsoup4==4.6.0',
