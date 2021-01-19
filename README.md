@@ -28,6 +28,10 @@ extractor = RefExtractor()
 content, markers = extractor.extract('<p>Ein Satz mit § 3b AsylG, und weiteren Sachen.</p>')
 ```
 
+## See also
+
+- [CiteURL supports citations to U.S. court decisions and U.S. code](https://github.com/raindrum/citeurl)
+
 ## License
 
 MIT
