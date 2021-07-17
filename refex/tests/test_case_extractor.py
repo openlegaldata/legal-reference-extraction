@@ -278,3 +278,13 @@ class CaseRefExTest(BaseRefExTest):
 
     def test_get_codes(self):
         self.extractor.get_codes()
+
+    def test_codes_are_correctly_extracted(self):
+        """If a code contains some extra information in brackets (e.g. 'W (pat)')
+        this part is not being returned, since it is not in the 'code' capture group
+        of the case regex."""
+        codes = self.extractor.get_codes()
+        self.assertIn("Ks", codes)
+        self.assertIn("AnwSt", codes)
+        self.assertIn("W", codes)
+        self.assertIn("REMiet", codes)

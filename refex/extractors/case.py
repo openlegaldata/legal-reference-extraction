@@ -316,7 +316,7 @@ class CaseRefExtractorMixin(object):
                 cols = line.strip().split(",", 2)
 
                 # Strip parenthesis
-                code = re.sub(r"\((.*?)\)", "", cols[0])
+                code = re.sub(r"\s\((.*?)\)", "", cols[0])
 
                 codes.append(code)
 
