@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class CaseRefExtractorMixin(object):
     court_context = None
     codes = [
-        'Sa',
+        "Sa",
     ]
 
     def clean_text_for_tokenizer(self, text):
@@ -22,25 +22,29 @@ class CaseRefExtractorMixin(object):
         :param text:
         :return:
         """
+
         def repl(m):
-            return '_' * (len(m.group()))
+            return "_" * (len(m.group()))
 
         def repl2(m):
             # print(m.group(2))
-            return m.group(1) + ('_' * (len(m.group(2)) + 1))
+            return m.group(1) + ("_" * (len(m.group(2)) + 1))
 
         # (...) and [...]
-        text = re.sub(r'\((.*?)\)', repl, text)
+        text = re.sub(r"\((.*?)\)", repl, text)
 
         # Dates
-        text = re.sub(r'(([0-9]+)\.([0-9]+)\.([0-9]+)|i\.S\.d\.)', repl, text)
+        text = re.sub(r"(([0-9]+)\.([0-9]+)\.([0-9]+)|i\.S\.d\.)", repl, text)
 
         # Abbr.
-        text = re.sub(r'(\s|\(|\[)([0-9]+|[IVX]+|[a-zA-Z]|sog|ca|Urt|Abs|Nr|lfd|vgl|Rn|Rspr|std|ff|bzw|Art)\.', repl2, text)
+        text = re.sub(
+            r"(\s|\(|\[)([0-9]+|[IVX]+|[a-zA-Z]|sog|ca|Urt|Abs|Nr|lfd|vgl|Rn|Rspr|std|ff|bzw|Art)\.",
+            repl2,
+            text,
+        )
 
         # Schl.-Holst.
-        text = re.sub(r'([a-z]+)\.-([a-z]+)\.', repl, text, flags=re.IGNORECASE)
-
+        text = re.sub(r"([a-z]+)\.-([a-z]+)\.", repl, text, flags=re.IGNORECASE)
 
         return text
 
@@ -54,53 +58,72 @@ class CaseRefExtractorMixin(object):
         # TODO generate only once
 
         federal_courts = [
-            'Bundesverfassungsgericht', 'BVerfG',
-            'Bundesverwaltungsgericht', 'BVerwG',
-            'Bundesgerichtshof', 'BGH',
-            'Bundesarbeitsgericht', 'BAG',
-            'Bundesfinanzhof', 'BFH',
-            'Bundessozialgericht', 'BSG',
-            'Bundespatentgericht', 'BPatG',
-            'Truppendienstgericht Nord', 'TDG Nord',
-            'Truppendienstgericht Süd', 'TDG Süd',
-            'EUGH', 'Truppendienstgericht S&#252;d',
-            'TDG S&#252;d',
+            "Bundesverfassungsgericht",
+            "BVerfG",
+            "Bundesverwaltungsgericht",
+            "BVerwG",
+            "Bundesgerichtshof",
+            "BGH",
+            "Bundesarbeitsgericht",
+            "BAG",
+            "Bundesfinanzhof",
+            "BFH",
+            "Bundessozialgericht",
+            "BSG",
+            "Bundespatentgericht",
+            "BPatG",
+            "Truppendienstgericht Nord",
+            "TDG Nord",
+            "Truppendienstgericht Süd",
+            "TDG Süd",
+            "EUGH",
+            "Truppendienstgericht S&#252;d",
+            "TDG S&#252;d",
         ]
         states = [
-            'Berlin',
-            'Baden-Württemberg', 'BW', 'Baden-W&#252;rttemberg',
-            'Brandenburg', 'Brandenburgisches',
-            'Bremen',
-            'Hamburg',
-            'Hessen',
-            'Niedersachsen',
-            'Hamburg',
-            'Mecklenburg-Vorpommern',
-            'Nordrhein-Westfalen', 'NRW',
-            'Rheinland-Pfalz',
-            'Saarland',
-            'Sachsen',
-            'Sachsen-Anhalt',
-            'Schleswig-Holstein', 'Schl.-Holst.', 'SH',
-            'Thüringen', 'Th&#252;ringen',
+            "Berlin",
+            "Baden-Württemberg",
+            "BW",
+            "Baden-W&#252;rttemberg",
+            "Brandenburg",
+            "Brandenburgisches",
+            "Bremen",
+            "Hamburg",
+            "Hessen",
+            "Niedersachsen",
+            "Hamburg",
+            "Mecklenburg-Vorpommern",
+            "Nordrhein-Westfalen",
+            "NRW",
+            "Rheinland-Pfalz",
+            "Saarland",
+            "Sachsen",
+            "Sachsen-Anhalt",
+            "Schleswig-Holstein",
+            "Schl.-Holst.",
+            "SH",
+            "Thüringen",
+            "Th&#252;ringen",
         ]
         state_courts = [
-            'OVG',
-            'VGH',
-            'LSG',
+            "OVG",
+            "VGH",
+            "LSG",
         ]
         cities = [
-            'Baden-Baden',
-            'Berlin-Brbg.'
-            'Wedding',
-            'Schleswig',
-            'Koblenz',
+            "Baden-Baden",
+            "Berlin-Brbg." "Wedding",
+            "Schleswig",
+            "Koblenz",
         ]
         city_courts = [
-            'Amtsgericht', 'AG',
-            'Landgericht', 'LG',
-            'Oberlandesgericht', 'OLG',
-            'OVG'
+            "Amtsgericht",
+            "AG",
+            "Landgericht",
+            "LG",
+            "Oberlandesgericht",
+            "OLG",
+            "OVG",
         ]
 
         options = []
@@ -110,16 +133,16 @@ class CaseRefExtractorMixin(object):
 
         for court in state_courts:
             for state in states:
-                options.append(court + ' ' + state)
-                options.append(state + ' ' + court)
+                options.append(court + " " + state)
+                options.append(state + " " + court)
 
         for c in city_courts:
             for s in cities:
-                options.append(c + ' ' + s)
-                options.append(s + ' ' + c)
+                options.append(c + " " + s)
+                options.append(s + " " + c)
         # logger.debug('Court regex: %s' % pattern)
 
-        return r'(?P<court>' + ('|'.join(options)) + ')(\s|\.|;|,|:|\))'
+        return r"(?P<court>" + ("|".join(options)) + ")(\s|\.|;|,|:|\))"
 
     def get_file_number_regex(self):
         """
@@ -150,15 +173,17 @@ class CaseRefExtractorMixin(object):
 
         # |' + ('|'.join(self.get_codes())) + ')' \
 
-        pattern = r'(?P<chamber>([0-9]+)[a-z]?|([IVX]+))' \
-            + '\s' \
-            + '(?P<code>[A-Za-z]{1,6})' \
-            + '(\s\(([A-Za-z]{1,6})\))?' \
-            + '(\s([A-Za-z]{1,6}))?' \
-            + '\s' \
-            + '(?P<number>[0-9]{1,6})' \
-            + '\/' \
-            + '(?P<year>[0-9]{2})'
+        pattern = (
+            r"(?P<chamber>([0-9]+)[a-z]?|([IVX]+))"
+            + "\s"
+            + "(?P<code>[A-Za-z]{1,6})"
+            + "(\s\(([A-Za-z]{1,6})\))?"
+            + "(\s([A-Za-z]{1,6}))?"
+            + "\s"
+            + "(?P<number>[0-9]{1,6})"
+            + "\/"
+            + "(?P<year>[0-9]{2})"
+        )
 
         return pattern
 
@@ -232,59 +257,66 @@ class CaseRefExtractorMixin(object):
                 fn_pos = match.start(0) - start
                 candidates = collections.OrderedDict()
 
-                for court_match in re.finditer(self.get_court_name_regex(), surrounding):
-                    candidate_pos = round((court_match.start(0) + court_match.end(0)) / 2)  # Position = center
-                    candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
+                for court_match in re.finditer(
+                    self.get_court_name_regex(), surrounding
+                ):
+                    candidate_pos = round(
+                        (court_match.start(0) + court_match.end(0)) / 2
+                    )  # Position = center
+                    candidate_dist = abs(
+                        fn_pos - candidate_pos
+                    )  # Distance to file number
 
                     # print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
 
                     if candidate_dist not in candidates:
                         candidates[candidate_dist] = court_match
                     else:
-                        logger.warning('Court candidate with same distance exist already: %s' % court_match)
+                        logger.warning(
+                            "Court candidate with same distance exist already: %s"
+                            % court_match
+                        )
 
                 # Court is the candidate with smallest distance to file number
                 if len(candidates) > 0:
-                    court = next(iter(candidates.values())).group('court')
+                    court = next(iter(candidates.values())).group("court")
                     # Stop searching if court was found with this range
                     break
 
             if court is None:
-                court = ''
+                court = ""
 
             file_number = match.group(0)
             ref_ids = [
-                Ref(ref_type=RefType.CASE, court=court, file_number=file_number)  # TODO date field
+                Ref(
+                    ref_type=RefType.CASE, court=court, file_number=file_number
+                )  # TODO date field
             ]
             # TODO maintain order for case+law refs
-            marker = RefMarker(text=file_number,
-                               start=match.start(0),
-                               end=match.end(0),
-                               line=0)  # TODO line number
+            marker = RefMarker(
+                text=file_number, start=match.start(0), end=match.end(0), line=0
+            )  # TODO line number
             marker.set_uuid()
             marker.set_references(ref_ids)
 
-            refs.append(
-                marker
-            )
+            refs.append(marker)
 
             # print(match.start(0))
 
         return refs
 
-
     def get_codes(self) -> Set[str]:
         """Codes used in file numbers"""
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
-        code_path = os.path.join(data_dir, 'file_number_codes.csv')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        code_path = os.path.join(data_dir, "file_number_codes.csv")
 
-        with open(code_path, 'r') as f:
+        with open(code_path, "r") as f:
             codes = []
             for line in f.readlines():
-                cols = line.strip().split(',', 2)
+                cols = line.strip().split(",", 2)
 
                 # Strip parenthesis
-                code = re.sub(r'\((.*?)\)', '', cols[0])
+                code = re.sub(r"\((.*?)\)", "", cols[0])
 
                 codes.append(code)
 
