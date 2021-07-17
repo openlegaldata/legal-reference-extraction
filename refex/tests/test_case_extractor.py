@@ -22,7 +22,7 @@ class CaseRefExTest(BaseRefExTest):
         text += "(vgl. OVG NRW, Urteil vom 10.10.1996 - 7 A 4185/95 -, juris [Rn. 68])"
         text += "(vgl. BVerwG, Beschluss vom 12.11.1987 - 4 B 216/87 -, juris [Rn. 2]; VGH BW, Urteil vom 10.01.2007 - 3 S 1251/06 -, juris [Rn. 25])"
         text += "(so BVerfG in std. Rspr., vgl. z.B. BVerfG, Beschluss vom 23.07.2003 –- 2 BvR 624/01 -, juris [Rn. 16 f.])"
-        text += " (vgl. OVG Berlin-Brbg., Urt. v. 17.07.2014 - OVG 7 B 40.13 -, Juris Rn. 35;)"  # TODO file number format
+        text += " (vgl. OVG Berlin-Brbg., Urt. v. 17.07.2014 - OVG 7 B 40.13 -, Juris Rn. 35;)"
 
         expected = [
             "1 LB 11/11",
@@ -30,6 +30,7 @@ class CaseRefExTest(BaseRefExTest):
             "4 B 216/87",
             "3 S 1251/06",
             "2 BvR 624/01",
+            "7 B 40.13",
         ]
         actual = []
 
@@ -273,6 +274,58 @@ class CaseRefExTest(BaseRefExTest):
                         ),
                     ],
                 }
+            ]
+        )
+
+    def test_potential_false_positives_should_not_be_machted(self):
+        """Those false positives with invalid case codes should not be extracted,
+        see also https://github.com/openlegaldata/legal-reference-extraction/issues/4
+        The case regex uses some heuristics to filter those out.
+        """
+        self.assert_refs(
+            [
+                {
+                    "content": "Ein Satz mit 2014 und 2014/20, und weiteren Sachen",
+                    "refs": [],
+                },
+                {
+                    "content": "Ein Satz mit 2000 bis 07/20, und weiteren Sachen",
+                    "refs": [],
+                },
+                {
+                    "content": "Ein Satz mit 2019 bis KW 44/20, und weiteren Sachen",
+                    "refs": [],
+                },
+                {
+                    "content": "Ein Satz mit 49364 Reifen 245/45, und weiteren Sachen",
+                    "refs": [],
+                },
+            ]
+        )
+
+    def test_bverwg_cases(self):
+        self.assert_refs(
+            [
+                {
+                    "content": "BVerwG 7 A 9.19 - Urteil vom 15. Oktober 2020",
+                    "refs": [
+                        Ref(
+                            ref_type=RefType.CASE,
+                            court="BVerwG",
+                            file_number="7 A 9.19",
+                        )
+                    ],
+                },
+                {
+                    "content": "10 C 23.12",
+                    "refs": [
+                        Ref(
+                            ref_type=RefType.CASE,
+                            court="",
+                            file_number="10 C 23.12",
+                        )
+                    ],
+                },
             ]
         )
 

@@ -174,14 +174,14 @@ class CaseRefExtractorMixin(object):
         # |' + ('|'.join(self.get_codes())) + ')' \
 
         pattern = (
-            r"(?P<chamber>([0-9]+)[a-z]?|([IVX]+))"
+            r"(?P<chamber>([0-9]{1,2})[a-z]?|([IVX]+))"
             + "\s"
-            + "(?P<code>[A-Za-z]{1,6})"
+            + "(?P<code>[A-Z][A-Za-z]{0,4})"
             + "(\s\(([A-Za-z]{1,6})\))?"
             + "(\s([A-Za-z]{1,6}))?"
             + "\s"
             + "(?P<number>[0-9]{1,6})"
-            + "\/"
+            + "(\/|\.)"
             + "(?P<year>[0-9]{2})"
         )
 
