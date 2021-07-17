@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import List
+from typing import List, Tuple
 
 from refex.errors import RefExError
 from refex.extractors.case import CaseRefExtractorMixin
@@ -58,9 +58,11 @@ class RefExtractor(
 
         return content_with_markers
 
-    def extract(self, content_html: str, is_html: bool = False):
+    def extract(
+        self, content_html: str, is_html: bool = False
+    ) -> Tuple[str, List[RefMarker]]:
 
-        reference_markers = []  # type: List[RefMarker]
+        reference_markers: List[RefMarker] = []
 
         # Remove all reference markers (HTML or MarkDown)
         content = self.remove_markers(content_html)
@@ -83,5 +85,5 @@ class RefExtractor(
         return content_with_markers, reference_markers
 
     @staticmethod
-    def remove_markers(value):
+    def remove_markers(value: str) -> str:
         return re.sub(r"\[ref=([-a-z0-9]+)\](.*?)\[\/ref\]", r"\2", value)

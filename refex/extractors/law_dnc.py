@@ -30,7 +30,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
     law_book_context = None
 
     # Book identifiers (used to generate regular expression)
-    law_book_codes = []
+    law_book_codes: List[str] = []
     default_law_book_codes = [
         "AsylG",
         "BGB",
@@ -112,7 +112,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
             re.compile(multi_pattern), content
         ):  # All matches
             marker_text = marker_match.group(0)
-            refs = []
+            refs: List[Ref] = []
             refs_waiting_for_book = []
 
             # print('>> ' + marker_text)

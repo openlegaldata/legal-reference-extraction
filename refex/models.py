@@ -2,7 +2,7 @@ import logging
 import uuid
 from enum import Enum
 from functools import total_ordering
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from refex import MARKER_OPEN_FORMAT, MARKER_CLOSE_FORMAT
 
@@ -17,7 +17,7 @@ class RefType(Enum):
 
 
 class BaseRef(object):
-    ref_type = None  # type: RefType
+    ref_type: Optional[RefType] = None
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -27,19 +27,19 @@ class BaseRef(object):
 
 
 class CaseRefMixin(BaseRef):
-    file_number = ""
-    ecli = ""
-    court = ""
-    date = ""
+    file_number: str = ""
+    ecli: str = ""
+    court: str = ""
+    date: str = ""
 
-    def get_case_repr(self):
+    def get_case_repr(self) -> str:
         return "%s/%s/%s" % (self.court, self.file_number, self.date)
 
 
 class LawRefMixin(BaseRef):
-    book = ""  # type: str
-    section = ""  # type: str
-    sentence = ""  # type: str
+    book: str = ""
+    section: str = ""
+    sentence: str = ""
 
     @staticmethod
     def init_law(book, section):
@@ -50,13 +50,13 @@ class LawRefMixin(BaseRef):
         )
 
     @staticmethod
-    def clean_book(book):
+    def clean_book(book: Optional[str]) -> Optional[str]:
         if book is None:
             return None
         return book.strip().lower()
 
     @staticmethod
-    def clean_section(sect):
+    def clean_section(sect: str) -> str:
         return sect.replace(" ", "").lower()
 
     def get_law_repr(self):
@@ -114,12 +114,12 @@ class RefMarker(object):
 
     """
 
-    text = ""  # Text of marker
-    uuid = ""
-    start = 0
-    end = 0
-    line = ""  # Line cannot be used with HTML content
-    references = []  # type: List<Ref>
+    text: str = ""  # Text of marker
+    uuid: str = ""
+    start: int = 0
+    end: int = 0
+    line: str = ""  # Line cannot be used with HTML content
+    references: List[Ref] = []
 
     # Set by django
     referenced_by = None

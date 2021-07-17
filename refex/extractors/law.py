@@ -30,7 +30,7 @@ class LawRefExtractorMixin(object):
     law_book_context = None
 
     # Book identifiers (used to generate regular expression)
-    law_book_codes = []
+    law_book_codes: List[str] = []
     default_law_book_codes = [
         "AsylG",
         "BGB",
@@ -75,7 +75,7 @@ class LawRefExtractorMixin(object):
         ):
 
             marker_text = str(marker_match.group(0)).strip()
-            references = []
+            references: List[Ref] = []
 
             # Handle single and multi refs separately
             if re.match(r"^(Art(\.{,1})|§)\s", marker_text):
@@ -309,7 +309,7 @@ class LawRefExtractorMixin(object):
 
         return law_ids
 
-    def handle_single_law_ref(self, law_book_codes, ref_str, law_ids):
+    def handle_single_law_ref(self, law_book_codes, ref_str, law_ids) -> List[Ref]:
         logger.debug("Single ref found in: %s" % ref_str)
 
         # Single ref
