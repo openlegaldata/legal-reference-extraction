@@ -1,4 +1,3 @@
-
 class RefExError(ValueError):
     pass
 
