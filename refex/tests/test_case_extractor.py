@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-from unittest import skip
 
 from refex.models import RefType, Ref
 from refex.tests import BaseRefExTest
@@ -132,15 +131,16 @@ class CaseRefExTest(BaseRefExTest):
 
         print(pattern)
 
-    @skip
-    def test_extract(self):
+    def test_extract_from_bsg_case_1(self):
         self.assert_refs(
             [
                 {
                     "resource": "bsg_2018-06-27.txt",
                     "refs": [
                         Ref(
-                            ref_type=RefType.CASE, court="BGH", file_number="6 KA 45/13"
+                            ref_type=RefType.CASE,
+                            court="Bundessozialgericht",
+                            file_number="B 6 KA 45/13 R",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
@@ -160,21 +160,21 @@ class CaseRefExTest(BaseRefExTest):
                         Ref(
                             ref_type=RefType.CASE,
                             court="LSG Nordrhein-Westfalen",
-                            file_number="11 KA 67/10",
+                            file_number="L 11 KA 67/10",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
                             court="LSG Nordrhein-Westfalen",
-                            file_number="24 K 120/10",
+                            file_number="L 24 K 120/10",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="LSG Nordrhein-Westfalen",
+                            court="OLG Koblenz",  # ERROR: It's actually "Brandenburgische OLG"
                             file_number="7 U 199/05",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="OLG Koblenz",
+                            court="OLG Hamm",
                             file_number="19 U 98/97",
                         ),
                         Ref(
@@ -184,13 +184,13 @@ class CaseRefExTest(BaseRefExTest):
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="OLG Koblenz",
-                            file_number="6 KA 39/17",
+                            court="Bundessozialgericht",
+                            file_number="B 6 KA 39/17 R",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="OLG Koblenz",
-                            file_number="6 KA 40/17",
+                            court="Bundessozialgericht",
+                            file_number="B 6 KA 40/17 R",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
@@ -207,15 +207,16 @@ class CaseRefExTest(BaseRefExTest):
             ]
         )
 
-    @skip
-    def test_extract_html(self):
+    def test_from_bsg_case_1_html(self):
         self.assert_refs(
             [
                 {
-                    "resource": "bsg_2018-06-27.html",
+                    "resource": "bsg_2018-06-27.txt",
                     "refs": [
                         Ref(
-                            ref_type=RefType.CASE, court="BGH", file_number="6 KA 45/13"
+                            ref_type=RefType.CASE,
+                            court="Bundessozialgericht",
+                            file_number="B 6 KA 45/13 R",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
@@ -235,21 +236,21 @@ class CaseRefExTest(BaseRefExTest):
                         Ref(
                             ref_type=RefType.CASE,
                             court="LSG Nordrhein-Westfalen",
-                            file_number="11 KA 67/10",
+                            file_number="L 11 KA 67/10",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
                             court="LSG Nordrhein-Westfalen",
-                            file_number="24 K 120/10",
+                            file_number="L 24 K 120/10",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="LSG Nordrhein-Westfalen",
+                            court="OLG Koblenz",  # ERROR: It's actually "Brandenburgische OLG"
                             file_number="7 U 199/05",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="OLG Koblenz",
+                            court="OLG Hamm",
                             file_number="19 U 98/97",
                         ),
                         Ref(
@@ -259,25 +260,30 @@ class CaseRefExTest(BaseRefExTest):
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="OLG Koblenz",
-                            file_number="6 KA 39/17",
+                            court="Bundessozialgericht",
+                            file_number="B 6 KA 39/17 R",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
-                            court="OLG Koblenz",
-                            file_number="6 KA 40/17",
+                            court="Bundessozialgericht",
+                            file_number="B 6 KA 40/17 R",
                         ),
                         Ref(
                             ref_type=RefType.CASE,
                             court="OLG Koblenz",
                             file_number="IX ZR 103/14",
                         ),
+                        # Ref(ref_type=RefType.CASE, court='', file_number=''),
+                        # Ref(ref_type=RefType.CASE, court='', file_number=''),
+                        # Ref(ref_type=RefType.LAW, book='baunvo', section='2'),
+                        # Ref(ref_type=RefType.LAW, book='baunvo', section='3'),
+                        # Ref(ref_type=RefType.LAW, book='baunvo', section='4'),
                     ],
                 }
             ]
         )
 
-    def test_potential_false_positives_should_not_be_machted(self):
+    def test_potential_false_positives_should_not_be_matched(self):
         """Those false positives with invalid case codes should not be extracted,
         see also https://github.com/openlegaldata/legal-reference-extraction/issues/4
         The case regex uses some heuristics to filter those out.

@@ -2,7 +2,7 @@ import collections
 import logging
 import os
 import re
-from typing import List, Set, Match
+from typing import List, Set, Match, Optional
 
 from refex.models import RefMarker, Ref, RefType
 
@@ -115,6 +115,7 @@ class CaseRefExtractorMixin(object):
             "Berlin-Brbg." "Wedding",
             "Schleswig",
             "Koblenz",
+            "Hamm",
         ]
         city_courts = [
             "Amtsgericht",
@@ -144,12 +145,104 @@ class CaseRefExtractorMixin(object):
 
         return r"(?P<court>" + ("|".join(options)) + ")(\s|\.|;|,|:|\))"
 
+    def infer_court(
+        self, file_number: str, match: re.Match, content: str
+    ) -> Optional[str]:
+        """In some cases it is possible to infer the court from the file number.
+        This is currently only implemented for Sozialgerichtsbarkeit ("SG").
+        """
+        SG_MAPPING = {
+            "B": "Bundessozialgericht",
+            "L": "LSG",
+            "S": "SG",
+        }
+
+        if sg_match := re.match(self.get_sozialgerichtsbarkeit_regex(), file_number):
+            instance = SG_MAPPING[sg_match.group("instance")]
+            court_candidate = self.search_court(match, content)
+            if (
+                court_candidate and instance in court_candidate
+            ):  # we can be sure that the correct court was found
+                return court_candidate
+            return instance
+
+        return None
+
+    def search_court(self, match: re.Match, content: str) -> Optional[str]:
+        """Heuristic search. Not yet very reliably (see error cases in test_case_extractor.py)"""
+
+        court = None
+
+        # Search in surroundings for court names
+        for diff in [100, 200, 500]:
+            # TODO maybe search left first, then to the right
+
+            start = max(0, match.start(0) - diff)
+            end = min(len(content), match.end(0) + diff)
+            surrounding = content[start:end]
+
+            # print('Surroundings: %s'  % content[start:end])
+
+            # File number position in surroundings
+            fn_pos = match.start(0) - start
+            candidates = collections.OrderedDict()
+
+            for court_match in re.finditer(self.get_court_name_regex(), surrounding):
+                candidate_pos = round(
+                    (court_match.start(0) + court_match.end(0)) / 2
+                )  # Position = center
+                candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
+
+                # print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
+
+                if candidate_dist not in candidates:
+                    candidates[candidate_dist] = court_match
+                else:
+                    logger.warning(
+                        "Court candidate with same distance exist already: %s"
+                        % court_match
+                    )
+
+            # Court is the candidate with smallest distance to file number
+            if len(candidates) > 0:
+                court = next(iter(candidates.values())).group("court")
+                # Stop searching if court was found with this range
+                break
+
+        return court
+
+    def get_sozialgerichtsbarkeit_regex(self):
+        """
+        Sozialgerichtsbarkeit cases have a special, more expanded format, e.g.: B 6 KA 45/13 R
+        - instance: Gericht bzw. die Instanz
+        - chamber: Kammber bzw. Senat
+        - subject_area: Sachgebietskennzeichen
+        - number: Laufende Nummer
+        - year: Eingangsjahr
+        - register: Verfahrensregister (optional)
+        """
+        pattern = (
+            r"(?P<instance>(B|L|S))"
+            + r"\s"
+            + r"(?P<chamber>[0-9]{1,2})"
+            + r"\s"
+            + r"(?P<subject_area>(A|AL|AS|AY|BK|BL|EG|KA|KG|KR|KS|LW|P|R|RE|RS|SB|SO|SF|U|ÜG|V|VG|VH|VJ|VK|VS))"
+            + r"\s"
+            + r"(?P<number>[0-9]{1,6})"
+            + r"/"
+            + r"(?P<year>[0-9]{2})"
+            + r"(?P<register>\s(AR|B|BH|C|GS|K|KH|R|RH|S))?"
+        )
+        return pattern
+
     def get_file_number_regex(self):
         """
         Examples:
 
         1 O 137/15
         Au 5 K 17.31263
+
+        The general way file numbers are structured is:
 
         <chamber> <code> <number> / <year>
 
@@ -159,22 +252,32 @@ class CaseRefExtractorMixin(object):
         - separater: / or ,
         - year: Eingangsjahr (numeric, length = 2)
 
-        Note:
+
+        Sozialgerichtsbarkeit ("SG") cases have a special, more expanded format (e.g.: B 6 KA 45/13 R)
+        - instance: Gericht bzw. die Instanz
+        - chamber: Kammber bzw. Senat
+        - subject_area: Sachgebietskennzeichen
+        - number: Laufende Nummer
+        - year: Eingangsjahr
+        - register: Verfahrensregister (optional)
+
+        However, while the SG file numbers are semantically different (e.g. after the chamber, they contain
+        a subject area instead of the code), they syntactically are being matched by the regular file number
+        regex, except for the instance and (an optional) register part. So in order to include SG file numbers
+        fully, the regex is extended with those two elements.
 
         TODO Special cases
 
         BSG: B 6 KA 45/13 R, S 8 AL 144/12
         Bavaria has a different order - <year>.<number>
         - <chamber> <code> <year>.<number>
-
-
-        :return:
         """
 
         # |' + ('|'.join(self.get_codes())) + ')' \
 
         pattern = (
-            r"(?P<chamber>([0-9]{1,2})[a-z]?|([IVX]+))"
+            r"((?P<instance_for_sg>(B|L|S))\s)?"  # only for SG
+            + r"(?P<chamber>([0-9]{1,2})[a-z]?|([IVX]+))"
             + "\s"
             + "(?P<code>[A-Z][A-Za-z]{0,4})"
             + "(\s\(([A-Za-z]{1,6})\))?"
@@ -183,6 +286,7 @@ class CaseRefExtractorMixin(object):
             + "(?P<number>[0-9]{1,6})"
             + "(\/|\.)"
             + "(?P<year>[0-9]{2})"
+            + r"(\s(?P<register>(AR|B|BH|C|GS|K|KH|R|RH|S)))?"  # only for SG
         )
 
         return pattern
@@ -241,50 +345,14 @@ class CaseRefExtractorMixin(object):
 
         # Find all file numbers
         for match in re.finditer(self.get_file_number_regex(), content):  # type: Match
-            court = None
 
-            # Search in surroundings for court names
-            for diff in [100, 200, 500]:
-                # TODO maybe search left first, then to the right
+            file_number = match.group(0)
 
-                start = max(0, match.start(0) - diff)
-                end = min(len(content), match.end(0) + diff)
-                surrounding = content[start:end]
-
-                # print('Surroundings: %s'  % content[start:end])
-
-                # File number position in surroundings
-                fn_pos = match.start(0) - start
-                candidates = collections.OrderedDict()
-
-                for court_match in re.finditer(
-                    self.get_court_name_regex(), surrounding
-                ):
-                    candidate_pos = round(
-                        (court_match.start(0) + court_match.end(0)) / 2
-                    )  # Position = center
-                    candidate_dist = abs(
-                        fn_pos - candidate_pos
-                    )  # Distance to file number
-
-                    # print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
-
-                    if candidate_dist not in candidates:
-                        candidates[candidate_dist] = court_match
-                    else:
-                        logger.warning(
-                            "Court candidate with same distance exist already: %s"
-                            % court_match
-                        )
-
-                # Court is the candidate with smallest distance to file number
-                if len(candidates) > 0:
-                    court = next(iter(candidates.values())).group("court")
-                    # Stop searching if court was found with this range
-                    break
-
-            if court is None:
-                court = ""
+            court = (
+                self.infer_court(file_number, match, content)
+                or self.search_court(match, content)
+                or ""
+            )
 
             file_number = match.group(0)
             ref_ids = [
