@@ -2,7 +2,7 @@ import logging
 import uuid
 from enum import Enum
 from functools import total_ordering
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from refex import MARKER_OPEN_FORMAT, MARKER_CLOSE_FORMAT
 
@@ -11,52 +11,56 @@ logger = logging.getLogger(__name__)
 
 class RefType(Enum):
     """Type of referenced document"""
-    CASE = 'case'
-    LAW = 'law'
+
+    CASE = "case"
+    LAW = "law"
 
 
 class BaseRef(object):
-    ref_type = None  # type: RefType
+    ref_type: Optional[RefType] = None
 
     def __init__(self, **kwargs):
-
         self.__dict__.update(kwargs)
-
 
     def __hash__(self):
         return hash(self.__repr__())
 
 
 class CaseRefMixin(BaseRef):
-    file_number = ''
-    ecli = ''
-    court = ''
-    date = ''
+    file_number: str = ""
+    ecli: str = ""
+    court: str = ""
+    date: str = ""
 
-    def get_case_repr(self):
-        return '%s/%s/%s' % (self.court, self.file_number, self.date)
+    def get_case_repr(self) -> str:
+        return "%s/%s/%s" % (self.court, self.file_number, self.date)
+
 
 class LawRefMixin(BaseRef):
-    book = ''  # type: str
-    section = ''  # type: str
-    sentence = '' # type: str
+    book: str = ""
+    section: str = ""
+    sentence: str = ""
 
     @staticmethod
     def init_law(book, section):
-        return Ref(ref_type=RefType.LAW, book=LawRefMixin.clean_book(book), section=LawRefMixin.clean_section(section))
+        return Ref(
+            ref_type=RefType.LAW,
+            book=LawRefMixin.clean_book(book),
+            section=LawRefMixin.clean_section(section),
+        )
 
     @staticmethod
-    def clean_book(book):
+    def clean_book(book: Optional[str]) -> Optional[str]:
         if book is None:
             return None
         return book.strip().lower()
 
     @staticmethod
-    def clean_section(sect):
-        return sect.replace(' ', '').lower()
+    def clean_section(sect: str) -> str:
+        return sect.replace(" ", "").lower()
 
     def get_law_repr(self):
-        return '%s/%s' % (self.book, self.section)
+        return "%s/%s" % (self.book, self.section)
 
 
 @total_ordering
@@ -69,13 +73,23 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
     def __lt__(self, other):
         assert isinstance(other, Ref)
         # return self.__repr__() < other.__repr__()
-        return (self.ref_type.value, self.book, self.section, self.court, self.file_number) < \
-               (other.ref_type.value, other.book, other.section, other.court, other.file_number)
+        return (
+            self.ref_type.value,
+            self.book,
+            self.section,
+            self.court,
+            self.file_number,
+        ) < (
+            other.ref_type.value,
+            other.book,
+            other.section,
+            other.court,
+            other.file_number,
+        )
 
     def __eq__(self, other):
-        assert isinstance(other, Ref) # assumption for this example
+        assert isinstance(other, Ref)  # assumption for this example
         return self.__dict__ == other.__dict__
-
 
     def __repr__(self):
         if self.ref_type == RefType.LAW:
@@ -83,9 +97,9 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
         elif self.ref_type == RefType.CASE:
             data = self.get_case_repr()
         else:
-            raise ValueError('Unsupported ref type: %s' % self.ref_type)
+            raise ValueError("Unsupported ref type: %s" % self.ref_type)
 
-        return '<Ref(%s: %s)>' % (self.ref_type.value, data)
+        return "<Ref(%s: %s)>" % (self.ref_type.value, data)
         # return 'Ref<%s>' % self.__dict__
         # return 'Ref<%s>' % sorted(self.__dict__.items(), key=lambda x: x[0])
 
@@ -99,18 +113,19 @@ class RefMarker(object):
     have the corresponding source object (LawReferenceMarker: referenced_by = a law object).
 
     """
-    text = ''  # Text of marker
-    uuid = ''
-    start = 0
-    end = 0
-    line = ''  # Line cannot be used with HTML content
-    references = []  # type: List<Ref>
+
+    text: str = ""  # Text of marker
+    uuid: str = ""
+    start: int = 0
+    end: int = 0
+    line: str = ""  # Line cannot be used with HTML content
+    references: List[Ref] = []
 
     # Set by django
     referenced_by = None
     referenced_by_type = None
 
-    def __init__(self, text: str, start: int, end: int, line=''):
+    def __init__(self, text: str, start: int, end: int, line=""):
         self.text = text
         self.start = start
         self.end = end
@@ -130,18 +145,16 @@ class RefMarker(object):
 
         # double replacements
         # alternative: content[start:end]
-        content = content[:start] \
-                  + marker_open \
-                  + self.text \
-                  + marker_close \
-                  + content[end:]
+        content = (
+            content[:start] + marker_open + self.text + marker_close + content[end:]
+        )
 
         return content, marker_offset
 
     def replace_content_with_mask(self, content):
-        mask = '_' * self.get_length() # length of marker
+        mask = "_" * self.get_length()  # length of marker
 
-        return content[:self.start] + mask + content[self.end:]
+        return content[: self.start] + mask + content[self.end :]
 
     def set_uuid(self):
         self.uuid = uuid.uuid4()
@@ -162,4 +175,4 @@ class RefMarker(object):
         return self.end - self.start
 
     def __repr__(self):
-        return '<RefMarker(%s)>' % self.__dict__
+        return "<RefMarker(%s)>" % self.__dict__
