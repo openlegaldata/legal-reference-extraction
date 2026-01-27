@@ -262,6 +262,35 @@ class DivideAndConquerLawRefExtractorMixin:
         if len(markers_waiting_for_book) > 0:
             logger.warning(f"Marker could not be assign to book: {markers_waiting_for_book}")
 
+        # Full law name references: § 40 des Verwaltungsverfahrensgesetzes
+        full_name_suffixes = r"(?:gesetzes|gesetzbuches|gesetzbuch|gesetz|ordnung|verordnung|verfassung)"
+        full_name_pattern = (
+            sectionSign
+            + r" (?P<sect>[0-9]+(?:\s?[a-z]?)).{0,80}?\s(?:des|der)\s(?:[a-zäüö][a-zäüöß]+\s)*"
+            + r"(?P<book>[A-ZÄÜÖ][A-Za-zÄÜÖäüöß]+?"
+            + full_name_suffixes
+            + r")"
+            + book_look_ahead
+        )
+
+        for marker_match in re.finditer(re.compile(full_name_pattern), content):
+            marker_text = marker_match.group(0)
+            book = marker_match.group("book").strip().lower()
+
+            # Strip genitive suffix: "gesetzes" → "gesetz", "gesetzbuches" → "gesetzbuch"
+            if book.endswith("gesetzes") or book.endswith("gesetzbuches"):
+                book = book[:-2]
+
+            sect = marker_match.group("sect")
+            ref = Ref(ref_type=RefType.LAW, book=book, section=Ref.clean_section(sect))
+
+            marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
+            marker.set_uuid()
+            marker.set_references([ref])
+
+            markers.append(marker)
+            content = marker.replace_content_with_mask(content)
+
         # TODO Art GG
 
         return markers
