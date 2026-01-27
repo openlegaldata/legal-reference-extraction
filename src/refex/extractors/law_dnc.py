@@ -1,14 +1,13 @@
 import logging
 import re
-from typing import List
 
 from refex.errors import RefExError
-from refex.models import RefMarker, Ref, RefType
+from refex.models import Ref, RefMarker, RefType
 
 logger = logging.getLogger(__name__)
 
 
-class DivideAndConquerLawRefExtractorMixin(object):
+class DivideAndConquerLawRefExtractorMixin:
     """
     Extractor for law references (citations of legislation). Each law is identified by a section (§, consisting of
     numbers and letters) and the corresponding code as abbreviation or full name (BGB, Bürgerliches Gesetzbuch).
@@ -30,7 +29,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
     law_book_context = None
 
     # Book identifiers (used to generate regular expression)
-    law_book_codes: List[str] = []
+    law_book_codes: list[str] = []
     default_law_book_codes = [
         "AsylG",
         "BGB",
@@ -54,14 +53,13 @@ class DivideAndConquerLawRefExtractorMixin(object):
     ]
 
     # All text non-word symbols
-    word_delimiter = "\s|\.|,|;|:|!|\?|\(|\)|\[|\]|\"|'|<|>|&"
+    word_delimiter = "\\s|\\.|,|;|:|!|\\?|\\(|\\)|\\[|\\]|\"|'|<|>|&"
 
-    def extract_law_ref_markers(
-        self, content: str, is_html: bool = False
-    ) -> List[RefMarker]:
+    def extract_law_ref_markers(self, content: str, is_html: bool = False) -> list[RefMarker]:
         """
 
-        The main extraction method. Takes input content and returns content with markers and list of extracted references.
+        The main extraction method. Takes input content and returns content with markers
+        and list of extracted references.
 
         Divide and Conquer
         - only simple regex
@@ -81,10 +79,15 @@ class DivideAndConquerLawRefExtractorMixin(object):
         # Replace special characters if working with html
         if is_html:
             sectionSign = "&#167;"
-            self.word_delimiter = "\s|\.|,|;|:|!|\?|\(|\)|\[|\]|&#8221;|\&#8216;|\&#8217;|&#60;|&#62;|&#38;|&rdquo;|\&lsquo;|\&rsquo;|&lt;|&gt;|&amp;|\"|'|<|>|&"
+            self.word_delimiter = (  # noqa: E501
+                "\\s|\\.|,|;|:|!|\\?|\\(|\\)|\\[|\\]"
+                "|&#8221;|\\&#8216;|\\&#8217;|&#60;|&#62;|&#38;"
+                "|&rdquo;|\\&lsquo;|\\&rsquo;|&lt;|&gt;|&amp;"
+                "|\\\"|'|<|>|&"
+            )
         else:
             sectionSign = "§"
-            self.word_delimiter = "\s|\.|,|;|:|!|\?|\(|\)|\[|\]|\"|'|<|>|&"
+            self.word_delimiter = "\\s|\\.|,|;|:|!|\\?|\\(|\\)|\\[|\\]|\"|'|<|>|&"
 
         book_look_ahead = (
             "(?=" + self.word_delimiter + ")"
@@ -94,29 +97,26 @@ class DivideAndConquerLawRefExtractorMixin(object):
         book_pattern = self.get_law_book_ref_regex(self.get_law_book_codes())
 
         # Any content
-        any_content = "(\s?([0-9]{1,5}(\.{,1})|[a-z]{1,2}|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s))*"
-        any_content = "([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"
+        any_content = r"(\s?([0-9]{1,5}(\.{,1})|[a-z]{1,2}|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s))*"  # noqa: E501
+        any_content = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"  # noqa: E501
 
         multi_pattern = (
             sectionSign
             + sectionSign
-            + " (\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
+            + r" (\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
             + book_pattern
-            + ")+\s("
+            + r")+\s("
             + book_pattern
             + ")"
             + book_look_ahead
         )
 
-        for marker_match in re.finditer(
-            re.compile(multi_pattern), content
-        ):  # All matches
+        for marker_match in re.finditer(re.compile(multi_pattern), content):  # All matches
             marker_text = marker_match.group(0)
-            refs: List[Ref] = []
-            refs_waiting_for_book = []
+            refs: list[Ref] = []
 
             # print('>> ' + marker_text)
-            logger.debug("Multi Match with: %s" % marker_text)
+            logger.debug(f"Multi Match with: {marker_text}")
 
             # Books by position in text
             book_positions = {}  # Can we ensure that book_position is in order?
@@ -125,33 +125,24 @@ class DivideAndConquerLawRefExtractorMixin(object):
 
             # We cannot work without knowing the book
             if len(book_positions) < 0:
-                logger.error("No book found in marker text: %s" % marker_text)
+                logger.error(f"No book found in marker text: {marker_text}")
                 continue
 
             # Extract references from marker text
             # - find for <separator §§|,|..> + <section>
             # - ignore Abs, Nr, ...
             # - corresponding book is the closest to right
-            a = "([0-9]+)\s(?=bis|und)"
-            b = "([0-9]+)\s?[a-z]"
+            a = r"([0-9]+)\s(?=bis|und)"
+            b = r"([0-9]+)\s?[a-z]"
             c = "([0-9]+)"
             pattern = (
-                "(?P<sep>"
-                + sectionSign
-                + sectionSign
-                + "|,|;|und|bis)\s?(?P<sect>("
-                + a
-                + "|"
-                + b
-                + "|"
-                + c
-                + "))"
+                "(?P<sep>" + sectionSign + sectionSign + r"|,|;|und|bis)\s?(?P<sect>(" + a + "|" + b + "|" + c + "))"
             )
 
             for ref_match in re.finditer(re.compile(pattern), marker_text):
                 sect = ref_match.group("sect")
 
-                logger.debug("Found ref: %s" % ref_match.group())
+                logger.debug(f"Found ref: {ref_match.group()}")
 
                 if len(book_positions) == 1:
                     book = next(iter(book_positions.values()))
@@ -166,10 +157,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
                             break
 
                 if book is None:
-                    logger.error(
-                        "No book after reference found: %s - %s"
-                        % (ref_match.group(0), marker_text)
-                    )
+                    logger.error(f"No book after reference found: {ref_match.group(0)} - {marker_text}")
                     continue
 
                 # Check for 'between' (range sections)
@@ -180,16 +168,12 @@ class DivideAndConquerLawRefExtractorMixin(object):
                     if sect.isdigit() and from_sect.isdigit():
                         for between_sect in range(int(from_sect) + 1, int(sect)):
                             # Add to queue
-                            refs.append(
-                                Ref.init_law(book=book, section=str(between_sect))
-                            )
+                            refs.append(Ref.init_law(book=book, section=str(between_sect)))
 
                 refs.append(Ref.init_law(book=book, section=sect))
 
             # Prepare marker
-            marker = RefMarker(
-                text=marker_text, start=marker_match.start(), end=marker_match.end()
-            )
+            marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
             marker.set_uuid()
             marker.set_references(refs)
 
@@ -200,19 +184,13 @@ class DivideAndConquerLawRefExtractorMixin(object):
                 # Update content to avoid double matching
                 content = marker.replace_content_with_mask(content)
             else:
-                logger.warning("No references found in marker: %s " % marker_text)
+                logger.warning(f"No references found in marker: {marker_text} ")
 
         # Single refs
-        sect_pattern = "(?P<sect>([0-9]+)(\s?[a-z]?))"
+        sect_pattern = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
         patterns = [
             # § 3 BGB, § 3d BGB, § 83 d BGB
-            sectionSign
-            + " "
-            + sect_pattern
-            + " (?P<book>"
-            + book_pattern
-            + ")"
-            + book_look_ahead,
+            sectionSign + " " + sect_pattern + " (?P<book>" + book_pattern + ")" + book_look_ahead,
             # Abs OR Nr
             # § 42 Abs. 1 Alt. 1 VwGO
             sectionSign
@@ -223,28 +201,25 @@ class DivideAndConquerLawRefExtractorMixin(object):
             + ")"
             + book_look_ahead,
             sectionSign
-            + " (?P<sect>([0-9]+)(\s?[a-z]?)) "
+            + r" (?P<sect>([0-9]+)(\s?[a-z]?)) "
             + any_content
             + " (?P<book>("
             + book_pattern
             + "))"
             + book_look_ahead,
             sectionSign
-            + " (?P<sect>([0-9]+)(\s?[a-z]?)) "
+            + r" (?P<sect>([0-9]+)(\s?[a-z]?)) "
             + any_content
-            + " (?P<next_book>(i\.V\.m\.|iVm))"
+            + r" (?P<next_book>(i\.V\.m\.|iVm))"
             + book_look_ahead,
         ]
 
-        markers_waiting_for_book = []  # type: List[RefMarker]
+        markers_waiting_for_book: list[RefMarker] = []
 
         for pattern in patterns:  # Iterate over all patterns
-
             # logger.debug('Pattern: %s' % pattern)
 
-            for marker_match in re.finditer(
-                re.compile(pattern), content
-            ):  # All matches
+            for marker_match in re.finditer(re.compile(pattern), content):  # All matches
                 marker_text = marker_match.group(0)
                 if "book" in marker_match.groupdict():
                     book = Ref.clean_book(marker_match.group("book"))
@@ -253,9 +228,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
 
                 ref = Ref.init_law(section=marker_match.group("sect"), book=None)
 
-                marker = RefMarker(
-                    text=marker_text, start=marker_match.start(), end=marker_match.end()
-                )
+                marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
                 marker.set_uuid()
                 # marker.uuid = 's'
 
@@ -287,9 +260,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
                         raise RefExError("next_book and book are None")
 
         if len(markers_waiting_for_book) > 0:
-            logger.warning(
-                "Marker could not be assign to book: %s" % markers_waiting_for_book
-            )
+            logger.warning(f"Marker could not be assign to book: {markers_waiting_for_book}")
 
         # TODO Art GG
 
@@ -306,10 +277,8 @@ class DivideAndConquerLawRefExtractorMixin(object):
 
         return self.law_book_codes
 
-    def get_law_book_ref_regex(
-        self, law_book_codes, optional=False, group_name=False, to_lower=False
-    ):
-        """
+    def get_law_book_ref_regex(self, law_book_codes, optional=False, group_name=False, to_lower=False):
+        r"""
         Returns regex for law book part in reference markers (OR list).
 
         TODO book codes should be ordered by reverse string length (SG|SGB X) -> (SGB X|SG), SGG
@@ -336,7 +305,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
         if group_name:
             raise ValueError("group_name=True not supported")
 
-        logger.debug("Law book ref with %i books" % len(law_book_codes))
+        logger.debug("Law book ref with %i books", len(law_book_codes))
 
         # return '|'.join([code.lower() if to_lower else code for code in law_book_codes])
 
@@ -345,7 +314,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
         # optional, max length chars
         # ends with V,G,O or B
         # optional space + roman numbers (e.g. SGB IX)
-        return "([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
+        return r"([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
 
     def extract_law_ref_markers_with_context(self, content):
         """
@@ -387,11 +356,11 @@ class DivideAndConquerLawRefExtractorMixin(object):
             {
                 "pattern": "Anlage ([0-9]+)",
                 "book": lambda match: book_code,
-                "sect": lambda match: "anlage-%i" % int(match.group(1)),
+                "sect": lambda match: f"anlage-{int(match.group(1))}",
             },
             # § 1
             {
-                "pattern": "§ ([0-9]+)(?:\s(Abs\.|Absatz)\s([0-9]+))?(?:\sSatz\s([0-9]+))?",
+                "pattern": r"§ ([0-9]+)(?:\s(Abs\.|Absatz)\s([0-9]+))?(?:\sSatz\s([0-9]+))?",
                 "book": lambda match: book_code,
                 "sect": lambda match: match.group(1),
             },
@@ -413,9 +382,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
                 # Handle multiple ref ids in a single marker
                 if not isinstance(books, str):
                     for key, book in enumerate(books):
-                        ref_ids.append(
-                            Ref(ref_type=RefType.LAW, book=book, section=sects[key])
-                        )
+                        ref_ids.append(Ref(ref_type=RefType.LAW, book=book, section=sects[key]))
 
                 else:
                     ref_ids.append(Ref(ref_type=RefType.LAW, book=books, section=sects))
@@ -427,9 +394,7 @@ class DivideAndConquerLawRefExtractorMixin(object):
 
                 # Remove from search content to avoid duplicate matches
                 search_text = (
-                    search_text[: ref_m.start()]
-                    + ("_" * (ref_m.end() - ref_m.start()))
-                    + search_text[ref_m.end() :]
+                    search_text[: ref_m.start()] + ("_" * (ref_m.end() - ref_m.start())) + search_text[ref_m.end() :]
                 )
                 # print('-------')
 

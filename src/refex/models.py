@@ -2,9 +2,8 @@ import logging
 import uuid
 from enum import Enum
 from functools import total_ordering
-from typing import List, Tuple, Optional
 
-from refex import MARKER_OPEN_FORMAT, MARKER_CLOSE_FORMAT
+from refex import MARKER_CLOSE_FORMAT, MARKER_OPEN_FORMAT
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +15,8 @@ class RefType(Enum):
     LAW = "law"
 
 
-class BaseRef(object):
-    ref_type: Optional[RefType] = None
+class BaseRef:
+    ref_type: RefType | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -33,7 +32,7 @@ class CaseRefMixin(BaseRef):
     date: str = ""
 
     def get_case_repr(self) -> str:
-        return "%s/%s/%s" % (self.court, self.file_number, self.date)
+        return f"{self.court}/{self.file_number}/{self.date}"
 
 
 class LawRefMixin(BaseRef):
@@ -50,7 +49,7 @@ class LawRefMixin(BaseRef):
         )
 
     @staticmethod
-    def clean_book(book: Optional[str]) -> Optional[str]:
+    def clean_book(book: str | None) -> str | None:
         if book is None:
             return None
         return book.strip().lower()
@@ -60,7 +59,7 @@ class LawRefMixin(BaseRef):
         return sect.replace(" ", "").lower()
 
     def get_law_repr(self):
-        return "%s/%s" % (self.book, self.section)
+        return f"{self.book}/{self.section}"
 
 
 @total_ordering
@@ -97,14 +96,14 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
         elif self.ref_type == RefType.CASE:
             data = self.get_case_repr()
         else:
-            raise ValueError("Unsupported ref type: %s" % self.ref_type)
+            raise ValueError(f"Unsupported ref type: {self.ref_type}")
 
-        return "<Ref(%s: %s)>" % (self.ref_type.value, data)
+        return f"<Ref({self.ref_type.value}: {data})>"
         # return 'Ref<%s>' % self.__dict__
         # return 'Ref<%s>' % sorted(self.__dict__.items(), key=lambda x: x[0])
 
 
-class RefMarker(object):
+class RefMarker:
     """
     Abstract class for reference markers, i.e. the actual reference within a text "§§ 12-14 BGB".
 
@@ -119,7 +118,7 @@ class RefMarker(object):
     start: int = 0
     end: int = 0
     line: str = ""  # Line cannot be used with HTML content
-    references: List[Ref] = []
+    references: list[Ref] = []
 
     # Set by django
     referenced_by = None
@@ -131,8 +130,7 @@ class RefMarker(object):
         self.end = end
         self.line = line
 
-    def replace_content(self, content, marker_offset) -> Tuple[str, int]:
-
+    def replace_content(self, content, marker_offset) -> tuple[str, int]:
         start = self.start + marker_offset
         end = self.end + marker_offset
 
@@ -145,9 +143,7 @@ class RefMarker(object):
 
         # double replacements
         # alternative: content[start:end]
-        content = (
-            content[:start] + marker_open + self.text + marker_close + content[end:]
-        )
+        content = content[:start] + marker_open + self.text + marker_close + content[end:]
 
         return content, marker_offset
 
@@ -159,10 +155,10 @@ class RefMarker(object):
     def set_uuid(self):
         self.uuid = uuid.uuid4()
 
-    def set_references(self, refs: List[Ref]):
+    def set_references(self, refs: list[Ref]):
         self.references = refs
 
-    def get_references(self) -> List[Ref]:
+    def get_references(self) -> list[Ref]:
         return self.references
 
     def get_start_position(self):
@@ -175,4 +171,4 @@ class RefMarker(object):
         return self.end - self.start
 
     def __repr__(self):
-        return "<RefMarker(%s)>" % self.__dict__
+        return f"<RefMarker({self.__dict__})>"
