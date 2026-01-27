@@ -512,6 +512,33 @@ def test_extract27(law_extractor):
     )
 
 
+def test_extract_full_law_name(law_extractor):
+    """Full law name references like '§ 8 des Außensteuergesetzes' (issue #9)."""
+    assert_refs(
+        law_extractor,
+        [
+            {
+                "content": "unter § 8 Absatz 1 Nummern 1 bis 6 des deutschen Außensteuergesetzes fallenden Tätigkeiten",
+                "refs": [
+                    Ref(ref_type=RefType.LAW, book="außensteuergesetz", section="8"),
+                ],
+            },
+            {
+                "content": "gemäß § 40 des Verwaltungsverfahrensgesetzes ist der Verwaltungsakt nichtig",
+                "refs": [
+                    Ref(ref_type=RefType.LAW, book="verwaltungsverfahrensgesetz", section="40"),
+                ],
+            },
+            {
+                "content": "nach § 343 der Zivilprozessordnung kann das Gericht entscheiden",
+                "refs": [
+                    Ref(ref_type=RefType.LAW, book="zivilprozessordnung", section="343"),
+                ],
+            },
+        ],
+    )
+
+
 def test_citation_styles(law_extractor):
     with open(os.path.join(RESOURCE_DIR, "citation_styles.txt")) as f:
         x = DivideAndConquerLawRefExtractorMixin()
