@@ -1,4 +1,4 @@
-.PHONY: venv install test lint format clean
+.PHONY: venv install test test-cov lint format clean
 
 PYTHON ?= python3
 VENV := .venv
@@ -23,6 +23,9 @@ install: venv
 
 test: install
 	$(BIN)/pytest
+
+test-cov: install
+	$(BIN)/pytest --cov --cov-report=term-missing --cov-report=html
 
 lint: install
 	$(BIN)/ruff check src/ tests/
