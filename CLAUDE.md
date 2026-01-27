@@ -40,3 +40,10 @@ make format    # ruff auto-fix + format
 - 42 tests, 4 skipped (known unsupported patterns marked with `@pytest.mark.skip`).
 - Tests use fixtures from `conftest.py`. The `assert_refs` helper extracts from content and compares sorted ref lists.
 - Test resource files in `tests/resources/law/` and `tests/resources/case/` contain German legal text snippets.
+
+
+## Git
+
+- Before commiting run "make lint" and "make test"
+- Use prefix branches: chore/, fix/, feat/
+
