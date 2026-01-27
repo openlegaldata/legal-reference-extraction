@@ -1,14 +1,13 @@
 import logging
 import re
-from typing import List
 
 from refex.errors import RefExError
-from refex.models import RefMarker, Ref, RefType
+from refex.models import Ref, RefMarker, RefType
 
 logger = logging.getLogger(__name__)
 
 
-class LawRefExtractorMixin(object):
+class LawRefExtractorMixin:
     """
     Extractor for law references (citations of legislation). Each law is identified by a section (§, consisting of
     numbers and letters) and the corresponding code as abbreviation or full name (BGB, Bürgerliches Gesetzbuch).
@@ -30,7 +29,7 @@ class LawRefExtractorMixin(object):
     law_book_context = None
 
     # Book identifiers (used to generate regular expression)
-    law_book_codes: List[str] = []
+    law_book_codes: list[str] = []
     default_law_book_codes = [
         "AsylG",
         "BGB",
@@ -50,16 +49,17 @@ class LawRefExtractorMixin(object):
         "TKG",
     ]
 
-    def extract_law_ref_markers(self, content: str) -> List[RefMarker]:
+    def extract_law_ref_markers(self, content: str) -> list[RefMarker]:
         """
 
-        The main extraction method. Takes input content and returns content with markers and list of extracted references.
+        The main extraction method. Takes input content and returns content with markers
+        and list of extracted references.
 
         :param content: Plain-text or even HTML
         :return: List of reference markers
         """
 
-        logger.debug("Extracting from: %s" % content)
+        logger.debug(f"Extracting from: {content}")
 
         if self.law_book_context is not None:
             # Extraction with context available is done in another method
@@ -67,29 +67,21 @@ class LawRefExtractorMixin(object):
 
         # Init
         markers = []
-        marker_offset = 0
 
         # Handle each match separately
-        for marker_match in re.finditer(
-            self.get_law_ref_regex(self.get_law_book_codes()), content
-        ):
-
+        for marker_match in re.finditer(self.get_law_ref_regex(self.get_law_book_codes()), content):
             marker_text = str(marker_match.group(0)).strip()
-            references: List[Ref] = []
+            references: list[Ref] = []
 
             # Handle single and multi refs separately
             if re.match(r"^(Art(\.{,1})|§)\s", marker_text):
-                references = self.handle_single_law_ref(
-                    self.get_law_book_codes(), marker_text, references
-                )
+                references = self.handle_single_law_ref(self.get_law_book_codes(), marker_text, references)
 
             elif re.match(r"^§§\s", marker_text):
-                references = self.handle_multiple_law_refs(
-                    self.get_law_book_codes(), marker_text, references
-                )
+                references = self.handle_multiple_law_refs(self.get_law_book_codes(), marker_text, references)
 
             else:
-                raise RefExError("Unsupported ref beginning: %s" % marker_text)
+                raise RefExError(f"Unsupported ref beginning: {marker_text}")
 
             marker = RefMarker(
                 text=marker_text,
@@ -115,9 +107,7 @@ class LawRefExtractorMixin(object):
 
         return self.law_book_codes
 
-    def get_law_book_ref_regex(
-        self, law_book_codes, optional=False, group_name=False, to_lower=False
-    ):
+    def get_law_book_ref_regex(self, law_book_codes, optional=False, group_name=False, to_lower=False):
         """
         Returns regex for law book part in reference markers (OR list).
 
@@ -138,7 +128,7 @@ class LawRefExtractorMixin(object):
         if group_name:
             raise ValueError("group_name=True not supported")
 
-        logger.debug("Law book ref with %i books" % len(law_book_codes))
+        logger.debug("Law book ref with %i books", len(law_book_codes))
 
         return "|".join([code.lower() if to_lower else code for code in law_book_codes])
 
@@ -162,19 +152,11 @@ class LawRefExtractorMixin(object):
 
         regex = r"(§|§§|Art(\.{,1}))\s"
         regex += (
-            "(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
-            + self.get_law_book_ref_regex(
-                law_book_codes, optional=False, group_name=False
-            )
+            r"(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
+            + self.get_law_book_ref_regex(law_book_codes, optional=False, group_name=False)
             + ")+"
         )
-        regex += (
-            "\s("
-            + self.get_law_book_ref_regex(
-                law_book_codes, optional=False, group_name=False
-            )
-            + ")"
-        )
+        regex += r"\s(" + self.get_law_book_ref_regex(law_book_codes, optional=False, group_name=False) + ")"
 
         # logger.debug('Regex: %s' % regex)
 
@@ -182,58 +164,52 @@ class LawRefExtractorMixin(object):
 
     def get_law_ref_match_single(self, law_book_codes, ref_str):
         # Single ref
-        regex_a = "(Art(\.{,1})|§)\s"
-        regex_a += "((?P<sect>[0-9]+)\s?(?P<sect_az>[a-z])?)"  # f. ff.
-        regex_a += "(\s?([0-9]+(\.{,1})|[a-z]{1,2}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s))*"
+        regex_a = r"(Art(\.{,1})|§)\s"
+        regex_a += r"((?P<sect>[0-9]+)\s?(?P<sect_az>[a-z])?)"  # f. ff.
+        regex_a += r"(\s?([0-9]+(\.{,1})|[a-z]{1,2}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s))*"
         # regex_a += '\s?(?:(Abs.|Abs)\s?(?:[0-9]{1,2})\s?((,|und|bis)\s*(([0-9]+)\s?([a-z])?)+)*)?'
         # regex_a += '\s?((Satz|S\.)\s[0-9]{1,2})?'
         # regex_a += '\s?(((Nr|Nr\.)\s[0-9]+)' + '(\s?(,|und|bis)\s[0-9]+)*' + ')?'
         # regex_a += '\s?(((Alt|Alt\.)\s[0-9]+)' + '(\s?(,|und|bis)\s[0-9]+)*' + ')?'
 
-        regex_a += (
-            "\s(?P<book>"
-            + self.get_law_book_ref_regex(law_book_codes, optional=False)
-            + ")"
-        )
+        regex_a += r"\s(?P<book>" + self.get_law_book_ref_regex(law_book_codes, optional=False) + ")"
 
         return re.search(regex_a, ref_str)
 
     def get_law_ref_match_multi(self, law_book_codes, ref_str):
         pattern = r"(?P<delimiter>§§|,|;|und|bis)\s?"
-        pattern += "((?P<sect>[0-9]+)\s?"
+        pattern += r"((?P<sect>[0-9]+)\s?"
         # pattern += '(?P<sect_az>[a-z])?)'
         # (?!.*?bis).*([a-z]).*)
         # pattern += '(?P<sect_az>(?!.*?bis).*([a-z]).*)?)'
         # (?!(moscow|outside))
         # pattern += '(?P<sect_az>(([a-z])(?!(und|bis))))?)'
-        pattern += "((?P<sect_az>[a-z])(\s|,|;))?)"  # Use \s|, to avoid matching "bis" and "Abs", ...
+        pattern += r"((?P<sect_az>[a-z])(\s|,|;))?)"  # Use \s|, to avoid matching "bis" and "Abs", ...
 
-        pattern += "(\s?(Abs\.|Abs)\s?([0-9]+))*"
-        pattern += "(\s?(S\.|Satz|Halbsatz)\s?([0-9]+))*"
+        pattern += r"(\s?(Abs\.|Abs)\s?([0-9]+))*"
+        pattern += r"(\s?(S\.|Satz|Halbsatz)\s?([0-9]+))*"
 
         # pattern += '(?:\s(Nr\.|Nr)\s([0-9]+))'
         # pattern += '(?:\s(S\.|Satz)\s([0-9]+))'
 
         # pattern += '(?:\s(f\.|ff\.))?'
-        pattern += "(\s?(f\.|ff\.))*"
+        pattern += r"(\s?(f\.|ff\.))*"
 
         # pattern += '(\s(Abs.|Abs)\s?([0-9]+)((,|und|bis)\s([0-9]+))*)*'
         # pattern += '\s?(?:(Abs.|Abs)\s?(?:[0-9]{1,2})\s?((,|und|bis)\s*(([0-9]+)\s?([a-z])?)+)*)?'
 
         # logger.debug('Multi ref regex: %s' % pattern)
 
-        pattern += (
-            "\s?(?:(?P<book>" + self.get_law_book_ref_regex(law_book_codes) + "))?"
-        )
+        pattern += r"\s?(?:(?P<book>" + self.get_law_book_ref_regex(law_book_codes) + "))?"
 
         # print('MULTI: ' + ref_str)
         # print(pattern)
         #
-        logger.debug("Multi ref regex: %s" % pattern)
+        logger.debug(f"Multi ref regex: {pattern}")
 
         return re.finditer(pattern, ref_str)
 
-    def handle_multiple_law_refs(self, law_book_codes, ref_str, law_ids) -> List[Ref]:
+    def handle_multiple_law_refs(self, law_book_codes, ref_str, law_ids) -> list[Ref]:
         # Search for multiple refs
         matches = self.get_law_ref_match_multi(law_book_codes, ref_str)
 
@@ -241,11 +217,10 @@ class LawRefExtractorMixin(object):
         prev_sect = None
         prev_book = None
 
-        logger.debug("Multi refs found in: %s" % ref_str)
+        logger.debug(f"Multi refs found in: {ref_str}")
 
         # Loop over all results
         for match in matches:
-
             # If book is not set, use __placeholder__ and replace later
             if match.group("book") is not None:
                 book = match.group("book").lower()
@@ -263,13 +238,11 @@ class LawRefExtractorMixin(object):
 
             ref = Ref(ref_type=RefType.LAW, book=book, section=sect)
 
-            logger.debug("Ref found: %s (%s)" % (ref, match.group(0)))
+            logger.debug(f"Ref found: {ref} ({match.group(0)})")
 
             # Check for section ranges
             if match.group("delimiter") == "bis":
-                logger.debug(
-                    "Handle section range - Add ids from " + prev_sect + " to " + sect
-                )
+                logger.debug("Handle section range - Add ids from " + prev_sect + " to " + sect)
                 # TODO how to handle az sects
                 prev_sect = re.sub("[^0-9]", "", prev_sect)
                 sect = re.sub("[^0-9]", "", sect)
@@ -292,7 +265,7 @@ class LawRefExtractorMixin(object):
 
         # law_ids.append('multi = ' + ref_str)
         # handle __book__
-        logger.debug("All law ids found: %s" % refs_tmp)
+        logger.debug(f"All law ids found: {refs_tmp}")
 
         refs_tmp.reverse()
         book = None
@@ -309,8 +282,8 @@ class LawRefExtractorMixin(object):
 
         return law_ids
 
-    def handle_single_law_ref(self, law_book_codes, ref_str, law_ids) -> List[Ref]:
-        logger.debug("Single ref found in: %s" % ref_str)
+    def handle_single_law_ref(self, law_book_codes, ref_str, law_ids) -> list[Ref]:
+        logger.debug(f"Single ref found in: {ref_str}")
 
         # Single ref
         mm = self.get_law_ref_match_single(law_book_codes, ref_str)
@@ -323,7 +296,7 @@ class LawRefExtractorMixin(object):
                 # Found book
                 book = mm.group("book").lower()
             else:
-                raise RefExError("Ref book is not set: %s " % ref_str)
+                raise RefExError(f"Ref book is not set: {ref_str} ")
 
             if mm.group("sect") is not None:
                 # Found section
@@ -337,12 +310,12 @@ class LawRefExtractorMixin(object):
 
             law_id = Ref(ref_type=RefType.LAW, book=book, section=sect)
 
-            logger.debug("Law ID: %s" % law_id)
+            logger.debug(f"Law ID: {law_id}")
 
             law_ids.append(law_id)
         else:
             # law_ids.append({'book': 'not matched', 'sect': 'NOT MATCHED (single) %s ' % ref_str})
-            logger.warning("Law ID could not be matched: %s" % ref_str)
+            logger.warning(f"Law ID could not be matched: {ref_str}")
 
         return law_ids
 
@@ -386,11 +359,11 @@ class LawRefExtractorMixin(object):
             {
                 "pattern": "Anlage ([0-9]+)",
                 "book": lambda match: book_code,
-                "sect": lambda match: "anlage-%i" % int(match.group(1)),
+                "sect": lambda match: f"anlage-{int(match.group(1))}",
             },
             # § 1
             {
-                "pattern": "§ ([0-9]+)(?:\s(Abs\.|Absatz)\s([0-9]+))?(?:\sSatz\s([0-9]+))?",
+                "pattern": r"§ ([0-9]+)(?:\s(Abs\.|Absatz)\s([0-9]+))?(?:\sSatz\s([0-9]+))?",
                 "book": lambda match: book_code,
                 "sect": lambda match: match.group(1),
             },
@@ -412,9 +385,7 @@ class LawRefExtractorMixin(object):
                 # Handle multiple ref ids in a single marker
                 if not isinstance(books, str):
                     for key, book in enumerate(books):
-                        ref_ids.append(
-                            Ref(ref_type=RefType.LAW, book=book, section=sects[key])
-                        )
+                        ref_ids.append(Ref(ref_type=RefType.LAW, book=book, section=sects[key]))
 
                 else:
                     ref_ids.append(Ref(ref_type=RefType.LAW, book=books, section=sects))
@@ -426,9 +397,7 @@ class LawRefExtractorMixin(object):
 
                 # Remove from search content to avoid duplicate matches
                 search_text = (
-                    search_text[: ref_m.start()]
-                    + ("_" * (ref_m.end() - ref_m.start()))
-                    + search_text[ref_m.end() :]
+                    search_text[: ref_m.start()] + ("_" * (ref_m.end() - ref_m.start())) + search_text[ref_m.end() :]
                 )
                 # print('-------')
 

@@ -1,15 +1,14 @@
 import collections
+import importlib.resources
 import logging
-import os
 import re
-from typing import List, Set, Match, Optional
 
-from refex.models import RefMarker, Ref, RefType
+from refex.models import Ref, RefMarker, RefType
 
 logger = logging.getLogger(__name__)
 
 
-class CaseRefExtractorMixin(object):
+class CaseRefExtractorMixin:
     court_context = None
     codes = [
         "Sa",
@@ -112,7 +111,7 @@ class CaseRefExtractorMixin(object):
         ]
         cities = [
             "Baden-Baden",
-            "Berlin-Brbg." "Wedding",
+            "Berlin-Brbg.Wedding",
             "Schleswig",
             "Koblenz",
             "Hamm",
@@ -143,11 +142,9 @@ class CaseRefExtractorMixin(object):
                 options.append(s + " " + c)
         # logger.debug('Court regex: %s' % pattern)
 
-        return r"(?P<court>" + ("|".join(options)) + ")(\s|\.|;|,|:|\))"
+        return r"(?P<court>" + ("|".join(options)) + r")(\s|\.|;|,|:|\))"
 
-    def infer_court(
-        self, file_number: str, match: re.Match, content: str
-    ) -> Optional[str]:
+    def infer_court(self, file_number: str, match: re.Match, content: str) -> str | None:
         """In some cases it is possible to infer the court from the file number.
         This is currently only implemented for Sozialgerichtsbarkeit ("SG").
         """
@@ -160,15 +157,13 @@ class CaseRefExtractorMixin(object):
         if sg_match := re.match(self.get_sozialgerichtsbarkeit_regex(), file_number):
             instance = SG_MAPPING[sg_match.group("instance")]
             court_candidate = self.search_court(match, content)
-            if (
-                court_candidate and instance in court_candidate
-            ):  # we can be sure that the correct court was found
+            if court_candidate and instance in court_candidate:  # we can be sure that the correct court was found
                 return court_candidate
             return instance
 
         return None
 
-    def search_court(self, match: re.Match, content: str) -> Optional[str]:
+    def search_court(self, match: re.Match, content: str) -> str | None:
         """Heuristic search. Not yet very reliably (see error cases in test_case_extractor.py)"""
 
         court = None
@@ -188,9 +183,7 @@ class CaseRefExtractorMixin(object):
             candidates = collections.OrderedDict()
 
             for court_match in re.finditer(self.get_court_name_regex(), surrounding):
-                candidate_pos = round(
-                    (court_match.start(0) + court_match.end(0)) / 2
-                )  # Position = center
+                candidate_pos = round((court_match.start(0) + court_match.end(0)) / 2)  # Position = center
                 candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
 
                 # print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
@@ -198,10 +191,7 @@ class CaseRefExtractorMixin(object):
                 if candidate_dist not in candidates:
                     candidates[candidate_dist] = court_match
                 else:
-                    logger.warning(
-                        "Court candidate with same distance exist already: %s"
-                        % court_match
-                    )
+                    logger.warning(f"Court candidate with same distance exist already: {court_match}")
 
             # Court is the candidate with smallest distance to file number
             if len(candidates) > 0:
@@ -278,21 +268,21 @@ class CaseRefExtractorMixin(object):
         pattern = (
             r"((?P<instance_for_sg>(B|L|S))\s)?"  # only for SG
             + r"(?P<chamber>([0-9]{1,2})[a-z]?|([IVX]+))"
-            + "\s"
+            + r"\s"
             + "(?P<code>[A-Z][A-Za-z]{0,4})"
-            + "(\s\(([A-Za-z]{1,6})\))?"
-            + "(\s([A-Za-z]{1,6}))?"
-            + "\s"
+            + r"(\s\(([A-Za-z]{1,6})\))?"
+            + r"(\s([A-Za-z]{1,6}))?"
+            + r"\s"
             + "(?P<number>[0-9]{1,6})"
-            + "(\/|\.)"
+            + r"(\/|\.)"
             + "(?P<year>[0-9]{2})"
             + r"(\s(?P<register>(AR|B|BH|C|GS|K|KH|R|RH|S)))?"  # only for SG
         )
 
         return pattern
 
-    def extract_case_ref_markers(self, content: str) -> List[RefMarker]:
-        """
+    def extract_case_ref_markers(self, content: str) -> list[RefMarker]:
+        r"""
         BVerwG, Urteil vom 20. Februar 2013, - 10 C 23.12 -
         BVerwG, Urteil vom 27. April 2010 - 10 C 5.09 -
         BVerfG, Beschluss vom 10.07.1989, - 2 BvR 502, 1000, 961/86 -
@@ -337,33 +327,21 @@ class CaseRefExtractorMixin(object):
         """
 
         refs = []
-        original = content
-        text = content
-        marker_offset = 0
 
         # TODO More intelligent by search only in sentences.
 
         # Find all file numbers
-        for match in re.finditer(self.get_file_number_regex(), content):  # type: Match
-
+        for match in re.finditer(self.get_file_number_regex(), content):
             file_number = match.group(0)
 
-            court = (
-                self.infer_court(file_number, match, content)
-                or self.search_court(match, content)
-                or ""
-            )
+            court = self.infer_court(file_number, match, content) or self.search_court(match, content) or ""
 
             file_number = match.group(0)
             ref_ids = [
-                Ref(
-                    ref_type=RefType.CASE, court=court, file_number=file_number
-                )  # TODO date field
+                Ref(ref_type=RefType.CASE, court=court, file_number=file_number)  # TODO date field
             ]
             # TODO maintain order for case+law refs
-            marker = RefMarker(
-                text=file_number, start=match.start(0), end=match.end(0), line=0
-            )  # TODO line number
+            marker = RefMarker(text=file_number, start=match.start(0), end=match.end(0), line=0)  # TODO line number
             marker.set_uuid()
             marker.set_references(ref_ids)
 
@@ -373,19 +351,20 @@ class CaseRefExtractorMixin(object):
 
         return refs
 
-    def get_codes(self) -> Set[str]:
+    def get_codes(self) -> set[str]:
         """Codes used in file numbers"""
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-        code_path = os.path.join(data_dir, "file_number_codes.csv")
+        data_files = importlib.resources.files("refex") / "data"
+        code_path = data_files / "file_number_codes.csv"
 
-        with open(code_path, "r") as f:
-            codes = []
-            for line in f.readlines():
-                cols = line.strip().split(",", 2)
+        with importlib.resources.as_file(code_path) as path:
+            with open(path) as f:
+                codes = []
+                for line in f.readlines():
+                    cols = line.strip().split(",", 2)
 
-                # Strip parenthesis
-                code = re.sub(r"\s\((.*?)\)", "", cols[0])
+                    # Strip parenthesis
+                    code = re.sub(r"\s\((.*?)\)", "", cols[0])
 
-                codes.append(code)
+                    codes.append(code)
 
-            return set(codes)
+                return set(codes)
