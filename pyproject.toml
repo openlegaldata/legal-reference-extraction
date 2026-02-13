@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "legal-reference-extraction"
-version = "0.4.1"
+version = "0.4.2"
 description = "Extract references from legal documents"
 readme = "README.md"
 license = {text = "MIT"}

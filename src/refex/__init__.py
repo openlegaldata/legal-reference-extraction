@@ -1,4 +1,4 @@
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 # Available placeholders: uuid (attributes of RefMarker)
 MARKER_OPEN_FORMAT = "[ref=%(uuid)s]"
