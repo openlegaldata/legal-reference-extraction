@@ -9,11 +9,10 @@ Supported countries:
 ## Install
 
 ```bash
-# latest from git
-pip install git+https://github.com/openlegaldata/legal-reference-extraction.git
+pip install legal-reference-extraction
 
-# specific version (using git tag)
-pip install git+https://github.com/openlegaldata/legal-reference-extraction.git@v0.3.0
+# or install from git
+pip install git+https://github.com/openlegaldata/legal-reference-extraction.git
 
 # local dev
 make install
