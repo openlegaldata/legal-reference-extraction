@@ -125,9 +125,30 @@ mechanism is a buried hint of the resolution problem.
 #### Standard benchmark datasets
 
 Research-paper extraction has the **CORA corpus** as canonical benchmark. Every new paper
-reports F1 on CORA, enabling direct comparison. The German legal equivalent exists — Darji's
-"Dataset of German Legal Reference Annotations" (2023). This project doesn't benchmark against
-it, and doesn't report precision/recall at all.
+reports F1 on CORA, enabling direct comparison. This project doesn't report precision/recall
+at all.
+
+Relevant German legal benchmark datasets:
+
+- **Darji et al. 2023, "A Dataset of German Legal Reference Annotations"**
+  (`PaDaS-Lab/legal-reference-annotations`, ICAIL 2023) — 2,944 manually annotated **law
+  references** (`§`-citations) with 21 structured properties each (Buch, Teil, Titel,
+  Untertitel, paragraph text, etc.). **Law-side only** — does *not* annotate case citations
+  or Aktenzeichen, even though source documents are court decisions.
+- **Leitner et al. 2020, "A Dataset of German Legal Documents for NER"**
+  (LREC 2020, arXiv:2003.13016, GitHub `elenanereiss/Legal-Entity-Recognition`) — ~67k
+  sentences, 54k annotated entities in 19 classes including `law`, `court decision`,
+  `court`, `ordinance`, `regulation`, `European legal norm`, `contract`, `legal literature`.
+  Covers **both law and case references** (as entity spans), plus several reference types
+  this project doesn't handle. Does not decompose Aktenzeichen into chamber/code/number/year,
+  so benchmarks **detection**, not **parsing**.
+- **Open Legal Data bulk citations (2019)** — ~100k court decisions with ~444k
+  machine-extracted citations. Silver-standard; useful as pretraining / weak supervision,
+  not as a clean benchmark.
+
+Recommended split: **Darji → law extractor benchmark; Leitner → case extractor detection
+benchmark + broader-entity stretch targets; Open Legal Data → silver-standard training
+corpus.**
 
 #### Retrainability is first-class
 
@@ -169,7 +190,7 @@ inference model, pip-installable, trainable.
 | Research-paper / legal tool pattern | Applied to legal-reference-extraction |
 |--------------------------------------|-----------------------------------------|
 | Two-stage pipeline (find → parse → resolve) | Split `extract_law_ref_markers` into finder + parser + cross-ref resolver |
-| CORA benchmark | Adopt Darji's German Legal Reference Annotations as official eval set |
+| CORA benchmark | Adopt Darji 2023 for law extractor, Leitner 2020 for case extractor |
 | Reporting F1 / precision / recall | Add benchmark metrics to CI output |
 | CRF as the first ML step (not transformers) | Introduce optional CRF extractor before jumping to BERT — cheaper, retrainable, proven |
 | Standard output format | Emit spaCy Doc / JSON-LD / TEI instead of `[ref=UUID]` markers |
@@ -220,7 +241,13 @@ CRF extractor**.
 ### Phase 2.5 — CRF engine (informed by ParsCit / AnyStyle / GROBID)
 
 1. Add `CRFLawExtractor` using `python-crfsuite` or `sklearn-crfsuite`.
-2. Adopt Darji's "Dataset of German Legal Reference Annotations" as the labeled training set.
+2. Training/eval splits:
+   - **Law extractor** → Darji 2023 (`PaDaS-Lab/legal-reference-annotations`) as the
+     labeled dataset. Law-references-only, 21 structured properties — fits the existing
+     `Ref(book, section, ...)` model directly.
+   - **Case extractor** → Leitner 2020 (`elenanereiss/Legal-Entity-Recognition`)
+     `court decision` entity for detection; Aktenzeichen parsing would need additional
+     annotation (or continue using the existing regex parser downstream of ML detection).
 3. Report F1 in CI alongside test pass/fail.
 4. Document retraining flow (following ParsCit's retrainability pattern).
 
@@ -264,6 +291,10 @@ that emerges from the Darji research line.
 - [LexNLP paper (arXiv:1806.03688)](https://arxiv.org/abs/1806.03688)
 - [German BERT for Legal NER (arXiv:2303.05388)](https://arxiv.org/abs/2303.05388)
 - [A Dataset of German Legal Reference Annotations (Darji 2023)](https://ca-roll.github.io/downloads/A_Dataset_of_German_Legal_Reference_Annotations.pdf)
+- [PaDaS-Lab/legal-reference-annotations on HuggingFace](https://huggingface.co/datasets/PaDaS-Lab/legal-reference-annotations)
+- [A Dataset of German Legal Documents for NER (Leitner 2020, LREC)](https://aclanthology.org/2020.lrec-1.551/)
+- [Leitner Legal-Entity-Recognition on GitHub](https://github.com/elenanereiss/Legal-Entity-Recognition)
+- [Open Legal Data court decisions dataset release (2019)](http://openlegaldata.io/research/2019/02/19/court-decision-dataset.html)
 - [mrm8488/bert-base-german-finetuned-ler on HuggingFace](https://huggingface.co/mrm8488/bert-base-german-finetuned-ler)
 
 ### Research paper citation extraction
