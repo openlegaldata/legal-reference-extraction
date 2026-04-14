@@ -197,3 +197,111 @@ to re-derive.
 
 The regex approach remains valuable even with transformers — it's deterministic, explainable,
 fast, and zero-dependency. The right architecture treats it as one strategy among several.
+
+---
+
+## 7. Production Context (Addendum)
+
+This library is **first-party code for the Open Legal Data production pipeline** — not a
+third-party library serving external consumers. Confirmed constraints:
+
+- **Usage:** Batch processing of court decisions during ingestion. No real-time latency
+  requirements.
+- **Output format:** `[ref=UUID]...[/ref]` markers are **not load-bearing** — format can be
+  changed. No external consumer lock-in.
+- **Quality baseline:** **Unknown.** No precision/recall numbers exist for the current
+  extractor.
+- **Research collaboration:** No existing engagement with PaDaS-Lab / Darji research group,
+  despite their work being built on Open Legal Data corpus.
+
+These facts reorder the recommendations significantly.
+
+### 7.1 Phase 0 (Prerequisite): Establish a Benchmark
+
+**This is the highest-priority item.** Without quality numbers:
+
+- Phase 1 cleanup could silently regress extraction quality — no way to tell.
+- Phase 2/2.5/3 ML investment can't be justified without a baseline to improve on.
+- Architectural bugs (unused `law_book_codes` list, overly-permissive
+  `[A-Z]...V|G|O|B` book pattern) may already be causing significant false positives in the
+  published 444k citation dataset — but you wouldn't know.
+
+Recommended:
+
+1. Import Darji 2023 law-reference annotations as the **law extractor benchmark**.
+   Special value: Darji's annotations were made on Open Legal Data's own corpus, so it's a
+   closed-loop benchmark on home-field data.
+2. Import Leitner 2020 NER dataset as the **case extractor detection benchmark**.
+   (Parsing Aktenzeichen into fields isn't covered; benchmarks span detection only.)
+3. Wire both into CI as precision / recall / F1 reports. No floor required on first run —
+   whatever comes out is the new ground truth.
+4. The existing test suite is a **regression suite**, not a benchmark — keep it, but add
+   metrics reporting.
+
+This turns the rest of the plan from guessing into measurement.
+
+### 7.2 Refined Phase 1: Audit Before Cleanup
+
+Before deleting `law.py`, before fixing regex compilation, before any refactoring:
+
+1. Run the Phase 0 benchmark on the current extractor.
+2. Specifically measure: does the generic `[A-Z]...V|G|O|B` book pattern produce false
+   positives the curated `law_book_codes` list would have caught? (Strong hypothesis: yes.)
+3. Measure the `i.V.m.` waiting-marker cross-reference mechanism's accuracy.
+4. Measure the court-search distance heuristic's court-attribution accuracy.
+
+Then clean up. Anything that changes behavior should be justified by benchmark delta.
+
+### 7.3 Phase 2: Output Format Migration
+
+Format flexibility confirmed — so:
+
+- Emit structured output (dataclass / JSON) as **primary** format.
+- Align schema with Darji's 21 properties (Buch, Teil, Titel, Untertitel, section text, etc.)
+  for direct benchmark compatibility.
+- Provide `[ref=UUID]` rendering as a downgrade/legacy helper for any remaining consumers,
+  drop when safe.
+
+### 7.4 Batch Processing Shifts Performance Priorities
+
+Since throughput matters, latency doesn't:
+
+- **Pre-compiling regex at init time** is still the highest-value perf fix (amortized over
+  every document in a batch run).
+- **String-slicing masking** (O(n×m) per document) is acceptable — each document is a
+  single-threaded unit, and individual documents aren't pathologically long.
+- **GPU batch inference for ML engines** is very viable. No latency budget to worry about.
+  Phase 3 (transformers) can run as a batch post-process over ingestion, not inline.
+- **Multiprocessing** for document-parallel extraction is straightforward to add at the
+  orchestration layer — no changes needed inside the extractor.
+
+### 7.5 Actionable Items Specific to Open Legal Data Context
+
+1. **Reach out to PaDaS-Lab (Passau).** Harshil Darji / Michael Granitzer's research line is
+   built on your data. Collaboration could produce: validated annotations without annotation
+   cost, a published German legal NER baseline, and joint research output. Low-cost,
+   high-upside.
+2. **Audit the 444k citation dataset** for false positives from the generic book pattern
+   before publishing new releases. This is likely the most immediate quality win.
+3. **Consider a shared `de-legal-codes` data package** across the openlegaldata org only if
+   other repos (oldp-backend etc.) duplicate the book/court code lists. If not, the cost of
+   splitting the package outweighs the benefit — keep the data bundled.
+4. **Track Darji's BERT model** (`PaDaS-Lab/gbert-legal-ner` on HuggingFace) as the
+   off-the-shelf transformer baseline for Phase 3. No need to train from scratch.
+
+### 7.6 Revised Phase Order (Production Context)
+
+Ordered by ROI given the above:
+
+| Phase | Content | Gated by |
+|-------|---------|----------|
+| **0** | Establish benchmark (Darji + Leitner) in CI | — |
+| **1a** | Audit current extractor against benchmark | Phase 0 |
+| **1b** | Cleanup (delete legacy, fix mutable state, pre-compile regex), measured against benchmark | Phase 1a |
+| **1c** | Fix the generic book pattern → use curated code list | Phase 1a (false positive rate) |
+| **2** | Strategy pattern + structured output (Darji schema) | Phase 1 stable |
+| **2.5** | CRF extractor trained on Darji + Leitner | Phase 2 |
+| **3** | Transformer extractor (start from `PaDaS-Lab/gbert-legal-ner`) | Optional, gated on 2.5 plateau |
+
+The critical insight: **Phase 0 is blocking for everything else.** Without it, every
+subsequent decision is uninformed.
