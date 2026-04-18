@@ -6,7 +6,8 @@
 **Builds on:**
 [`architecture_review.md`](./architecture_review.md) ·
 [`ecosystem_comparison.md`](./ecosystem_comparison.md) ·
-[`output_format_recommendation.md`](./output_format_recommendation.md)
+[`output_format_recommendation.md`](./output_format_recommendation.md) ·
+[`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md)
 
 ---
 
@@ -70,23 +71,26 @@ Green checkboxes indicate work done on this branch; unchecked items are the open
 
 **Why first.** Without a measurement baseline, every subsequent change is a guess.
 
-**Dataset policy** (resolved, see §4): an external (currently unpublished) dataset will be
-used as ground truth. Our job here is to **define the input/output format** the dataset
-must conform to, and ship the harness that measures against it. Benchmark measurements
-start once the dataset is plugged in; format design and the rest of Stream B do not block
-on dataset availability.
+**Dataset policy** (resolved, see §4): the full gold dataset lives on Hugging Face Hub
+(`openlegaldata/german-legal-references-benchmark`). A small stratified CI subset is
+vendored into this repo at `benchmarks/fixtures/` so `make bench` runs without network
+access. Format, annotation guidelines, HF directory layout and CI-subset curation rules
+are specified in [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) — the
+contract for whoever builds the dataset.
 
-- [ ] A1. Define the benchmark I/O schema:
-  - [ ] A1a. Input: JSONL of `{doc_id, text}` records, one per document.
-  - [ ] A1b. Gold labels: JSONL of `{doc_id, citations[], relations[]}` records matching
-    the `output_format_recommendation.md` §4.2 schema (the primary extractor output format).
-    Benchmark input and extractor output are the **same shape** — gold-vs-predicted is
-    a straight diff.
-  - [ ] A1c. Small committed fixture set in `benchmarks/fixtures/` (~10–20 manually
-    curated docs derived from existing `tests/resources/**`) — covers CI smoke-tests
-    without needing the external dataset.
-  - [ ] A1d. `benchmarks/datasets.py` loader protocol: a `BenchmarkDataset` class that
-    yields `(doc, gold)` pairs from either the fixtures or an external path.
+- [ ] A1. Define and publish the benchmark spec:
+  - [ ] A1a. Land [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) (done on
+    this PR).
+  - [ ] A1b. Commit JSON Schemas for `documents.jsonl` and `annotations.jsonl` under
+    `benchmarks/schemas/` — single source of truth for validators on both sides.
+  - [ ] A1c. Vendor CI subset (~10–20 docs, stratified per spec §6) into
+    `benchmarks/fixtures/documents.jsonl` + `benchmarks/fixtures/annotations.jsonl`.
+    Pin the HF revision SHA in `benchmarks/fixtures/SOURCE`.
+  - [ ] A1d. `benchmarks/datasets.py` loader: `BenchmarkDataset` class that can read
+    either the vendored fixture set or the full HF dataset (via `datasets.load_dataset`
+    when the `[adapters]` extra is installed).
+  - [ ] A1e. `benchmarks/validate.py` — runs the spec §9 quality checks against a
+    fixture/dataset path.
 - [ ] A2. Metric reporter (`benchmarks/metrics.py`) — custom, project-defined (O-2
   resolved):
   - [ ] A2a. Span detection: precision / recall / F1 on exact character-span match.
@@ -95,18 +99,21 @@ on dataset availability.
   - [ ] A2c. `structure` dict key-level accuracy (absatz, satz, nummer, halbsatz, …).
   - [ ] A2d. Relation-edge F1 for `CitationRelation`s (i.V.m., a.a.O., …).
   - [ ] A2e. Document-level summary + per-field breakdown. JSON output for CI ingestion.
-- [ ] A3. Wire `make bench` target (dev-dep only; not in runtime extras). Runs against
-  the committed fixture set by default; `make bench DATASET=path/to/external` for the
-  full run.
+- [ ] A3. Wire `make bench` target (dev-dep only; not in runtime extras):
+  - Default runs against the vendored CI subset.
+  - `make bench DATASET=hf` pulls the full dataset from Hugging Face.
+  - `make bench-sync` re-downloads the CI subset from HF and rewrites
+    `benchmarks/fixtures/` + `SOURCE`.
 - [ ] A4. CI job `bench.yml`:
-  - [ ] A4a. On every PR: run the committed fixture slice, post deltas as a comment.
-  - [ ] A4b. Scheduled (nightly or weekly): run against the external dataset if
-    credentials are available; post to a tracking issue.
-- [ ] A5. Document: `benchmarks/README.md` — schema, how to add a dataset, how to
-  reproduce.
+  - [ ] A4a. On every PR: run the vendored CI subset; post delta-to-baseline as a PR
+    comment.
+  - [ ] A4b. Scheduled (nightly or weekly): run against the full HF dataset; post to a
+    tracking issue.
+- [ ] A5. Document: `benchmarks/README.md` — how to run the benchmark, how to refresh
+  the CI subset, where the full dataset lives, how to contribute annotations upstream.
 
-**Exit:** `make bench` prints P/R/F1 on the fixture slice; the schema is documented and
-the external dataset can be plugged in with zero code changes when it lands.
+**Exit:** `make bench` prints P/R/F1 on the vendored CI subset; `benchmark_dataset_spec.md`
+is published; the HF dataset can be plugged in with zero code changes once it exists.
 
 ### Stream B — Phase 1: Cleanup (gated on A1 + A4)
 
@@ -274,7 +281,7 @@ generation-zero gap that `ecosystem_comparison.md` §1 calls out.
 | C | Typed model + strategy | B1–B4, B6 | not started | 0 |
 | D | Output format & adapters | C1–C4 | not started | 0 |
 | E | Grundgesetz / Artikel | C1 | not started | 0 |
-| F | CRF engine | D, A, external dataset | not started | 0 |
+| F | CRF engine | D, A, HF dataset train split | not started | 0 |
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | not started | 0 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | not started | 0 |
@@ -290,8 +297,8 @@ Resolved 2026-04-18 by @malteos. Each decision lists the checklist items it affe
 
 | # | Question | Decision | Affects |
 |---|----------|----------|---------|
-| O-1 | Benchmark dataset hosting | Vendor a small fixture slice in `benchmarks/fixtures/`; fetch the full external dataset on demand via `make bench DATASET=...` | A1c, A3, A4 |
-| O-2 | Primary benchmark metric | Use an external (currently unpublished) dataset; define the benchmark I/O schema here so the dataset plugs in unchanged. Metrics are project-defined (span F1 + field-level accuracy + `structure` key accuracy + relation F1) | A1, A2 |
+| O-1 | Benchmark dataset hosting | Full dataset → Hugging Face Hub (`openlegaldata/german-legal-references-benchmark`). Stratified CI subset vendored in `benchmarks/fixtures/`. Full spec in [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) | A1, A3, A4 |
+| O-2 | Primary benchmark metric | Project-defined custom metrics (span F1 + field-level accuracy + `structure` key accuracy + relation F1). Benchmark input schema = extractor output schema → scoring is a direct diff. See `benchmark_dataset_spec.md` §1 | A2 |
 | O-3 | `LawCitation` field scope | `book` + `number` + `unit` first-class; everything else (`absatz`, `satz`, `nummer`, `halbsatz`, `buchstabe`, `alternative`, `variante`, `buch`, `teil`, `kapitel`, …) in the `structure` dict | C1c, D8 |
 | O-4 | Legacy `law.py` fate | Audit-diff vs `law_dnc.py`, port any missing behaviour + its tests, then delete `law.py` and `test_law_legacy.py` inside Stream B | B9 |
 | O-5 | `get_law_book_ref_regex` recall risk | Land the fix behind a feature flag; measure fixture-slice recall before/after; add missing codes to the data file rather than loosen the regex | B7 |
@@ -313,8 +320,8 @@ Resolved 2026-04-18 by @malteos. Each decision lists the checklist items it affe
 | `law_book_codes` fix reduces recall | Feature-flag the fix (O-5); add codes rather than loosen regex |
 | ML deps bloat the base install | All ML is behind `[ml]` extra; base stays zero-dep |
 | Adapter deps bloat the base install | All non-pure-Python adapters behind `[adapters]` extra |
-| External benchmark dataset landing delayed | Fixture slice keeps CI signal live; F1 gating for Stream F can wait |
-| External benchmark dataset revisions | Pin dataset version in `benchmarks/datasets.py` loader config |
+| HF dataset publication delayed | Vendored CI subset keeps CI signal live; F1 gating for Stream F can wait |
+| HF dataset revision drift | Pin revision SHA in `benchmarks/fixtures/SOURCE`; `make bench-sync` to refresh |
 | Contributor churn mid-refactor | Stream checklists + this doc as single source of truth |
 
 ---
