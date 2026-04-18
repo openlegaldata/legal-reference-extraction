@@ -1,8 +1,8 @@
 # Refactor 2026 — Implementation Plan
 
-**Status:** Draft — not yet approved for execution
+**Status:** Draft — open questions resolved, ready for review
 **Last updated:** 2026-04-18
-**Owners:** tbd
+**Owner:** @malteos (drives both refex and the Open Legal Data consumer migration)
 **Builds on:**
 [`architecture_review.md`](./architecture_review.md) ·
 [`ecosystem_comparison.md`](./ecosystem_comparison.md) ·
@@ -70,18 +70,43 @@ Green checkboxes indicate work done on this branch; unchecked items are the open
 
 **Why first.** Without a measurement baseline, every subsequent change is a guess.
 
-- [ ] A1. Add a `benchmarks/` package with `datasets.py` loaders for:
-  - [ ] A1a. Darji 2023 `PaDaS-Lab/legal-reference-annotations` (HF datasets) → law refs
-  - [ ] A1b. Leitner 2020 `elenanereiss/Legal-Entity-Recognition` → case-ref detection
-- [ ] A2. Add metric reporter: per-document precision / recall / F1 on span exact-match +
-  partial-match + field-match for law refs (`book`, `section/number`, `absatz`, `satz`).
-- [ ] A3. Wire `make bench` target (dev-dep only; not in runtime extras).
-- [ ] A4. CI job `bench.yml` that runs on every PR and posts the scores as a comment.
-  Floor: none on first run. First run *is* the baseline.
-- [ ] A5. Document: `benchmarks/README.md` with how to reproduce.
+**Dataset policy** (resolved, see §4): an external (currently unpublished) dataset will be
+used as ground truth. Our job here is to **define the input/output format** the dataset
+must conform to, and ship the harness that measures against it. Benchmark measurements
+start once the dataset is plugged in; format design and the rest of Stream B do not block
+on dataset availability.
 
-**Exit:** `make bench` prints P/R/F1 against both datasets. CI posts the numbers.
-**Open questions:** O-1, O-2, O-3.
+- [ ] A1. Define the benchmark I/O schema:
+  - [ ] A1a. Input: JSONL of `{doc_id, text}` records, one per document.
+  - [ ] A1b. Gold labels: JSONL of `{doc_id, citations[], relations[]}` records matching
+    the `output_format_recommendation.md` §4.2 schema (the primary extractor output format).
+    Benchmark input and extractor output are the **same shape** — gold-vs-predicted is
+    a straight diff.
+  - [ ] A1c. Small committed fixture set in `benchmarks/fixtures/` (~10–20 manually
+    curated docs derived from existing `tests/resources/**`) — covers CI smoke-tests
+    without needing the external dataset.
+  - [ ] A1d. `benchmarks/datasets.py` loader protocol: a `BenchmarkDataset` class that
+    yields `(doc, gold)` pairs from either the fixtures or an external path.
+- [ ] A2. Metric reporter (`benchmarks/metrics.py`) — custom, project-defined (O-2
+  resolved):
+  - [ ] A2a. Span detection: precision / recall / F1 on exact character-span match.
+  - [ ] A2b. Field-level accuracy per `LawCitation` field (`book`, `number`, `unit`)
+    and per `CaseCitation` field (`court`, `file_number`, `ecli`, `date`).
+  - [ ] A2c. `structure` dict key-level accuracy (absatz, satz, nummer, halbsatz, …).
+  - [ ] A2d. Relation-edge F1 for `CitationRelation`s (i.V.m., a.a.O., …).
+  - [ ] A2e. Document-level summary + per-field breakdown. JSON output for CI ingestion.
+- [ ] A3. Wire `make bench` target (dev-dep only; not in runtime extras). Runs against
+  the committed fixture set by default; `make bench DATASET=path/to/external` for the
+  full run.
+- [ ] A4. CI job `bench.yml`:
+  - [ ] A4a. On every PR: run the committed fixture slice, post deltas as a comment.
+  - [ ] A4b. Scheduled (nightly or weekly): run against the external dataset if
+    credentials are available; post to a tracking issue.
+- [ ] A5. Document: `benchmarks/README.md` — schema, how to add a dataset, how to
+  reproduce.
+
+**Exit:** `make bench` prints P/R/F1 on the fixture slice; the schema is documented and
+the external dataset can be plugged in with zero code changes when it lands.
 
 ### Stream B — Phase 1: Cleanup (gated on A1 + A4)
 
@@ -98,8 +123,18 @@ needs justification in the PR description.
   `law_dnc.py:32, 298-307`.
 - [ ] B7. **Fix `get_law_book_ref_regex`** to actually use `law_book_codes`.
   `law_dnc.py:309-346` — this is likely the single highest-impact precision win.
+  **Gated by recall measurement** (O-5 resolved): land behind a feature flag first,
+  compare fixture-slice recall before and after, add missing book codes to the data file
+  rather than loosening the regex. Only flip the default once the recall delta is
+  understood.
 - [ ] B8. Remove `case.codes = ["Sa"]` and commented-out references. `case.py:13-15, 266`.
-- [ ] B9. Decide fate of `law.py` (see O-4) and `test_law_legacy.py`.
+- [ ] B9. Audit + delete legacy `law.py` (O-4 resolved):
+  - [ ] B9a. Diff `law.py` vs `law_dnc.py` (`extract_law_ref_markers_with_context`,
+    `handle_single_law_ref`, `handle_multiple_law_refs`, book-code handling).
+  - [ ] B9b. For any behaviour only in `law.py`, port tests from `test_law_legacy.py`
+    into `test_law_extractor.py`. Port the behaviour itself into `law_dnc.py` only if
+    the benchmark shows a recall loss when it's missing.
+  - [ ] B9c. Delete `src/refex/extractors/law.py` and `tests/test_law_legacy.py`.
 
 **Exit:** All tests green, F1 ≥ baseline from Stream A. PR descriptions cite metric deltas.
 
@@ -134,7 +169,7 @@ has unit tests; benchmark numbers unchanged.
 - [ ] D1. `to_jsonl()` — primary format per [`output_format_recommendation.md`](./output_format_recommendation.md) §4.2.
 - [ ] D2. Golden-file snapshot tests: for every existing fixture, snapshot the JSONL
   output as a regression net.
-- [ ] D3. `to_spacy_doc()` adapter (optional extra: `pip install legal-reference-extraction[spacy]`).
+- [ ] D3. `to_spacy_doc()` adapter.
 - [ ] D4. `to_hf_bio()` adapter — labels `LAW_REF`, `CASE_REF`, `FILE_NUMBER`, `COURT`,
   `ECLI`, `REPORTER`, `RELATION_IVM`.
 - [ ] D5. `to_gliner()` adapter.
@@ -142,6 +177,11 @@ has unit tests; benchmark numbers unchanged.
 - [ ] D7. `to_akn_ref()` adapter (Akoma Ntoso / LegalDocML.de).
 - [ ] D8. Pin down the exact `structure` dict key set as constants in `models.py`;
   document against Darji 2023's 21 properties.
+- [ ] D9. Packaging (O-7 resolved): two extras groups in `pyproject.toml`.
+  - `[adapters]` — pulls `spacy` + any optional deps needed by the format adapters.
+  - `[ml]` — pulls `sklearn-crfsuite`, `transformers`, `torch` for Streams F + G.
+  - Base install stays zero-dep; `to_jsonl`, `to_hf_bio`, `to_gliner`,
+    `to_web_annotation`, `to_akn_ref` require no extras (pure-Python dict/JSON output).
 
 **Exit:** All adapters have round-trip tests (to_X → parse → compare). JSONL output is
 the documented "blessed" format.
@@ -164,32 +204,64 @@ Per [`output_format_recommendation.md`](./output_format_recommendation.md) §7.
 
 ### Stream F — Phase 2.5: CRF engine (optional, gated on D + benchmark baseline)
 
-- [ ] F1. Add `sklearn-crfsuite` as an optional dep: `[crf]` extra.
-- [ ] F2. `CRFLawExtractor` trained on Darji 2023 split.
-- [ ] F3. `CRFCaseExtractor` trained on Leitner 2020 split (detection only; case parsing
-  still falls through to the regex parser).
+- [ ] F1. Add `sklearn-crfsuite` under the `[ml]` extra.
+- [ ] F2. `CRFLawExtractor` trained on the external benchmark's train split.
+- [ ] F3. `CRFCaseExtractor` for case-ref detection; case parsing still falls through to
+  the regex parser.
 - [ ] F4. Document retraining command in `benchmarks/README.md`.
+- [ ] F5. Decide fate of `case.get_codes()` + `file_number_codes.csv` (O-9 resolved,
+  deferred to here): either use the curated codes as a CRF feature source, or delete
+  the method and move the CSV under `benchmarks/` / `tools/` if CRF training doesn't
+  need it.
 
-**Exit:** CRF engine reports F1 ≥ regex baseline on the Darji dev set.
+**Exit:** CRF engine reports F1 ≥ regex baseline on the benchmark's dev split.
 
 ### Stream G — Phase 3: Transformer engine (optional, gated on F plateau)
 
 - [ ] G1. `TransformerLawExtractor` using `PaDaS-Lab/gbert-legal-ner` as default weights.
-- [ ] G2. Optional extra: `pip install legal-reference-extraction[ml]`.
+- [ ] G2. Pulled in by the same `[ml]` extra as Stream F.
 - [ ] G3. GPU-batch inference path for Open Legal Data's batch ingestion.
 
 **Exit:** Orchestrator can choose engine per-document; regex stays default.
 
 ### Stream H — Phase 2d: Migration & deletion (final)
 
-- [ ] H1. Migrate Open Legal Data's ingestion pipeline to consume JSONL output.
+- [ ] H1. Migrate Open Legal Data's ingestion pipeline to consume JSONL output
+  (same owner as this refactor — O-10 resolved).
 - [ ] H2. Drop `RefMarker.replace_content`, `MARKER_OPEN`/`MARKER_CLOSE` constants.
 - [ ] H3. Drop `Ref` union class and the `RefType` enum.
-- [ ] H4. Delete `law.py` legacy extractor and `tests/test_law_legacy.py`
-  (or port the regression cases into `tests/test_law_extractor.py`).
-- [ ] H5. Bump minor version; update `CHANGELOG.md` and `README.md` examples.
+- [ ] H4. Bump minor version; update `CHANGELOG.md` and `README.md` examples.
 
 **Exit:** Zero references to the old model types in `src/` and `tests/`.
+
+(Legacy `law.py` deletion moved into Stream B9 — it doesn't have to wait for migration.)
+
+### Stream I — Phase 2e: Short-form / supra / id / ibid / a.a.O. / ebenda (gated on C1)
+
+Per O-8 resolution: "implement everything" as part of this refactor. Closes the full
+generation-zero gap that `ecosystem_comparison.md` §1 calls out.
+
+- [ ] I1. Extend the `kind` Literal on `Citation` to `"full" | "short" | "id" | "ibid" |
+  "supra" | "aao" | "ebenda"` (already reserved in C1b; populate now).
+- [ ] I2. German-dialect short-form heuristics:
+  - [ ] I2a. `a.a.O.` / `a. a. O.` — "am angegebenen Ort" (= ibid/id). Resolves to the
+    nearest prior same-kind citation.
+  - [ ] I2b. `ebenda` / `ebd.` — same resolution.
+  - [ ] I2c. `siehe dort` — same resolution.
+  - [ ] I2d. `vgl.` connector — becomes a `CitationRelation(kind="vgl")`, not a new
+    citation.
+- [ ] I3. Short-form law refs: bare `§ 5` after a fully-qualified `§ 3 BGB` inherits
+  book from the most recent full LawCitation in context.
+- [ ] I4. Short-form case refs: `BGHZ 154, 239, 242 f.` after a full `BGH, Urteil vom
+  19. März 2003 - VIII ZR 295/01, BGHZ 154, 239` — reporter-based short-form resolution.
+- [ ] I5. Resolver post-pass: after extraction, walk citations in document order, fill
+  in `short`/`id`/`supra` references from prior context. Emitted as `CitationRelation`s
+  (`relation="resolves_to"`).
+- [ ] I6. Test fixtures: add at least one German legal text per short-form kind to
+  `tests/resources/` and wire into the benchmark fixture set.
+
+**Exit:** All short-form kinds emit `Citation`s with the right `kind` and a
+`resolves_to` relation back to the full form in the same document.
 
 ---
 
@@ -197,55 +269,38 @@ Per [`output_format_recommendation.md`](./output_format_recommendation.md) §7.
 
 | Stream | Purpose | Depends on | Status | % Done |
 |--------|---------|------------|--------|--------|
-| A | Benchmark harness | — | not started | 0 |
-| B | Cleanup | A1, A4 | not started | 0 |
+| A | Benchmark harness (schema + fixture slice) | — | not started | 0 |
+| B | Cleanup + legacy `law.py` deletion | A1, A4 | not started | 0 |
 | C | Typed model + strategy | B1–B4, B6 | not started | 0 |
 | D | Output format & adapters | C1–C4 | not started | 0 |
 | E | Grundgesetz / Artikel | C1 | not started | 0 |
-| F | CRF engine | D, A | not started | 0 |
+| F | CRF engine | D, A, external dataset | not started | 0 |
 | G | Transformer engine | F plateau | not started | 0 |
-| H | Migration & deletion | D, H1 (OLD consumer) | not started | 0 |
+| H | Migration & deletion | D | not started | 0 |
+| I | Short-form / id / supra / a.a.O. / ebenda | C1 | not started | 0 |
 
 Update the matrix at the top of every PR that lands a stream item. Track in a
 `CHANGELOG.md` entry per stream.
 
 ---
 
-## 4. Open Questions
+## 4. Resolved Decisions
 
-Each question must have an owner and an answer before the gated stream can start.
+Resolved 2026-04-18 by @malteos. Each decision lists the checklist items it affects.
 
-- **O-1.** Benchmark licensing — can we vendor a cached copy of the Darji HF dataset
-  inside `benchmarks/fixtures/`, or must we always fetch at runtime? Affects air-gapped CI.
-  *Blocks A1a.*
-- **O-2.** Partial-match metric: is token-level F1 or character-span IoU the right
-  primary metric for law-ref detection? Darji's paper reports property-level F1; we
-  should match unless there's reason not to. *Blocks A2.*
-- **O-3.** Which of the 21 Darji properties are in-scope for the core schema vs.
-  structure-dict? Current proposal: book + number + unit are first-class; the rest go in
-  `structure`. Need sign-off before C1c. *Blocks C1c.*
-- **O-4.** Fate of `src/refex/extractors/law.py`: delete now (H4), or port first and then
-  delete? Risk: `test_law_legacy.py` encodes behaviour that may or may not have been
-  intentionally preserved. Audit before deletion. *Blocks B9 and H4.*
-- **O-5.** `get_law_book_ref_regex` fix (B7) may reduce recall by rejecting valid-but-
-  unlisted book codes currently matched by the permissive regex. Quantify before landing.
-  *Blocks B7 merge.*
-- **O-6.** Should citation IDs be content-hashes (reproducible, small) or
-  `ulid`-style sortable IDs (stable ordering across documents)? Proposal: content hash
-  of `(kind, span, source, doc_id)`. *Blocks C1f.*
-- **O-7.** Adapter extras strategy — one extra per adapter (`[spacy]`, `[hf]`, `[ml]`)
-  or one `[adapters]` meta-extra? The more granular path keeps installs small but
-  increases maintenance. *Blocks D3 packaging decision.*
-- **O-8.** Short-form / `a.a.O.` / `ebenda` / `vgl.` extractors — in scope for this
-  refactor or deferred to a later phase? Recommended: reserve the `kind` field now,
-  implement later. *Affects C1b field set.*
-- **O-9.** Should `RegexCaseExtractor.get_codes()` (currently CSV-loading, only called
-  from tests) be promoted to runtime use, or is its runtime replacement the regex in
-  `get_file_number_regex()` good enough? Audit needed. *Affects B8 scope.*
-- **O-10.** Open Legal Data ingestion owner — who runs the migration in H1? Timing
-  coordinates with the deletion work in H2–H4.
-- **O-11.** CI benchmark cost — running Darji + Leitner on every PR may be slow. Do we
-  sample, cache by content hash, or run only on scheduled jobs? *Affects A4.*
+| # | Question | Decision | Affects |
+|---|----------|----------|---------|
+| O-1 | Benchmark dataset hosting | Vendor a small fixture slice in `benchmarks/fixtures/`; fetch the full external dataset on demand via `make bench DATASET=...` | A1c, A3, A4 |
+| O-2 | Primary benchmark metric | Use an external (currently unpublished) dataset; define the benchmark I/O schema here so the dataset plugs in unchanged. Metrics are project-defined (span F1 + field-level accuracy + `structure` key accuracy + relation F1) | A1, A2 |
+| O-3 | `LawCitation` field scope | `book` + `number` + `unit` first-class; everything else (`absatz`, `satz`, `nummer`, `halbsatz`, `buchstabe`, `alternative`, `variante`, `buch`, `teil`, `kapitel`, …) in the `structure` dict | C1c, D8 |
+| O-4 | Legacy `law.py` fate | Audit-diff vs `law_dnc.py`, port any missing behaviour + its tests, then delete `law.py` and `test_law_legacy.py` inside Stream B | B9 |
+| O-5 | `get_law_book_ref_regex` recall risk | Land the fix behind a feature flag; measure fixture-slice recall before/after; add missing codes to the data file rather than loosen the regex | B7 |
+| O-6 | Citation ID scheme | Content hash of `(kind, span, source, doc_id)` — reproducible, snapshot-testable | C1f |
+| O-7 | Optional-extras layout | Two groups: `[adapters]` (format converters) and `[ml]` (CRF + transformer engines). Base install stays zero-dep | D9, F1, G2 |
+| O-8 | Short-form / supra / id / ibid / a.a.O. / ebenda scope | **In scope** for this refactor — added as new Stream I | C1b, Stream I |
+| O-9 | `case.get_codes()` + `file_number_codes.csv` fate | Defer until Stream F — CRF training may want the curated codes as a feature source | F5 |
+| O-10 | OLD ingestion migration owner | Same maintainer (@malteos) drives both refex and the OLD-side consumer migration | H1 |
+| O-11 | CI benchmark cost | Committed fixture slice runs on every PR; full external dataset runs on a scheduled job only | A4a, A4b |
 
 ---
 
@@ -253,27 +308,31 @@ Each question must have an owner and an answer before the gated stream can start
 
 | Risk | Mitigation |
 |------|------------|
-| Cleanup silently regresses extraction | Stream A blocks Stream B; every B-PR reports P/R/F1 delta |
+| Cleanup silently regresses extraction | Stream A blocks Stream B; every B-PR reports fixture-slice delta |
 | Strategy refactor breaks Open Legal Data ingestion | Legacy `to_ref_marker` output preserved through H1 |
-| `law_book_codes` fix reduces recall | Measure against benchmark first (O-5); add codes rather than loosen regex |
-| ML deps bloat the base install | All ML is behind extras (`[crf]`, `[ml]`); zero-dep base install preserved |
-| Darji / Leitner datasets change upstream | Pin dataset revisions in `benchmarks/datasets.py` |
-| Contributor churn mid-refactor | Stream checklists + this doc as the single source of truth |
+| `law_book_codes` fix reduces recall | Feature-flag the fix (O-5); add codes rather than loosen regex |
+| ML deps bloat the base install | All ML is behind `[ml]` extra; base stays zero-dep |
+| Adapter deps bloat the base install | All non-pure-Python adapters behind `[adapters]` extra |
+| External benchmark dataset landing delayed | Fixture slice keeps CI signal live; F1 gating for Stream F can wait |
+| External benchmark dataset revisions | Pin dataset version in `benchmarks/datasets.py` loader config |
+| Contributor churn mid-refactor | Stream checklists + this doc as single source of truth |
 
 ---
 
 ## 6. Sequencing Cheat Sheet
 
 ```
-A ──┬── B ──┬── C ──┬── D ──┬── H
-    │       │       │       │
-    └───────┴───────┼── E   │
-                    │       │
-                    └── F ──┴── G
+A ──┬── B ──┬── C ──┬── D ──── H
+    │       │       ├── E
+    │       │       ├── I
+    │       │       └── F ──── G
 ```
 
-- A must ship before anything else is measured.
+- A (schema + fixture slice) must ship before B's benchmark-gated items.
 - B can run in parallel with A2–A5 once A1 lands.
 - C depends on the essential subset of B (B1–B4, B6), not all of B.
-- D, E, F each hang off different parts of C; can run in parallel.
+- D, E, I each hang off C1 — all three can run in parallel.
+- F depends on D (adapters needed for training data export) **and** the external
+  benchmark dataset landing.
 - H is last — it deletes the fallback paths.
+- Legacy `law.py` deletion now lives in B9 and does not block H.
