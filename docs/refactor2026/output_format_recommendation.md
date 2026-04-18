@@ -109,6 +109,34 @@ so future extractors can emit them without a schema bump.
 
 ## 4. Recommendation
 
+### 4.0 Input formats and span coordinate system
+
+Extractors must consume **plain text, HTML (multiple source profiles), and Markdown**
+uniformly. Today's `is_html: bool` flag is insufficient — different HTML sources (BGH,
+BVerwG, Open Legal Data dump, gesetze-im-internet.de) have different markup
+conventions, and Markdown support is missing entirely.
+
+The model is wrapped in a `Document` type:
+
+```python
+@dataclass(frozen=True, slots=True)
+class Document:
+    raw: str                                         # original HTML / Markdown / plain
+    format: Literal["plain", "html", "markdown"]
+    source_profile: str | None                       # e.g. "oldp-html", "bgh-html"
+    text: str                                        # canonical plain-text projection
+    offset_map: Sequence[int]                        # text[i] → raw[offset_map[i]]
+```
+
+**Span coordinate rule:** every `Citation.span` refers to `Document.text` (the plain-
+text projection), **never** `raw`. This is the single most important invariant for
+keeping offsets stable across markup changes. Consumers who need to re-render citations
+into the original HTML / Markdown use the offset map to translate back.
+
+See [`implementation_plan.md`](./implementation_plan.md) Stream J for the format-handler
+details and [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) §3 / §11.10 for
+how benchmark documents carry this metadata.
+
 ### 4.1 Core in-memory model: typed dataclasses per citation kind
 
 Follow the **eyecite pattern** — the only peer tool solving the same problem (legal

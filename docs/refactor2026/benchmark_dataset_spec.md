@@ -66,25 +66,53 @@ One JSON object per line. One object per document.
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `doc_id` | string | yes | Stable ID, e.g. `bgh-2003-03-19-viii-zr-295-01`. Globally unique within the dataset. |
-| `text` | string | yes | Raw plain-text of the decision. Newlines `\n` preserved. No HTML. |
+| `format` | string | yes | `"plain"` \| `"html"` \| `"markdown"`. Declares what `raw` contains. |
+| `raw` | string | yes | Document content in the declared `format`. Newlines `\n` preserved. |
+| `text` | string | yes | **Canonical plain-text projection** of `raw` (for `format="plain"`, identical to `raw`). Span offsets in `annotations.jsonl` are relative to **this** field. |
+| `source_profile` | string | no | Identifier of the normaliser profile used to produce `text` from `raw`. E.g. `"oldp-html"`, `"bgh-html"`, `"gesetze-im-internet-html"`, `"commonmark-markdown"`. Required when `format != "plain"`. |
 | `language` | string | yes | ISO 639-1 code. Always `"de"` for this dataset. |
-| `source` | string | yes | URL or dataset-internal source identifier, e.g. `openlegaldata://case/12345`. |
+| `source` | string | yes | URL or dataset-internal source identifier. |
 | `court` | string | no | Court of origin, e.g. `"BGH"`. Useful for stratified sampling. |
 | `decision_date` | string | no | ISO 8601 date, e.g. `"2003-03-19"`. |
 | `decision_type` | string | no | `"Urteil"` / `"Beschluss"` / `"Verfügung"` / ... |
 | `license` | string | yes | Per-document license. See §7. |
 
-**Example:**
+**Why two text fields (`raw` + `text`)?** Span annotations need stable offsets. HTML and
+Markdown rewrite trivially under whitespace / entity-decoding / tag-stripping changes —
+offsets in `raw` would break whenever a normaliser is tweaked. Offsets in `text` (the
+canonical projection) stay stable across normaliser revisions. Consumers who need to
+re-render citations back into the original HTML/Markdown must use the same
+`source_profile` normaliser to re-derive `text` and map spans forward (see §11.10).
+
+**Examples:**
 
 ```json
 {"doc_id": "bgh-2003-03-19-viii-zr-295-01",
- "text": "Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO i.V.m. § 708 Nr. 11 ZPO. ...",
- "language": "de",
- "source": "openlegaldata://case/789456",
- "court": "BGH",
- "decision_date": "2003-03-19",
- "decision_type": "Urteil",
- "license": "CC0-1.0"}
+ "format": "plain",
+ "raw": "Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO...",
+ "text": "Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO...",
+ "language": "de", "source": "openlegaldata://case/789456",
+ "court": "BGH", "decision_date": "2003-03-19",
+ "decision_type": "Urteil", "license": "CC0-1.0"}
+```
+
+```json
+{"doc_id": "bgh-2020-11-05-i-zr-123-19",
+ "format": "html",
+ "raw": "<p>Die Kostenentscheidung beruht auf <em>\u00a7 154 Abs. 1 VwGO</em>...</p>",
+ "text": "Die Kostenentscheidung beruht auf \u00a7 154 Abs. 1 VwGO...",
+ "source_profile": "oldp-html",
+ "language": "de", "source": "https://openlegaldata.io/case/1234",
+ "court": "BGH", "license": "CC0-1.0"}
+```
+
+```json
+{"doc_id": "zotero-note-0042",
+ "format": "markdown",
+ "raw": "Die Kostenentscheidung beruht auf **\u00a7 154 Abs. 1 VwGO**...",
+ "text": "Die Kostenentscheidung beruht auf \u00a7 154 Abs. 1 VwGO...",
+ "source_profile": "commonmark-markdown",
+ "language": "de", "source": "zotero://note/42", "license": "CC-BY-4.0"}
 ```
 
 ---
@@ -111,7 +139,7 @@ Every citation (law or case) has:
 | `id` | string | yes | Annotation-local ID, e.g. `c_001`. Only needs to be unique **within this document**; used to wire relations. |
 | `type` | string | yes | `"law"` \| `"case"`. Discriminator. |
 | `kind` | string | yes | `"full"` \| `"short"` \| `"id"` \| `"ibid"` \| `"supra"` \| `"aao"` \| `"ebenda"`. See §5.5. |
-| `span` | object | yes | `{"start": int, "end": int, "text": string}`. Character offsets into `documents.jsonl[doc_id].text`. `text` must equal `text[start:end]`. |
+| `span` | object | yes | `{"start": int, "end": int, "text": string}`. Character offsets into `documents.jsonl[doc_id].text` (the **canonical plain-text projection**, never `raw`). `text` must equal `doc.text[start:end]`. |
 | `confidence` | float | no | Annotator confidence 0..1. Default `1.0`. Useful for ambiguous cases. |
 | `annotator` | string | no | Annotator ID, for inter-annotator agreement analysis. |
 | `notes` | string | no | Free text, e.g. rationale for a hard call. |
@@ -300,6 +328,9 @@ When in doubt:
   - BGH cite with reporter (BGHZ) and marginal (Rn.)
   - OVG / LG / administrative court cite
   - Parallel citation (Aktenzeichen + reporter of same decision)
+- **Input formats** (§3): at least one document in each of `plain`, `html`, `markdown`.
+  HTML should cover at least two distinct `source_profile`s (e.g. `oldp-html` +
+  `bgh-html`) so normaliser regressions surface.
 
 **Selection process:** stratified sample from the **test split**. Document IDs listed
 in `guidelines/ci_subset.md` on the HF repo for reproducibility.
@@ -346,7 +377,8 @@ Before publishing a new dataset revision, run (ideally as a CI job on the datase
 
 1. **Schema validation**: every record validates against JSON Schemas committed to the
    dataset repo (`schemas/document.schema.json`, `schemas/annotation.schema.json`).
-2. **Span integrity**: for every citation, `text[span.start:span.end] == span.text`.
+2. **Span integrity**: for every citation, `doc.text[span.start:span.end] == span.text`
+   (spans always refer to `text`, never `raw`).
 3. **Join integrity**: every `doc_id` in `annotations.jsonl` has a matching entry in
    `documents.jsonl` and vice-versa.
 4. **ID uniqueness**: citation `id`s unique within their document; `doc_id`s unique
@@ -357,6 +389,8 @@ Before publishing a new dataset revision, run (ideally as a CI job on the datase
    document, or `null`.
 7. **`book` membership**: every `book` value exists in
    `src/refex/data/law_book_codes.txt` (or a PR opened to add it).
+8. **Format coherence**: when `format != "plain"`, `source_profile` is set; applying the
+   named profile's normaliser to `raw` deterministically reproduces `text`.
 
 `benchmarks/validate.py` in refex runs the same checks on the CI subset.
 
@@ -555,6 +589,55 @@ is the standard; HF's dataset card is a rendering of it. Common pitfalls:
 feed the dataset card directly. Keep the dataset card's skeleton pulled from the
 [HF community template](https://huggingface.co/docs/hub/en/datasets-cards).
 
+### 11.10 Input formats — plain, HTML, Markdown
+
+Production documents arrive in multiple formats:
+
+- **Plain text** — pre-processed corpus dumps; simplest case.
+- **HTML** — most web-scraped court decisions. Different sources embed different
+  markup (BGH, BVerwG, BVerfG, state OVGs, gesetze-im-internet.de, Open Legal Data
+  each have their own DOM conventions). Some wrap citations in `<em>`, `<cite>`, or
+  `<a>`; some split numbers across tags; some use `&sect;` entity vs. literal `§`.
+- **Markdown** — researcher notes, RAG pipelines, Zotero-exported snippets.
+
+Common pitfalls specific to multi-format input:
+
+1. **Span offsets drift under markup changes.** A citation's offset in raw HTML shifts
+   any time whitespace, entities, or tag wrapping changes upstream. Spec fix: offsets
+   are always in the `text` projection (§3), never `raw`.
+2. **Tag-split citation text.** `<em>§ 154</em> Abs. 1 <em>VwGO</em>` — the citation
+   body crosses tag boundaries. Normalisers must concatenate before extraction; span
+   coordinates in `text` collapse the tags away.
+3. **Entity escaping.** `&sect;` vs `§`, `&nbsp;` vs space. Normalisers must decode
+   before extraction so the regex alternation doesn't have to carry entity variants.
+4. **Boilerplate contamination.** Navigation, footer, breadcrumbs in HTML generate
+   spurious citations in side menus. Per-source profiles should strip boilerplate
+   before extraction; generic `.get_text()` is not sufficient.
+5. **Line breaks in Markdown.** Hard wraps at 80 columns can split citations across
+   lines; `§ 154\nAbs. 1 VwGO` needs newline-as-whitespace treatment in the
+   normaliser.
+6. **Markdown emphasis markers bleeding into text.** `**§ 154 VwGO**` — the `*`
+   characters must be dropped, not retained in `text`. Use a proper Markdown parser
+   (mistune / commonmark.py), not a regex strip.
+7. **Round-tripping markers back into `raw`.** If consumers need to render
+   `[ref=UUID]...[/ref]` into the original HTML (e.g. to link citations in-page), they
+   must apply the same `source_profile` normaliser, extract, then map `text` offsets
+   back to `raw` offsets via the normaliser's offset map. Normalisers **must** expose
+   such a map (`list[tuple[plain_idx, raw_idx]]` or equivalent).
+
+**What this spec requires of the benchmark:**
+
+- `format` + `source_profile` fields on every document (§3).
+- CI subset stratification must include all three formats and ≥ 2 HTML profiles (§6).
+- Format-coherence check (§9 item 8): re-normalising `raw` must reproduce `text` byte
+  for byte, so normaliser regressions are caught at validation time.
+- Per-profile F1 reporting in `benchmarks/metrics.py` — a normaliser regression on one
+  source profile is invisible in the aggregate.
+
+See also [`implementation_plan.md`](./implementation_plan.md) Stream J for the
+refex-side work: a `Document` type, format detection, pluggable `SourceProfile`
+normalisers, and offset-map preservation.
+
 ---
 
 ## 12. Summary: Common Pitfalls Checklist
@@ -575,6 +658,9 @@ Run through this before publishing any dataset revision:
 - [ ] Revision SHA pinned in the downstream consumer (`benchmarks/fixtures/SOURCE`).
 - [ ] Document hashes published so pre-training corpora can filter them out.
 - [ ] Validators (`benchmarks/validate.py`) pass with zero errors.
+- [ ] All three `format` values (`plain`, `html`, `markdown`) represented in every split.
+- [ ] ≥ 2 HTML `source_profile`s per split; per-profile F1 reported.
+- [ ] Format-coherence check passes: `normalise(raw) == text` for every non-plain document.
 
 ---
 

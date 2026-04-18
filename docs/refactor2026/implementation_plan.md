@@ -31,6 +31,7 @@ Verified before writing this plan (file:line citations; grep/read-checked):
 |------|----------|---------------|
 | Entry point | `src/refex/extractor.py:12` | `RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin)` — multiple-inheritance mixins |
 | `extract()` return | `src/refex/extractor.py:48-69` | `(content_with_[ref=UUID]markers, list[RefMarker])` |
+| Input format signalling | `src/refex/extractor.py:48,55` | `extract(content_html: str, is_html: bool = False)` — crude bool flag, HTML-aware only in the law extractor, no Markdown support, no per-source profiles |
 | Marker format constants | `src/refex/__init__.py:4-5` | `[ref=%(uuid)s]` / `[/ref]` |
 | `RefMarker.references` | `src/refex/models.py:121` | **Mutable class-level default `= []`** |
 | `BaseRef.__init__` | `src/refex/models.py:21-22` | Uses `**kwargs` — silently accepts typos |
@@ -150,14 +151,16 @@ needs justification in the PR description.
 Follows [`output_format_recommendation.md`](./output_format_recommendation.md) §4.1.
 
 - [ ] C1. Add new models in `src/refex/models.py` **alongside** existing `Ref` / `RefMarker`:
-  - [ ] C1a. `Span(start, end, text)` — frozen, slots
+  - [ ] C1a. `Span(start, end, text)` — frozen, slots. Offsets always into `Document.text`, never `raw`.
   - [ ] C1b. `Citation` base — frozen, slots, with `id, span, kind, confidence, source`
   - [ ] C1c. `LawCitation(unit, delimiter, book, number, structure, range_end, range_extensions)`
   - [ ] C1d. `CaseCitation(court, file_number, file_number_parts, date, decision_type, ecli, reporter, reporter_volume, reporter_page, reporter_marginal, parallel_citations)`
   - [ ] C1e. `CitationRelation(source_id, target_id, relation, span)`
   - [ ] C1f. Stable content-hash IDs (replace `uuid.uuid4()`).
+  - [ ] C1g. `Document(raw, format, source_profile, text, offset_map)` — input wrapper
+    consumed by extractors; see Stream J for how it's built.
 - [ ] C2. Define `Extractor` protocol in `src/refex/protocols.py`:
-  `def extract(self, text: str) -> tuple[list[Citation], list[CitationRelation]]:`
+  `def extract(self, doc: Document) -> tuple[list[Citation], list[CitationRelation]]:`
 - [ ] C3. Wrap existing regex logic as `RegexLawExtractor` and `RegexCaseExtractor`
   emitting the new types natively.
 - [ ] C4. Rewrite `RefExtractor` as an **orchestrator** that accepts
@@ -270,6 +273,60 @@ generation-zero gap that `ecosystem_comparison.md` §1 calls out.
 **Exit:** All short-form kinds emit `Citation`s with the right `kind` and a
 `resolves_to` relation back to the full form in the same document.
 
+### Stream J — Phase 2f: Input format handling (gated on C1)
+
+Replaces today's `is_html: bool` flag with a proper multi-format pipeline. Supports
+plain text, HTML (multiple source profiles), and Markdown. Span offsets always live
+in the canonical plain-text projection; normalisers expose an offset map for
+round-tripping back to `raw`. See
+[`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) §3 and §11.10 for the
+format contract.
+
+- [ ] J1. `Document` dataclass in `src/refex/models.py`:
+  - `raw: str`, `format: Literal["plain", "html", "markdown"]`,
+  - `source_profile: str | None`, `text: str`,
+  - `offset_map: Sequence[int]` — for each index `i` in `text`, the corresponding
+    offset in `raw` (enough to round-trip spans back).
+- [ ] J2. `SourceProfile` protocol in `src/refex/sources/__init__.py`:
+  `def normalise(raw: str) -> tuple[str, Sequence[int]]:`. Pure-Python; no runtime
+  deps for the default profiles.
+- [ ] J3. Plain-text profile (`plain`): identity normaliser.
+- [ ] J4. HTML normalisers:
+  - [ ] J4a. `html-generic` default — strip tags, decode entities, collapse whitespace
+    conservatively, preserve paragraph breaks as `\n`. Use stdlib `html.parser`; no
+    `beautifulsoup4` dep in base install (belongs behind `[adapters]`).
+  - [ ] J4b. `oldp-html` profile — Open Legal Data dump-specific boilerplate stripping
+    (nav, breadcrumbs, metadata tables).
+  - [ ] J4c. `bgh-html`, `bverwg-html`, `bverfg-html` profiles as separate modules;
+    register additional profiles over time as new sources appear.
+- [ ] J5. Markdown normaliser (`commonmark-markdown`): parse with a pure-Python
+  CommonMark lib (optional dep under `[adapters]`) or a minimal inline handler for
+  emphasis + code markers.
+- [ ] J6. `RefExtractor.extract()` accepts either a `str` (auto-detects format via
+  content sniffing + `format=` kwarg override) or a `Document`. The raw string path
+  builds a `Document` internally.
+- [ ] J7. Format detection heuristic: HTML if the input starts with `<` or contains
+  `<[a-z]+[ >]` in the first 256 chars; Markdown if it has CommonMark-style
+  headings / emphasis; else plain.
+- [ ] J8. Offset-map utilities: `map_span_to_raw(span, document) -> Span` for
+  consumers that need to render markers back into the original HTML / Markdown.
+- [ ] J9. Per-profile adapters for the legacy `to_ref_marker` output: re-insert
+  `[ref=UUID]...[/ref]` into `raw` at the mapped-back offsets. Preserves HTML
+  validity (no tag-crossing markers) by splitting the marker at tag boundaries.
+- [ ] J10. Tests:
+  - [ ] J10a. Round-trip tests: for each profile, `normalise(raw)` reproduces
+    `Document.text` byte-for-byte, and `map_span_to_raw(span)` recovers a valid
+    substring of `raw`.
+  - [ ] J10b. Benchmark coverage: CI subset fixture includes at least one document
+    per format and two distinct HTML profiles.
+  - [ ] J10c. Boilerplate-contamination tests: an HTML document with nav/footer must
+    not emit citations from those sections.
+- [ ] J11. Deprecate `is_html: bool` kwarg with a warning; remove in Stream H.
+
+**Exit:** `extract(raw_html, format="html", source_profile="oldp-html")` returns
+citations whose spans land correctly in the plain-text projection, and
+`map_span_to_raw` recovers the original HTML location.
+
 ---
 
 ## 3. Progress Tracking — Summary Matrix
@@ -285,6 +342,7 @@ generation-zero gap that `ecosystem_comparison.md` §1 calls out.
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | not started | 0 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | not started | 0 |
+| J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | not started | 0 |
 
 Update the matrix at the top of every PR that lands a stream item. Track in a
 `CHANGELOG.md` entry per stream.
@@ -332,14 +390,15 @@ Resolved 2026-04-18 by @malteos. Each decision lists the checklist items it affe
 A ──┬── B ──┬── C ──┬── D ──── H
     │       │       ├── E
     │       │       ├── I
+    │       │       ├── J
     │       │       └── F ──── G
 ```
 
 - A (schema + fixture slice) must ship before B's benchmark-gated items.
 - B can run in parallel with A2–A5 once A1 lands.
 - C depends on the essential subset of B (B1–B4, B6), not all of B.
-- D, E, I each hang off C1 — all three can run in parallel.
-- F depends on D (adapters needed for training data export) **and** the external
-  benchmark dataset landing.
+- D, E, I, J each hang off C1 — all four can run in parallel.
+- F depends on D (adapters needed for training data export) **and** the HF dataset's
+  train split landing.
 - H is last — it deletes the fallback paths.
 - Legacy `law.py` deletion now lives in B9 and does not block H.
