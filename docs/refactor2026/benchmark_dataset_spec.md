@@ -364,13 +364,221 @@ Before publishing a new dataset revision, run (ideally as a CI job on the datase
 
 ## 10. Inter-Annotator Agreement (Recommended)
 
-Target ≥ 10% double-annotation. Report span-F1 agreement (exact + relaxed)
-and field-level Cohen's κ in the HF dataset card. Flag documents with
-disagreement > threshold for a third annotator to adjudicate.
+Target **≥ 10% double-annotation** on the test split (and ideally on dev too). Metric
+choice matters:
+
+- **Krippendorff's α** is the preferred headline agreement metric — unlike Cohen's κ it
+  generalises cleanly to more than two annotators, supports partial overlaps between
+  annotator pools, and accommodates categorical / ordinal / interval scales in one
+  framework ([Artstein & Poesio, 2008](https://www.mitpressjournals.org/doi/abs/10.1162/coli.07-034-R2) —
+  the canonical reference for IAA in computational linguistics).
+- **Cohen's κ** is acceptable when there are exactly two annotators and a fixed label
+  set. Report it per-field (`book`, `unit`, `kind`, each `structure` key) rather than
+  globally.
+- **Span F1 between annotators** (exact + SemEval-2013 partial) captures boundary
+  disagreement that kappa hides.
+
+Report these in the HF dataset card. Flag documents with Krippendorff's α < 0.67
+(Artstein & Poesio's "tentative conclusions" floor) for a third annotator to
+adjudicate. Keep the adjudication protocol in `guidelines/adjudication.md`.
+
+Crucially, IAA demonstrates **reliability, not validity** — high agreement proves
+annotators interpret the guidelines consistently, not that the guidelines capture the
+legally-correct distinction. Validate against domain expert review on a sample
+(~20 documents) separately.
 
 ---
 
-## 11. Open Items for Dataset Builders
+## 11. Best Practices & Common Pitfalls
+
+Drawn from the broader NER / citation-extraction benchmarking literature. Each item
+lists how this spec addresses it.
+
+### 11.1 Label noise is pervasive — plan for it
+
+[Northcutt et al. (2021)](https://arxiv.org/abs/2103.14749) found label errors in every
+major ML benchmark they audited (average 3.3%, up to 10.1% in some). For NER
+specifically, [Wang et al. (2019)](https://aclanthology.org/2020.conll-1.16/) identified
+1,300+ incorrect labels in CoNLL-2003 — comparable to the error rate of SOTA
+models. [CleanCoNLL](https://arxiv.org/abs/2310.16225) (2023) later re-annotated the
+corpus to near-noise-free status and showed that SOTA rankings change materially on
+clean data.
+
+**What this spec does:**
+
+- Double-annotation (§10) + adjudication protocol catches a first pass.
+- `benchmarks/validate.py` (§9) enforces span integrity, controlled vocabulary, and
+  resolves-to integrity — cheap checks that catch annotator slips.
+- The dataset is **versioned** (§8) so corrections can ship as a patch release without
+  invalidating prior benchmarks.
+- **Expect to ship a "clean" revision 6–12 months after v1.** Budget annotation time
+  for error-mining on the test split once a model is in use — errors cluster where
+  models are confident-but-wrong
+  ([cleanlab methodology](https://cleanlab.ai/blog/learn/entity-recognition/)).
+
+### 11.2 Token-level F1 hides boundary errors — use entity-level + SemEval-2013
+
+The default `seqeval` metric (entity-level strict match) is the minimum; reporting only
+token-level F1 double-penalises partial matches and masks systematic boundary-shift
+errors ([Batista, 2018](https://www.davidsbatista.net/blog/2018/05/09/Named_Entity_Evaluation/)).
+
+The [MUC-5](https://aclanthology.org/M93-1007/) / [SemEval-2013 Task 9](https://aclanthology.org/S13-2056/)
+scheme defines four metrics that together give a fuller picture:
+
+| Metric | Checks |
+|--------|--------|
+| **Strict** | exact boundaries **and** type |
+| **Exact** | exact boundaries, type ignored |
+| **Partial** | overlapping boundaries, type ignored (partial credit: 0.5) |
+| **Type** | some overlap **and** correct type |
+
+**What this spec does:** §A2 in [`implementation_plan.md`](./implementation_plan.md)
+requires all four. The [`nervaluate`](https://github.com/MantisAI/nervaluate) library
+implements them against arbitrary label sets and is the recommended dependency under
+the `[adapters]` extra.
+
+### 11.3 Document-level splits, not sentence-level
+
+Leakage-through-document is the most common silent error in legal NLP benchmarks. The
+same court decision can be republished across reporters, excerpted in commentary, or
+re-indexed with minor edits. Sentence-level splits that land the same case in both
+train and test inflate scores dramatically.
+
+**What this spec does:**
+
+- Splits are defined at the **document level** (§2).
+- Near-duplicate detection across splits must be a QC step before publication.
+  Recommended: MinHash on paragraph-shingles at `threshold=0.8`, flag any cross-split
+  hit.
+- `source` field (§3) carries the provenance URL so re-publications of the same
+  judgment can be grouped and held out together.
+
+### 11.4 Stratify by court, date, and decision type
+
+Legal NLP benchmarks that don't stratify suffer from **domain collapse**: the test
+split ends up dominated by one court or era, and the reported F1 doesn't generalise
+([LexGLUE, Chalkidis et al. 2022](https://aclanthology.org/2022.acl-long.297/);
+[LEXTREME, Niklaus et al. 2023](https://arxiv.org/abs/2301.13126)).
+
+**What this spec does:**
+
+- CI subset stratification (§6) requires coverage across BVerfG / BGH / administrative
+  / civil courts and across law-ref pattern types.
+- Full dataset splits should preserve the same court + date proportions (reported in
+  the dataset card).
+- Report F1 **per stratum** in `benchmarks/metrics.py`, not just the aggregate.
+
+### 11.5 Benchmark data contamination
+
+[Dodge et al. (2021)](https://aclanthology.org/2021.emnlp-main.98/) showed that widely-
+used pre-training corpora (C4) contain the test splits of common benchmarks, causing
+LLMs to appear to generalise when they've memorised. For a German legal citation
+benchmark, the risk surfaces two ways:
+
+1. Training a transformer extractor (Stream G) on a corpus that includes the gold
+   documents.
+2. The benchmark's source court decisions already living in `openlegaldata`'s public
+   dump and therefore in any common German web crawl.
+
+**What this spec does:**
+
+- Require that any submitted model declares whether its training data overlaps with the
+  benchmark, checked via document-level hash or URL match against the
+  `documents.jsonl[].source` field.
+- Publish **document hashes** in the dataset card so hosts can filter them out of
+  scraped corpora.
+- Keep the test split's exact `doc_id`s pinned to HF revision SHAs; rotate a sealed
+  "holdout" split periodically for robust evaluation.
+
+### 11.6 Report more than one number
+
+F1 alone hides systematic errors. Per the NER evaluation literature, always include:
+
+- Precision + recall separately (F1 can stay flat while P/R trade off).
+- Per-class and per-field F1 (a model can win overall by over-predicting the majority
+  class).
+- Error-type breakdown: [SemEval-2013](https://aclanthology.org/S13-2056/) *correct /
+  incorrect / partial / missed / spurious* counts — actionable for debugging.
+- Confidence calibration histogram (for ML engines under Streams F/G).
+
+**What this spec does:** §A2 of [`implementation_plan.md`](./implementation_plan.md)
+requires a JSON report with all of the above, not a single F1 number.
+
+### 11.7 Version everything, pin revisions downstream
+
+Benchmarks that don't version cause irreproducible papers. HF Hub's git-backed revisions
+are the right substrate, but only if callers pin them.
+
+**What this spec does:**
+
+- Date-tag dataset revisions on HF (§8).
+- `benchmarks/fixtures/SOURCE` pins the CI-subset revision SHA.
+- `benchmarks/datasets.py` loader accepts `revision=` and defaults to the pinned SHA,
+  not `main`.
+
+### 11.8 Precedents from adjacent domains
+
+Research-paper citation extraction already solved many of these problems; reuse
+directly rather than re-deriving:
+
+- **[Tkaczyk et al. (2018)](https://arxiv.org/abs/1802.01168)** — the canonical
+  evaluation of 10 open-source bibliographic reference parsers. Methodology: single
+  evaluation corpus (9.5k papers), same metrics per tool, out-of-box vs retrained
+  splits. Their finding that retraining adds 3–16 F1 points is the core argument for
+  Stream F (CRF) in our plan.
+- **[GROBID's end-to-end evaluation protocol](https://grobid.readthedocs.io/en/latest/References/)**
+  — builds directly on Tkaczyk; a good template for per-field scoring when the schema
+  has nested structure (as ours does with `structure`).
+- **[eyecite's CI workflow](https://github.com/freelawproject/eyecite)** — posts
+  per-PR accuracy + speed deltas vs main as a comment. Directly the model we're
+  adopting for §A4a.
+- **[Darji et al. (2023)](https://arxiv.org/abs/2303.05388)** / **Leitner et al.
+  ([2020](https://aclanthology.org/2020.lrec-1.551/))** — German legal NER precedent;
+  their property sets inform our schema and should be reviewed as a sanity check
+  before freezing v1.
+
+### 11.9 Document datasets, not just tools
+
+[Gebru et al.'s Datasheets for Datasets (2021)](https://dl.acm.org/doi/10.1145/3458723)
+is the standard; HF's dataset card is a rendering of it. Common pitfalls:
+
+- Skipping "Motivation" and "Considerations for Using the Data" sections — these are
+  where legal, licensing, and bias caveats live. Research found only ~8% of low-download
+  HF dataset cards complete all suggested sections
+  ([Yang et al., 2024](https://arxiv.org/abs/2401.13822)).
+- Missing licensing per-document (§7 here) — critical for German court decisions where
+  some documents are free (§ 5 UrhG) and some carry third-party commentary.
+- Not declaring annotation process / IAA / adjudication — consumers can't calibrate
+  trust.
+
+**What this spec does:** §7 (licensing per-document), §10 (IAA), and §11 itself all
+feed the dataset card directly. Keep the dataset card's skeleton pulled from the
+[HF community template](https://huggingface.co/docs/hub/en/datasets-cards).
+
+---
+
+## 12. Summary: Common Pitfalls Checklist
+
+Run through this before publishing any dataset revision:
+
+- [ ] Every annotation's `text[start:end] == span.text` (span integrity).
+- [ ] No document appears in more than one split (document-level leakage check).
+- [ ] Near-duplicate detection run across splits (MinHash or SimHash on paragraph
+      shingles).
+- [ ] Court / date / decision-type distributions reported per split.
+- [ ] Every `book` in annotations exists in `law_book_codes.txt`.
+- [ ] IAA (Krippendorff's α) reported per field in the dataset card.
+- [ ] ≥ 10% of test split double-annotated; adjudication trail preserved.
+- [ ] CI subset is a stratified draw from the test split, not from train.
+- [ ] Dataset card completes all Gebru/HF sections — especially motivation, known
+      limitations, licensing.
+- [ ] Revision SHA pinned in the downstream consumer (`benchmarks/fixtures/SOURCE`).
+- [ ] Document hashes published so pre-training corpora can filter them out.
+- [ ] Validators (`benchmarks/validate.py`) pass with zero errors.
+
+---
+
+## 13. Open Items for Dataset Builders
 
 Items this spec deliberately leaves to the dataset-building team to decide:
 
