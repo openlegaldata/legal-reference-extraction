@@ -134,13 +134,15 @@ class Citation:
 
 @dataclass(frozen=True, slots=True)
 class LawCitation(Citation):
-    book: str                                   # e.g. "bgb", "vwgo"
-    section: str                                # "§" number, e.g. "708"
+    book: str                                   # e.g. "bgb", "vwgo", "gg"
+    unit: Literal["paragraph", "article"]       # "§ 123 BGB" → paragraph; "Art. 3 GG" → article
+    number: str                                 # the main number, e.g. "708" or "3"
+    delimiter: str                              # exact matched marker: "§", "§§", "Art.", "Art"
     structure: dict[str, str] = field(default_factory=dict)
     # keys: "buch","teil","abschnitt","titel","paragraph","absatz","satz",
     #       "halbsatz","nummer","buchstabe","alternative","variante", ...
     # (Darji 2023 property set, documented as constants)
-    range_end: str | None = None                # for §§ A bis B
+    range_end: str | None = None                # for §§ A bis B  /  Art. 1, 2, 3
     range_extensions: list[str] = field(default_factory=list)  # ["f", "ff"]
 
 @dataclass(frozen=True, slots=True)
@@ -280,14 +282,155 @@ output instead of engines.
    `to_ref_marker` adapter for existing callers.
 3. Add `to_jsonl` and land a golden-file test suite against the existing fixture set —
    locks current behaviour as a regression net.
-4. Implement `to_spacy_doc` and `to_hf_bio` next (unlocks Phase 2.5 CRF training + Darji
+4. Close the Grundgesetz / `Art.` gap (§7): extend the delimiter regex in the single-ref
+   and multi-ref handlers, add a `default_unit` column to `law_book_codes`, un-skip
+   `test_extract10` and the other `Art.`-style fixtures.
+5. Implement `to_spacy_doc` and `to_hf_bio` next (unlocks Phase 2.5 CRF training + Darji
    benchmark wiring).
-5. Move Open Legal Data ingestion to consume the JSONL output; then delete
+6. Move Open Legal Data ingestion to consume the JSONL output; then delete
    `RefMarker.replace_content`, `[ref=UUID]` format constants, and the `Ref` union class.
 
 ---
 
-## 7. What We Deliberately Don't Do
+## 7. Grundgesetz and Other Article-Based Citations
+
+German law books come in two citation dialects: **`§`-style** (most federal statutes —
+BGB, StGB, VwGO, ZPO, SGG) and **`Art.`-style** (the Grundgesetz, most state constitutions,
+EU directives and regulations, and a handful of older codes). Example pairs:
+
+| § style                          | Art. style                           |
+|----------------------------------|--------------------------------------|
+| `§ 3 Abs. 1 AsylG`               | `Art. 3 Abs. 1 GG`                   |
+| `§§ 708 Nr. 11, 711 ZPO`         | `Art. 1, 2, 3 GG`                    |
+| `§ 6 Abs. 5 Satz 1 LBO`          | `Art. 12 Abs. 1 GG`                  |
+| —                                | `Art. 3 II Buchst. c RL 2001/29/EG`  |
+
+### Current status
+
+**Not supported.** `src/refex/extractors/law_dnc.py:294` has a `# TODO Art GG` marker and
+`tests/test_law_extractor.py:204` skips the Grundgesetz test case (`test_extract10`). The
+legacy `law.py` has partial `Art.` handling that was not carried forward to the
+divide-and-conquer extractor. Today `Ref.section` has no slot to distinguish the unit type,
+so `§ 12 GG` and `Art. 12 GG` would collapse into the same shape.
+
+### Design decision: one `LawCitation` class, not two
+
+Options considered:
+
+1. Separate `ArticleCitation` class alongside `LawCitation`. **Rejected** — duplicates every
+   field (book, structure, ranges) for a difference that's one token wide. Relations like
+   `Art. 19 Abs. 4 GG i.V.m. § 40 VwGO` would need cross-class wiring for no benefit.
+2. Infer unit from book (lookup table `GG → article`, `BGB → paragraph`) and keep a single
+   `section` field. **Rejected** — erases what the author wrote. Same book can be cited
+   both ways in migration periods or in mistakes we still want to capture faithfully,
+   and a given text can cite `§` of one book and `Art.` of another in a single sentence.
+3. **Chosen:** one `LawCitation` with an explicit `unit: Literal["paragraph", "article"]`
+   plus a `delimiter: str` that preserves the exact matched token (`§`, `§§`, `Art.`, `Art`,
+   `Artikel`).
+
+Renames for clarity: `section` → `number`. `section` was already misleading for §-refs
+(German legal terminology calls `§` a *Paragraph*, not a section); making the field
+neutral removes the ambiguity.
+
+### Worked examples
+
+**`Art. 3 Abs. 1 GG` →**
+
+```python
+LawCitation(
+    span=Span(..., text="Art. 3 Abs. 1 GG"),
+    unit="article",
+    delimiter="Art.",
+    book="gg",
+    number="3",
+    structure={"absatz": "1"},
+)
+```
+
+**`Art. 1, 2, 3 GG` → three citations under one matched span**
+
+```python
+LawCitation(unit="article", delimiter="Art.", book="gg", number="1", ...),
+LawCitation(unit="article", delimiter="Art.",  book="gg", number="2", ...),
+LawCitation(unit="article", delimiter="Art.",  book="gg", number="3", ...),
+```
+
+(Same expansion pattern as `§§ 708 Nr. 11, 711 ZPO` today — the `§§` handler is
+parameterised over delimiter, not hard-coded to `§`.)
+
+**Mixed cross-reference: `Art. 19 Abs. 4 GG i.V.m. § 40 VwGO` →**
+
+```python
+[
+  LawCitation(id="c_a", unit="article",   delimiter="Art.", book="gg",   number="19",
+              structure={"absatz": "4"}),
+  LawCitation(id="c_b", unit="paragraph", delimiter="§",     book="vwgo", number="40"),
+]
+relations = [CitationRelation(source_id="c_a", target_id="c_b", relation="ivm", ...)]
+```
+
+### Regex impact
+
+The existing divide-and-conquer regex already has `§§|§` as the delimiter alternation
+(`law_dnc.py`). The Art. branch is the same pattern with `Art\.?|Artikel` added:
+
+```
+(?P<delimiter>§§|§|Art\.?|Artikel)\s?(?P<number>[0-9]+[a-z]?)...
+```
+
+The `# TODO Art GG` block at `law_dnc.py:294` becomes a thin wrapper that runs the same
+single-ref handler with the Art.-variant delimiter regex. The `bis`/`und`/comma range
+expansion and the `Abs./Satz/Nr./Halbsatz/Buchst./Alt.` structure-key parser are reused
+unchanged — they're orthogonal to the delimiter.
+
+Books known to use `Art.`: `GG`, `BayVerf`, `SächsVerf` (and every other Landesverfassung),
+`EGBGB` (partially), `AEUV`, `EUV`, `RL 2001/29/EG`-style EU directives, `VO (EU)
+2016/679`-style EU regulations. Store this as a column in the `law_book_codes` data file
+(new field `default_unit: paragraph|article|either`) rather than hardcoding in the
+extractor.
+
+### JSONL projection
+
+`Art. 3 Abs. 1 GG` in the primary format:
+
+```json
+{
+  "id": "c_3b71",
+  "type": "law",
+  "kind": "full",
+  "unit": "article",
+  "delimiter": "Art.",
+  "span": {"start": 23, "end": 39, "text": "Art. 3 Abs. 1 GG"},
+  "book": "gg",
+  "number": "3",
+  "structure": {"absatz": "1"},
+  "confidence": 1.0,
+  "source": "regex"
+}
+```
+
+### Adapter behaviour
+
+- **`to_spacy_doc` / `to_hf_bio` / `to_gliner`:** the flat NER label stays `LAW_REF`
+  (consumers that just need spans don't need to care about unit). A richer label set
+  `LAW_REF_PARAGRAPH` / `LAW_REF_ARTICLE` can be added behind a flag once there's a
+  training dataset that distinguishes them.
+- **`to_akn_ref`:** the Akoma Ntoso URI already distinguishes units — articles get
+  `#art_3__subart_1`, paragraphs get `#para_708__list_11`. The adapter picks the path
+  segment from the `unit` field.
+- **`to_ref_marker`:** unchanged — the inline marker is opaque text wrapping, no unit
+  distinction needed.
+
+### Test coverage
+
+Un-skip `tests/test_law_extractor.py::test_extract10` once the Art. regex lands. Add
+fixtures for the high-value patterns listed in `docs/citation_styles.md` that include
+`Art.` forms (and the EU-directive shape `Art. 3 II Buchst. c RL 2001/29/EG` from
+`docs/de_notes.md`) so they become regression tests rather than TODOs.
+
+---
+
+## 8. What We Deliberately Don't Do
 
 - **Don't emit TEI/XML as the primary format.** TEI is excellent for scholarly bibliography
   (GROBID's domain); legal citations have a different native vocabulary (Akoma Ntoso). Ship
