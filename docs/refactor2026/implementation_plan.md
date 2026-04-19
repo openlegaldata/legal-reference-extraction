@@ -129,7 +129,7 @@ needs justification in the PR description.
   `law_dnc.py:114,142,222,276` and any matching `re.compile` in `case.py`.
 - [x] B6. Fix `law_book_codes` mutable class attr (move to instance state).
   `law_dnc.py:32, 298-307`.
-- [ ] B7. **Fix `get_law_book_ref_regex`** to actually use `law_book_codes`.
+- [x] B7. **Fix `get_law_book_ref_regex`** to actually use `law_book_codes`.
   `law_dnc.py:309-346` — this is likely the single highest-impact precision win.
   **Gated by recall measurement** (O-5 resolved): land behind a feature flag first,
   compare fixture-slice recall before and after, add missing book codes to the data file
@@ -333,7 +333,7 @@ citations whose spans land correctly in the plain-text projection, and
 | Stream | Purpose | Depends on | Status | % Done |
 |--------|---------|------------|--------|--------|
 | A | Benchmark harness (schema + fixture slice) | — | **done** (preview) | 90 |
-| B | Cleanup + legacy `law.py` deletion | A1, A4 | **done** (B7 deferred) | 90 |
+| B | Cleanup + legacy `law.py` deletion | A1, A4 | **done** | 100 |
 | C | Typed model + strategy | B1–B4, B6 | **done** | 100 |
 | D | Output format & adapters | C1–C4 | **D1-D2 done** | 30 |
 | E | Grundgesetz / Artikel | C1 | **done** | 100 |
@@ -345,14 +345,14 @@ citations whose spans land correctly in the plain-text projection, and
 
 **Baseline metrics (2026-04-19, preview_1000 dataset, 992 docs):**
 
-| Metric | Value |
-|--------|-------|
-| Span F1 (exact) | 0.541 |
-| Span F1 (overlap) | 0.728 |
-| Law F1 (exact) | 0.700 |
-| Case F1 (exact) | 0.175 |
-| Book accuracy | 93.6% |
-| Number accuracy | 96.2% |
+| Metric | Baseline | Current | Delta |
+|--------|----------|---------|-------|
+| Span F1 (exact) | 0.541 | 0.586 | +0.045 |
+| Span F1 (overlap) | 0.728 | 0.759 | +0.031 |
+| Law F1 (exact) | 0.700 | 0.754 | +0.054 |
+| Case F1 (exact) | 0.175 | 0.176 | +0.001 |
+| Book accuracy | 93.6% | 93.0% | -0.6% |
+| Number accuracy | 96.2% | 96.3% | +0.1% |
 
 **Stream A notes:** Benchmark harness built in sibling project
 `german-legal-references-benchmark`. Bridge code in `benchmarks/` directory
