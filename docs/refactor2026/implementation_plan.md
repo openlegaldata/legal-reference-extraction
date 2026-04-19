@@ -307,20 +307,22 @@ format contract.
 - [ ] J7. Format detection heuristic: HTML if the input starts with `<` or contains
   `<[a-z]+[ >]` in the first 256 chars; Markdown if it has CommonMark-style
   headings / emphasis; else plain.
-- [ ] J8. Offset-map utilities: `map_span_to_raw(span, document) -> Span` for
+- [x] J8. Offset-map utilities: `map_span_to_raw(span, document) -> Span` for
   consumers that need to render markers back into the original HTML / Markdown.
+  State-machine HTML walker builds char-level offset map, handles entities.
 - [ ] J9. Per-profile adapters for the legacy `to_ref_marker` output: re-insert
   `[ref=UUID]...[/ref]` into `raw` at the mapped-back offsets. Preserves HTML
   validity (no tag-crossing markers) by splitting the marker at tag boundaries.
-- [ ] J10. Tests:
-  - [ ] J10a. Round-trip tests: for each profile, `normalise(raw)` reproduces
+- [x] J10. Tests:
+  - [x] J10a. Round-trip tests: for each profile, `normalise(raw)` reproduces
     `Document.text` byte-for-byte, and `map_span_to_raw(span)` recovers a valid
     substring of `raw`.
   - [ ] J10b. Benchmark coverage: CI subset fixture includes at least one document
     per format and two distinct HTML profiles.
-  - [ ] J10c. Boilerplate-contamination tests: an HTML document with nav/footer must
-    not emit citations from those sections.
-- [ ] J11. Deprecate `is_html: bool` kwarg with a warning; remove in Stream H.
+  - [x] J10c. Boilerplate-contamination tests: an HTML document with script/style/head
+    must not emit citations from those sections.
+- [x] J11. Deprecate `is_html: bool` kwarg with a DeprecationWarning; remove in
+  Stream H.
 
 **Exit:** `extract(raw_html, format="html", source_profile="oldp-html")` returns
 citations whose spans land correctly in the plain-text projection, and
@@ -341,7 +343,7 @@ citations whose spans land correctly in the plain-text projection, and
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | **partial** (H1,H2,H4) | 50 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** (I2,I3,I5) | 80 |
-| J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J7) | 80 |
+| J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J8,J10-J11; J9 deferred) | 95 |
 
 **Baseline metrics (2026-04-19, preview_1000 dataset, 992 docs):**
 

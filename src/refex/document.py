@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import html
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Literal
+
+from refex.citations import Span
 
 
 @dataclass
@@ -23,6 +25,9 @@ class Document:
         source_profile: Optional normalizer profile name.
         text: Canonical plain-text projection for extraction.
               Span offsets in citations reference this field.
+        offset_map: For each index ``i`` in ``text``, the corresponding
+              character offset in ``raw``.  ``None`` when the mapping
+              is identity (plain-text format).
     """
 
     raw: str
@@ -30,10 +35,13 @@ class Document:
     source_profile: str | None = None
     text: str = ""
     doc_id: str = ""
+    offset_map: list[int] | None = field(default=None, repr=False)
 
     def __post_init__(self):
         if not self.text:
-            self.text = normalize(self.raw, self.format, self.source_profile)
+            self.text, self.offset_map = normalize_with_offsets(
+                self.raw, self.format, self.source_profile
+            )
 
 
 def normalize(
@@ -51,13 +59,57 @@ def normalize(
     Returns:
         Normalized plain text suitable for extraction.
     """
+    text, _ = normalize_with_offsets(raw, fmt, profile)
+    return text
+
+
+def normalize_with_offsets(
+    raw: str,
+    fmt: Literal["plain", "html", "markdown"] = "plain",
+    profile: str | None = None,
+) -> tuple[str, list[int] | None]:
+    """Normalize raw content and return (text, offset_map).
+
+    The offset_map is ``None`` for plain text (identity mapping).
+    For HTML and Markdown, it maps each index ``i`` in the returned
+    text to the corresponding index in ``raw``.
+    """
     if fmt == "plain":
-        return _normalize_plain(raw)
+        return _normalize_plain(raw), None
     if fmt == "html":
-        return _normalize_html(raw, profile)
+        return _normalize_html_with_offsets(raw, profile)
     if fmt == "markdown":
-        return _normalize_markdown(raw)
-    return _normalize_plain(raw)
+        return _normalize_markdown(raw), None
+    return _normalize_plain(raw), None
+
+
+def map_span_to_raw(span: Span, document: Document) -> Span:
+    """Map a plain-text span back to the original ``raw`` content (J8).
+
+    Uses the document's ``offset_map`` if available.  For plain-text
+    documents (where offset_map is None), returns the span unchanged.
+
+    Args:
+        span: A span whose offsets are into ``document.text``.
+        document: The document that produced the span.
+
+    Returns:
+        A new Span with offsets into ``document.raw``.
+    """
+    if document.offset_map is None:
+        return span
+
+    omap = document.offset_map
+
+    if span.start >= len(omap) or span.end > len(omap):
+        return span
+
+    raw_start = omap[span.start]
+    # For end: map (end - 1) and add 1 to get an exclusive end
+    raw_end = omap[span.end - 1] + 1 if span.end > span.start else raw_start
+    raw_text = document.raw[raw_start:raw_end]
+
+    return Span(start=raw_start, end=raw_end, text=raw_text)
 
 
 def _normalize_plain(text: str) -> str:
@@ -70,18 +122,105 @@ def _normalize_html(raw: str, profile: str | None = None) -> str:
 
     Uses stdlib ``html.parser`` — no BeautifulSoup dependency.
     """
-    stripper = _HTMLTextExtractor()
-    stripper.feed(raw)
-    text = stripper.get_text()
+    text, _ = _normalize_html_with_offsets(raw, profile)
+    return text
 
-    # Decode remaining HTML entities
-    text = html.unescape(text)
 
-    # Collapse whitespace
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+def _normalize_html_with_offsets(
+    raw: str, profile: str | None = None
+) -> tuple[str, list[int]]:
+    """Strip HTML tags, returning text and a character-level offset map.
 
-    return text.strip()
+    Uses a simple state machine to walk the raw HTML and build
+    (text_char, raw_offset) pairs, handling tags, entities, and
+    block-element newlines.
+    """
+    # Phase 1: walk raw HTML → intermediate (char, raw_offset) pairs
+    inter: list[tuple[str, int]] = []
+    i = 0
+    n = len(raw)
+    in_skip = 0  # depth inside <script>/<style>/<head>
+
+    _skip_tags = {"script", "style", "head"}
+    _block_tags = _HTMLTextExtractor._block_tags
+
+    while i < n:
+        if raw[i] == "<":
+            # Find end of tag
+            end = raw.find(">", i)
+            if end < 0:
+                end = n - 1
+            tag_content = raw[i + 1 : end]
+
+            # Parse tag name (strip / for closing tags)
+            is_closing = tag_content.startswith("/")
+            tag_name = tag_content.lstrip("/").split()[0].split("/")[0].lower() if tag_content.strip("/") else ""
+
+            if tag_name in _skip_tags:
+                if is_closing:
+                    in_skip = max(0, in_skip - 1)
+                else:
+                    in_skip += 1
+
+            if tag_name in _block_tags and in_skip == 0:
+                inter.append(("\n", i))
+
+            i = end + 1
+        elif raw[i] == "&" and in_skip == 0:
+            # Entity reference
+            semi = raw.find(";", i, min(i + 12, n))
+            if semi >= 0:
+                entity = raw[i : semi + 1]
+                decoded = html.unescape(entity)
+                for ch in decoded:
+                    inter.append((ch, i))
+                i = semi + 1
+            else:
+                inter.append(("&", i))
+                i += 1
+        elif in_skip > 0:
+            i += 1
+        else:
+            inter.append((raw[i], i))
+            i += 1
+
+    # Phase 2: collapse whitespace, tracking offsets
+    result_chars: list[str] = []
+    result_offsets: list[int] = []
+    j = 0
+    m = len(inter)
+
+    while j < m:
+        ch, off = inter[j]
+        if ch in (" ", "\t"):
+            result_chars.append(" ")
+            result_offsets.append(off)
+            while j < m and inter[j][0] in (" ", "\t"):
+                j += 1
+        elif ch == "\n":
+            newline_start = j
+            count = 0
+            while j < m and inter[j][0] == "\n":
+                count += 1
+                j += 1
+            for k in range(min(count, 2)):
+                result_chars.append("\n")
+                result_offsets.append(inter[newline_start + k][1])
+        else:
+            result_chars.append(ch)
+            result_offsets.append(off)
+            j += 1
+
+    # Phase 3: strip leading/trailing whitespace
+    joined = "".join(result_chars)
+    strip_left = len(joined) - len(joined.lstrip())
+    strip_right = len(joined) - len(joined.rstrip())
+    if strip_right == 0:
+        final_offsets = result_offsets[strip_left:]
+    else:
+        final_offsets = result_offsets[strip_left:-strip_right]
+
+    return joined.strip(), final_offsets
 
 
 def _normalize_markdown(raw: str) -> str:

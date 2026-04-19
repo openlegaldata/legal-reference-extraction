@@ -1,5 +1,6 @@
 import logging
 import re
+import warnings
 
 from refex.errors import RefExError
 from refex.extractors.case import CaseRefExtractorMixin
@@ -47,6 +48,14 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
         return content_with_markers
 
     def extract(self, content_html: str, is_html: bool = False) -> tuple[str, list[RefMarker]]:
+        if is_html:
+            warnings.warn(
+                "is_html is deprecated. Use CitationExtractor with format='html' instead: "
+                "CitationExtractor().extract(text, fmt='html')",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         reference_markers: list[RefMarker] = []
 
         content = self.remove_markers(content_html)

@@ -1,10 +1,11 @@
 """Tests for Document model, source profiles, and format detection (Stream J)."""
 
-from refex.citations import LawCitation
+from refex.citations import LawCitation, Span
 from refex.document import (
     Document,
     detect_format,
     make_document,
+    map_span_to_raw,
     normalize,
 )
 from refex.orchestrator import CitationExtractor
@@ -174,3 +175,100 @@ class TestExtractorWithDocument:
         for c in result.citations:
             actual = doc.text[c.span.start : c.span.end]
             assert actual == c.span.text, f"Span into text: {actual!r} != {c.span.text!r}"
+
+
+# --- J8: Offset-map round-trip tests (J10a) ---
+
+
+class TestOffsetMap:
+    def test_plain_text_has_no_offset_map(self):
+        doc = Document(raw="Gemäß § 433 BGB")
+        assert doc.offset_map is None
+
+    def test_html_has_offset_map(self):
+        doc = Document(raw="<p>§ 433 BGB</p>", format="html")
+        assert doc.offset_map is not None
+        assert len(doc.offset_map) == len(doc.text)
+
+    def test_html_offset_map_identity_for_text_chars(self):
+        raw = "<p>Gemäß § 433 BGB</p>"
+        doc = Document(raw=raw, format="html")
+        # Each offset should point to a valid position in raw
+        for i, off in enumerate(doc.offset_map):
+            assert 0 <= off < len(raw), f"offset_map[{i}]={off} out of range"
+
+    def test_html_entity_offset_mapping(self):
+        doc = Document(raw="<p>&#167; 433 BGB</p>", format="html")
+        assert doc.text == "§ 433 BGB"
+        # § should map to the start of &#167;
+        assert doc.offset_map[0] == doc.raw.index("&")
+        # The space after the entity should map to the space in raw
+        assert doc.raw[doc.offset_map[1]] == " "
+
+    def test_map_span_to_raw_plain(self):
+        doc = Document(raw="Gemäß § 433 BGB")
+        span = Span(start=6, end=15, text="§ 433 BGB")
+        raw_span = map_span_to_raw(span, doc)
+        assert raw_span == span  # Identity
+
+    def test_map_span_to_raw_html(self):
+        raw = "<p>Gemäß § 433 BGB</p>"
+        doc = Document(raw=raw, format="html")
+        # Find where "§ 433 BGB" appears in text
+        idx = doc.text.index("§ 433 BGB")
+        span = Span(start=idx, end=idx + 9, text="§ 433 BGB")
+        raw_span = map_span_to_raw(span, doc)
+        assert raw[raw_span.start : raw_span.end] == "§ 433 BGB"
+
+    def test_map_span_to_raw_with_entity(self):
+        raw = "<p>&#167; 433 BGB</p>"
+        doc = Document(raw=raw, format="html")
+        span = Span(start=0, end=9, text="§ 433 BGB")
+        raw_span = map_span_to_raw(span, doc)
+        assert "433 BGB" in raw_span.text  # The raw span includes the entity
+        assert raw_span.text.endswith("BGB")
+
+    def test_round_trip_html_extraction(self):
+        """Extract citations from HTML, map spans back to raw."""
+        raw = "<div><p>Die Regelung in <b>§ 433 BGB</b> ist entscheidend.</p></div>"
+        doc = Document(raw=raw, format="html")
+        ext = CitationExtractor()
+        result = ext.extract(doc)
+
+        for cit in result.citations:
+            # Span works in text
+            assert doc.text[cit.span.start : cit.span.end] == cit.span.text
+            # Map back to raw
+            raw_span = map_span_to_raw(cit.span, doc)
+            # The raw span should contain the citation text
+            assert cit.span.text.replace(" ", "") in raw_span.text.replace(" ", "").replace("<b>", "").replace("</b>", "")
+
+
+# --- J10c: Boilerplate-contamination tests ---
+
+
+class TestBoilerplateContamination:
+    def test_script_content_not_extracted(self):
+        raw = '<p>§ 433 BGB</p><script>var x = "§ 999 StGB";</script>'
+        doc = Document(raw=raw, format="html")
+        ext = CitationExtractor()
+        result = ext.extract(doc)
+        # Should not find the citation inside <script>
+        assert all("999" not in c.span.text for c in result.citations)
+
+    def test_style_content_not_extracted(self):
+        raw = "<style>.sec { content: '§ 123 ZPO'; }</style><p>§ 433 BGB</p>"
+        doc = Document(raw=raw, format="html")
+        ext = CitationExtractor()
+        result = ext.extract(doc)
+        assert all("123" not in c.span.text for c in result.citations)
+
+    def test_citations_in_body_only(self):
+        raw = '<head><title>§ 1 GG</title></head><p>Laut § 154 VwGO sind die Kosten zu tragen.</p>'
+        doc = Document(raw=raw, format="html")
+        ext = CitationExtractor()
+        result = ext.extract(doc)
+        # Only body citations should be found
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) >= 1
+        assert all("154" in c.span.text or "VwGO" in c.span.text for c in law_cits)
