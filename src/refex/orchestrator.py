@@ -18,6 +18,7 @@ from refex.citations import (
 )
 from refex.engines.regex import RegexCaseExtractor, RegexLawExtractor
 from refex.protocols import Extractor
+from refex.resolver import resolve_short_forms
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class CitationExtractor:
     )
 
     def extract(self, text: str) -> ExtractionResult:
-        """Run all engines on *text*, merge results, resolve overlaps."""
+        """Run all engines on *text*, merge, resolve overlaps and short-forms."""
         all_citations: list[Citation] = []
         all_relations: list[CitationRelation] = []
 
@@ -53,7 +54,11 @@ class CitationExtractor:
 
         merged = _resolve_overlaps(all_citations)
 
-        return ExtractionResult(citations=merged, relations=all_relations)
+        # Post-pass: resolve short-form citations and detect relations
+        resolved, new_relations = resolve_short_forms(merged, text)
+        all_relations.extend(new_relations)
+
+        return ExtractionResult(citations=resolved, relations=all_relations)
 
 
 def _resolve_overlaps(citations: list[Citation]) -> list[Citation]:
