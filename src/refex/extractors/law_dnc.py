@@ -1,3 +1,4 @@
+import importlib.resources
 import logging
 import re
 
@@ -57,11 +58,38 @@ class DivideAndConquerLawRefExtractorMixin:
     # All text non-word symbols
     _default_word_delimiter = r"\s|\.|,|;|:|!|\?|\(|\)|\[|\]|\"|'|<|>|&"
 
+    # B7: feature flag — use precise code list (True) or generic pattern (False)
+    use_precise_book_regex: bool = True
+
     def __init__(self):
         # B6: instance-level copy, not shared class state
         self._law_book_codes: list[str] = list(self.default_law_book_codes)
+
+        # B7: load full code list from bundled data file
+        if self.use_precise_book_regex:
+            file_codes = self._load_book_codes_from_file()
+            # Merge: file codes + default codes (no duplicates)
+            seen = {c.lower() for c in self._law_book_codes}
+            for code in file_codes:
+                if code.lower() not in seen:
+                    self._law_book_codes.append(code)
+                    seen.add(code.lower())
+
         # B5: pre-compile the book regex once
         self._book_ref_regex = self._build_law_book_ref_regex(self._law_book_codes)
+
+    @staticmethod
+    def _load_book_codes_from_file() -> list[str]:
+        """Load law book codes from the bundled data file."""
+        data_files = importlib.resources.files("refex") / "data"
+        code_path = data_files / "law_book_codes.txt"
+        try:
+            with importlib.resources.as_file(code_path) as path:
+                with open(path) as f:
+                    return [line.strip() for line in f if line.strip()]
+        except FileNotFoundError:
+            logger.warning("law_book_codes.txt not found, using defaults only")
+            return []
 
     @property
     def law_book_codes(self) -> list[str]:
@@ -349,20 +377,35 @@ class DivideAndConquerLawRefExtractorMixin:
         """Book identifiers to build regex"""
         return self._law_book_codes
 
-    @staticmethod
-    def _build_law_book_ref_regex(law_book_codes):
-        r"""
-        Returns regex for law book part in reference markers.
+    _GENERIC_BOOK_PATTERN = r"([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
 
-        Currently returns a generic pattern matching common German law book abbreviations.
-        TODO B7: use actual law_book_codes list for precision (behind feature flag).
+    def _build_law_book_ref_regex(self, law_book_codes):
+        r"""Build regex for the law book part in citation markers.
+
+        B7: When ``use_precise_book_regex`` is True, builds a precise OR-list
+        from the actual code list (sorted longest-first to avoid partial matches).
+        Falls back to the generic pattern otherwise.
         """
         if len(law_book_codes) < 1:
             raise RefExError("Cannot generate regex, law_book_codes are empty")
 
         logger.debug("Law book ref with %i books", len(law_book_codes))
 
-        return r"([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
+        if not self.use_precise_book_regex:
+            return self._GENERIC_BOOK_PATTERN
+
+        # Sort codes by length descending so longer codes match first
+        # (e.g., "SGB X" before "SG", "BauGB" before "BGB")
+        sorted_codes = sorted(law_book_codes, key=len, reverse=True)
+
+        # Escape regex special chars in codes
+        escaped = [re.escape(code) for code in sorted_codes]
+
+        # Build OR-list, wrapped in a non-capturing group
+        or_list = "|".join(escaped)
+
+        # Also include the generic fallback to catch codes not in the list
+        return f"(?:{or_list}|{self._GENERIC_BOOK_PATTERN})"
 
     # Keep old name as alias for backward compat
     def get_law_book_ref_regex(self, law_book_codes, optional=False, group_name=False, to_lower=False):
