@@ -20,6 +20,46 @@ make install
 
 ## Usage
 
+### New API (recommended)
+
+```python
+from refex.orchestrator import CitationExtractor
+
+extractor = CitationExtractor()
+result = extractor.extract("Die Entscheidung beruht auf § 42 VwGO.")
+
+for cit in result.citations:
+    print(cit.type, cit.span.text)
+# law § 42 VwGO
+```
+
+**JSONL output:**
+
+```python
+from refex.serializers import to_jsonl
+print(to_jsonl(result, doc_id="example"))
+```
+
+**Other output formats:**
+
+```python
+from refex.serializers import to_hf_bio, to_gliner, to_spacy_doc, to_web_annotation, to_akn_ref
+
+bio = to_hf_bio(result, text)          # HuggingFace BIO tags
+spans = to_gliner(result)              # GLiNER span format
+doc = to_spacy_doc(result, text)       # spaCy Doc dict
+annos = to_web_annotation(result)      # W3C Web Annotation
+xml = to_akn_ref(result, text)         # Akoma Ntoso XML
+```
+
+**HTML input:**
+
+```python
+result = extractor.extract("<p>§ 433 BGB</p>", fmt="html")
+```
+
+### Legacy API
+
 ```python
 from refex.extractor import RefExtractor
 
@@ -138,6 +178,18 @@ make test      # run pytest
 make lint      # ruff check + format check
 make format    # auto-fix lint + format
 ```
+
+## Benchmark
+
+Run the extraction benchmark against the German Legal References Benchmark dataset:
+
+```bash
+make bench              # run against default dataset
+make bench-quick        # quick run (10 docs)
+make bench-json         # output as JSON
+```
+
+See `benchmarks/` for details.
 
 ## See also
 
