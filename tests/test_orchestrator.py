@@ -46,7 +46,7 @@ class TestRegexLawExtractor:
         assert len(cits) >= 1
         assert any(c.number == "42" for c in cits if isinstance(c, LawCitation))
 
-    def test_full_name_reference(self):
+    def test_full_name_citation(self):
         ext = RegexLawExtractor()
         cits, _ = ext.extract("§ 40 des Verwaltungsverfahrensgesetzes ist anwendbar.")
         assert len(cits) >= 1

@@ -26,7 +26,7 @@ class Span:
 
 @dataclass(frozen=True, slots=True)
 class LawCitation:
-    """A reference to a law section (§, Art.)."""
+    """A citation of a law section (§, Art.)."""
 
     span: Span
     id: str = ""
@@ -50,7 +50,7 @@ class LawCitation:
 
 @dataclass(frozen=True, slots=True)
 class CaseCitation:
-    """A reference to a court decision."""
+    """A citation of a court decision."""
 
     span: Span
     id: str = ""

@@ -1,7 +1,7 @@
 """Short-form citation resolution (Stream I).
 
 Post-pass that walks citations in document order and resolves:
-- Short-form law refs: bare ``§ 5`` inherits book from prior full citation
+- Short-form law citations: bare ``§ 5`` inherits book from prior full citation
 - ``a.a.O.`` / ``ebenda`` / ``ebd.``: resolves to nearest prior citation
 - ``vgl.`` connectors: emitted as CitationRelation, not a new citation
 
