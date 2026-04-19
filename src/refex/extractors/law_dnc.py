@@ -327,7 +327,8 @@ class DivideAndConquerLawRefExtractorMixin:
         markers = []
 
         book_code = self.law_book_context
-        search_text = str(content)
+        # Normalize HTML entity for § (ported from legacy law.py)
+        search_text = str(content).replace("&#167;", "§")
 
         def multi_sect(match):
             start = int(match.group(1))
