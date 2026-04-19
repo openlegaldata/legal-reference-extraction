@@ -16,6 +16,7 @@ from refex.citations import (
     CitationRelation,
     ExtractionResult,
 )
+from refex.document import Document, make_document
 from refex.engines.regex import RegexCaseExtractor, RegexLawExtractor
 from refex.protocols import Extractor
 from refex.resolver import resolve_short_forms
@@ -42,8 +43,22 @@ class CitationExtractor:
         ]
     )
 
-    def extract(self, text: str) -> ExtractionResult:
-        """Run all engines on *text*, merge, resolve overlaps and short-forms."""
+    def extract(self, content: str | Document, **kwargs) -> ExtractionResult:
+        """Extract citations from text or a Document.
+
+        Args:
+            content: Plain text string, or a ``Document`` object.
+                     Strings are auto-wrapped via ``make_document()``.
+            **kwargs: Passed to ``make_document()`` when *content* is a string
+                      (e.g. ``format="html"``, ``source_profile="oldp-html"``).
+        """
+        if isinstance(content, str):
+            doc = make_document(content, **kwargs)
+        else:
+            doc = content
+
+        text = doc.text
+
         all_citations: list[Citation] = []
         all_relations: list[CitationRelation] = []
 
