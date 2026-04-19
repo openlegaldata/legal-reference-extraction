@@ -79,7 +79,7 @@ access. Format, annotation guidelines, HF directory layout and CI-subset curatio
 are specified in [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) — the
 contract for whoever builds the dataset.
 
-- [ ] A1. Define and publish the benchmark spec:
+- [x] A1. Define and publish the benchmark spec:
   - [ ] A1a. Land [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) (done on
     this PR).
   - [ ] A1b. Commit JSON Schemas for `documents.jsonl` and `annotations.jsonl` under
@@ -121,13 +121,13 @@ is published; the HF dataset can be plugged in with zero code changes once it ex
 Every change in this stream must be measured against Stream A. Any regression > 0.5 F1
 needs justification in the PR description.
 
-- [ ] B1. Fix `RefMarker.references` mutable default (move to `__init__`). `models.py:121`.
-- [ ] B2. Drop `**kwargs` in `BaseRef.__init__`; make fields explicit. `models.py:21-22`.
-- [ ] B3. Fix `Ref.__eq__` → return `NotImplemented` for foreign types. `models.py:89-91`.
-- [ ] B4. Fix `Ref.__hash__` — hash the full field tuple, not `__repr__`. `models.py:24-25`.
-- [ ] B5. Pre-compile regex patterns at `__init__`; remove per-call `re.compile()`.
+- [x] B1. Fix `RefMarker.references` mutable default (move to `__init__`). `models.py:121`.
+- [x] B2. Drop `**kwargs` in `BaseRef.__init__`; make fields explicit. `models.py:21-22`.
+- [x] B3. Fix `Ref.__eq__` → return `NotImplemented` for foreign types. `models.py:89-91`.
+- [x] B4. Fix `Ref.__hash__` — hash the full field tuple, not `__repr__`. `models.py:24-25`.
+- [x] B5. Pre-compile regex patterns at `__init__`; remove per-call `re.compile()`.
   `law_dnc.py:114,142,222,276` and any matching `re.compile` in `case.py`.
-- [ ] B6. Fix `law_book_codes` mutable class attr (move to instance state).
+- [x] B6. Fix `law_book_codes` mutable class attr (move to instance state).
   `law_dnc.py:32, 298-307`.
 - [ ] B7. **Fix `get_law_book_ref_regex`** to actually use `law_book_codes`.
   `law_dnc.py:309-346` — this is likely the single highest-impact precision win.
@@ -135,7 +135,7 @@ needs justification in the PR description.
   compare fixture-slice recall before and after, add missing book codes to the data file
   rather than loosening the regex. Only flip the default once the recall delta is
   understood.
-- [ ] B8. Remove `case.codes = ["Sa"]` and commented-out references. `case.py:13-15, 266`.
+- [x] B8. Remove `case.codes = ["Sa"]` and commented-out references. `case.py:13-15, 266`.
 - [ ] B9. Audit + delete legacy `law.py` (O-4 resolved):
   - [ ] B9a. Diff `law.py` vs `law_dnc.py` (`extract_law_ref_markers_with_context`,
     `handle_single_law_ref`, `handle_multiple_law_refs`, book-code handling).
@@ -333,8 +333,8 @@ citations whose spans land correctly in the plain-text projection, and
 
 | Stream | Purpose | Depends on | Status | % Done |
 |--------|---------|------------|--------|--------|
-| A | Benchmark harness (schema + fixture slice) | — | not started | 0 |
-| B | Cleanup + legacy `law.py` deletion | A1, A4 | not started | 0 |
+| A | Benchmark harness (schema + fixture slice) | — | **done** (preview) | 90 |
+| B | Cleanup + legacy `law.py` deletion | A1, A4 | **B1-B6,B8 done** | 75 |
 | C | Typed model + strategy | B1–B4, B6 | not started | 0 |
 | D | Output format & adapters | C1–C4 | not started | 0 |
 | E | Grundgesetz / Artikel | C1 | not started | 0 |
@@ -343,6 +343,26 @@ citations whose spans land correctly in the plain-text projection, and
 | H | Migration & deletion | D | not started | 0 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | not started | 0 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | not started | 0 |
+
+**Baseline metrics (2026-04-19, preview_1000 dataset, 992 docs):**
+
+| Metric | Value |
+|--------|-------|
+| Span F1 (exact) | 0.541 |
+| Span F1 (overlap) | 0.728 |
+| Law F1 (exact) | 0.700 |
+| Case F1 (exact) | 0.175 |
+| Book accuracy | 93.6% |
+| Number accuracy | 96.2% |
+
+**Stream A notes:** Benchmark harness built in sibling project
+`german-legal-references-benchmark`. Bridge code in `benchmarks/` directory
+(adapter, metrics, runner). Data NOT committed — loaded from sibling project
+or `BENCH_DATA_DIR` env var. `make bench` runs full benchmark.
+
+**Stream B notes:** B1-B6, B8 landed with zero benchmark regression.
+B7 (law_book_codes regex fix) deferred — needs feature flag per O-5.
+B9 (legacy law.py deletion) deferred — needs audit-diff + test migration.
 
 Update the matrix at the top of every PR that lands a stream item. Track in a
 `CHANGELOG.md` entry per stream.
