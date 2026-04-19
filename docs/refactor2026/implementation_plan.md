@@ -335,8 +335,8 @@ citations whose spans land correctly in the plain-text projection, and
 | A | Benchmark harness (schema + fixture slice) | — | **done** (preview) | 90 |
 | B | Cleanup + legacy `law.py` deletion | A1, A4 | **done** (B7 deferred) | 90 |
 | C | Typed model + strategy | B1–B4, B6 | **done** | 100 |
-| D | Output format & adapters | C1–C4 | not started | 0 |
-| E | Grundgesetz / Artikel | C1 | not started | 0 |
+| D | Output format & adapters | C1–C4 | **D1-D2 done** | 30 |
+| E | Grundgesetz / Artikel | C1 | **done** | 100 |
 | F | CRF engine | D, A, HF dataset train split | not started | 0 |
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | not started | 0 |
