@@ -94,6 +94,36 @@ class ExtractionResult:
     relations: list[CitationRelation] = field(default_factory=list)
 
 
+# D8: Valid keys for the ``structure`` dict on ``LawCitation``.
+# These correspond to the hierarchical sub-units of a German law section.
+# Cf. Darji 2023's property taxonomy for German legal citations.
+STRUCTURE_KEYS: frozenset[str] = frozenset(
+    {
+        "absatz",  # Absatz (paragraph within a section)
+        "satz",  # Satz (sentence)
+        "nummer",  # Nummer (number/item)
+        "halbsatz",  # Halbsatz (half-sentence)
+        "buchstabe",  # Buchstabe (letter)
+        "alternative",  # Alternative
+        "variante",  # Variante (variant)
+        "buch",  # Buch (book, for codes like SGB)
+        "teil",  # Teil (part)
+        "kapitel",  # Kapitel (chapter)
+        "abschnitt",  # Abschnitt (section/division)
+        "unterabschnitt",  # Unterabschnitt (sub-section)
+        "titel",  # Titel (title)
+        "untertitel",  # Untertitel (subtitle)
+        "anlage",  # Anlage (annex/appendix)
+        "anhang",  # Anhang (appendix)
+        "stufe",  # Stufe (level)
+        "spiegelstrich",  # Spiegelstrich (dash/bullet)
+        "doppelbuchstabe",  # Doppelbuchstabe (double letter)
+        "tabelle",  # Tabelle (table)
+        "ziffer",  # Ziffer (digit/numeral)
+    }
+)
+
+
 def make_citation_id(span: Span, source: str, doc_id: str = "") -> str:
     """Generate a stable content-hash citation ID (C1f).
 

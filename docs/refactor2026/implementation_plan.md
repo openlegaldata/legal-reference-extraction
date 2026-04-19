@@ -178,19 +178,19 @@ has unit tests; benchmark numbers unchanged.
 - [ ] D1. `to_jsonl()` — primary format per [`output_format_recommendation.md`](./output_format_recommendation.md) §4.2.
 - [ ] D2. Golden-file snapshot tests: for every existing fixture, snapshot the JSONL
   output as a regression net.
-- [ ] D3. `to_spacy_doc()` adapter.
-- [ ] D4. `to_hf_bio()` adapter — labels `LAW_REF`, `CASE_REF`, `FILE_NUMBER`, `COURT`,
-  `ECLI`, `REPORTER`, `RELATION_IVM`.
-- [ ] D5. `to_gliner()` adapter.
-- [ ] D6. `to_web_annotation()` adapter.
-- [ ] D7. `to_akn_ref()` adapter (Akoma Ntoso / LegalDocML.de).
-- [ ] D8. Pin down the exact `structure` dict key set as constants in `models.py`;
-  document against Darji 2023's 21 properties.
-- [ ] D9. Packaging (O-7 resolved): two extras groups in `pyproject.toml`.
+- [x] D3. `to_spacy_doc()` adapter — pure-Python dict, no spaCy dep needed.
+- [x] D4. `to_hf_bio()` adapter — whitespace tokenization + BIO labels:
+  `B-LAW_REF`, `I-LAW_REF`, `B-CASE_REF`, `I-CASE_REF`, `O`.
+- [x] D5. `to_gliner()` adapter — span-based format (start, end, label, text).
+- [x] D6. `to_web_annotation()` adapter — W3C Web Annotation Data Model with
+  TextPositionSelector.
+- [x] D7. `to_akn_ref()` adapter — Akoma Ntoso / LegalDocML.de XML ref elements.
+- [x] D8. `STRUCTURE_KEYS` frozenset in `citations.py` — 21 valid structure dict keys
+  (absatz, satz, nummer, halbsatz, buchstabe, alternative, variante, etc.).
+- [x] D9. Packaging (O-7 resolved): two extras groups in `pyproject.toml`.
   - `[adapters]` — pulls `spacy` + any optional deps needed by the format adapters.
   - `[ml]` — pulls `sklearn-crfsuite`, `transformers`, `torch` for Streams F + G.
-  - Base install stays zero-dep; `to_jsonl`, `to_hf_bio`, `to_gliner`,
-    `to_web_annotation`, `to_akn_ref` require no extras (pure-Python dict/JSON output).
+  - Base install stays zero-dep; all adapters are pure-Python dict/JSON/XML output.
 
 **Exit:** All adapters have round-trip tests (to_X → parse → compare). JSONL output is
 the documented "blessed" format.
@@ -335,7 +335,7 @@ citations whose spans land correctly in the plain-text projection, and
 | A | Benchmark harness (schema + fixture slice) | — | **done** (preview) | 90 |
 | B | Cleanup + legacy `law.py` deletion | A1, A4 | **done** | 100 |
 | C | Typed model + strategy | B1–B4, B6 | **done** | 100 |
-| D | Output format & adapters | C1–C4 | **D1-D2 done** | 30 |
+| D | Output format & adapters | C1–C4 | **done** | 100 |
 | E | Grundgesetz / Artikel | C1 | **done** | 100 |
 | F | CRF engine | D, A, HF dataset train split | not started | 0 |
 | G | Transformer engine | F plateau | not started | 0 |

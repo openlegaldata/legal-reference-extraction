@@ -349,9 +349,7 @@ class CaseRefExtractorMixin:
             page = match.group("page")
             marker_text = match.group(0)
 
-            ref_ids = [
-                Ref(ref_type=RefType.CASE, court="", file_number=f"{reporter} {volume}, {page}")
-            ]
+            ref_ids = [Ref(ref_type=RefType.CASE, court="", file_number=f"{reporter} {volume}, {page}")]
             marker = RefMarker(text=marker_text, start=match.start(0), end=match.end(0))
             marker.set_uuid()
             marker.set_references(ref_ids)
@@ -367,9 +365,7 @@ class CaseRefExtractorMixin:
 
             court = self.infer_court(file_number, match, content) or self.search_court(match, content) or ""
 
-            ref_ids = [
-                Ref(ref_type=RefType.CASE, court=court, file_number=file_number)
-            ]
+            ref_ids = [Ref(ref_type=RefType.CASE, court=court, file_number=file_number)]
             marker = RefMarker(text=file_number, start=match.start(0), end=match.end(0))
             marker.set_uuid()
             marker.set_references(ref_ids)
