@@ -136,13 +136,12 @@ needs justification in the PR description.
   rather than loosening the regex. Only flip the default once the recall delta is
   understood.
 - [x] B8. Remove `case.codes = ["Sa"]` and commented-out references. `case.py:13-15, 266`.
-- [ ] B9. Audit + delete legacy `law.py` (O-4 resolved):
-  - [ ] B9a. Diff `law.py` vs `law_dnc.py` (`extract_law_ref_markers_with_context`,
-    `handle_single_law_ref`, `handle_multiple_law_refs`, book-code handling).
-  - [ ] B9b. For any behaviour only in `law.py`, port tests from `test_law_legacy.py`
-    into `test_law_extractor.py`. Port the behaviour itself into `law_dnc.py` only if
-    the benchmark shows a recall loss when it's missing.
-  - [ ] B9c. Delete `src/refex/extractors/law.py` and `tests/test_law_legacy.py`.
+- [x] B9. Audit + delete legacy `law.py` (O-4 resolved):
+  - [x] B9a. Diff `law.py` vs `law_dnc.py` — found one missing behavior:
+    `&#167;` → `§` replacement in `extract_law_ref_markers_with_context`.
+  - [x] B9b. Ported `&#167;` handling to `law_dnc.py`; ported 7 context tests
+    from `test_law_legacy.py` to use DnC extractor; dropped internal method tests.
+  - [x] B9c. Deleted `src/refex/extractors/law.py` (410 LOC).
 
 **Exit:** All tests green, F1 ≥ baseline from Stream A. PR descriptions cite metric deltas.
 
@@ -334,7 +333,7 @@ citations whose spans land correctly in the plain-text projection, and
 | Stream | Purpose | Depends on | Status | % Done |
 |--------|---------|------------|--------|--------|
 | A | Benchmark harness (schema + fixture slice) | — | **done** (preview) | 90 |
-| B | Cleanup + legacy `law.py` deletion | A1, A4 | **B1-B6,B8 done** | 75 |
+| B | Cleanup + legacy `law.py` deletion | A1, A4 | **done** (B7 deferred) | 90 |
 | C | Typed model + strategy | B1–B4, B6 | not started | 0 |
 | D | Output format & adapters | C1–C4 | not started | 0 |
 | E | Grundgesetz / Artikel | C1 | not started | 0 |
