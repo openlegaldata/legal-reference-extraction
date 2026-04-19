@@ -53,6 +53,8 @@ class CaseRefExtractorMixin:
         # TODO Fetch from DB
         # TODO generate only once
 
+        # NOTE: court lists derived from benchmark TRAIN split only.
+        # Do NOT add entries based on test split analysis.
         federal_courts = [
             "Bundesverfassungsgericht",
             "BVerfG",
@@ -75,10 +77,10 @@ class CaseRefExtractorMixin:
             "EUGH",
             "EuGH",
             "EuG",
-            "Truppendienstgericht S&#252;d",
-            "TDG S&#252;d",
             "BayObLG",
             "KG",
+            "Truppendienstgericht S&#252;d",
+            "TDG S&#252;d",
         ]
         states = [
             "Berlin",
@@ -106,7 +108,10 @@ class CaseRefExtractorMixin:
             "Th&#252;ringen",
             "Bayern",
             "Bayerisches",
+            "Bayerischer",
             "Bayrischer",
+            "Hessischer",
+            "Hessisches",
             "Berlin-Brandenburg",
             "Berlin-Brbg.",
         ]
@@ -116,29 +121,23 @@ class CaseRefExtractorMixin:
             "LSG",
             "FG",
             "LAG",
+            "Oberverwaltungsgericht",
+            "Verwaltungsgerichtshof",
         ]
+        # Cities derived from train split court names (freq >= 3)
         cities = [
-            "Aachen", "Ansbach", "Augsburg", "Baden-Baden", "Bamberg",
-            "Bayreuth", "Berlin", "Berlin-Brbg.", "Bielefeld", "Bochum",
-            "Bonn", "Brandenburg", "Braunschweig", "Bremen", "Bückeburg",
-            "Celle", "Chemnitz", "Coburg", "Cottbus", "Darmstadt",
-            "Dessau", "Dessau-Roßlau", "Detmold", "Dortmund", "Dresden",
-            "Duisburg", "Düren", "Düsseldorf", "Erfurt", "Erlangen",
-            "Essen", "Flensburg", "Frankfurt", "Frankfurt am Main",
-            "Frankfurt/Main", "Frankfurt (Oder)", "Freiburg", "Gera",
-            "Gießen", "Göttingen", "Greifswald", "Hagen", "Halle",
-            "Hamburg", "Hamm", "Hannover", "Heidelberg", "Heilbronn",
-            "Hildesheim", "Jena", "Kaiserslautern", "Karlsruhe", "Kassel",
-            "Kiel", "Koblenz", "Köln", "Konstanz", "Krefeld",
-            "Landshut", "Leipzig", "Lübeck", "Lüneburg", "Magdeburg",
-            "Mainz", "Mannheim", "Marburg", "Meiningen", "Minden",
-            "Mönchengladbach", "München", "Münster", "Neuruppin",
-            "Nürnberg", "Nürnberg-Fürth", "Oldenburg", "Osnabrück",
-            "Paderborn", "Passau", "Potsdam", "Ravensburg", "Regensburg",
-            "Rostock", "Saarbrücken", "Schleswig", "Schwerin", "Siegen",
-            "Sigmaringen", "Speyer", "Stade", "Stuttgart", "Trier",
-            "Tübingen", "Ulm", "Weimar", "Wiesbaden", "Wuppertal",
-            "Würzburg", "Zweibrücken",
+            "Aachen", "Arnsberg", "Berlin", "Bielefeld", "Bochum",
+            "Bonn", "Braunschweig", "Bremen", "Celle", "Cottbus",
+            "Dortmund", "Dresden", "Duisburg", "Düsseldorf",
+            "Flensburg", "Frankfurt", "Frankfurt am Main",
+            "Frankfurt (Oder)", "Freiburg", "Gelsenkirchen",
+            "Gießen", "Göttingen", "Halle", "Hamburg", "Hamm",
+            "Hannover", "Karlsruhe", "Koblenz", "Köln", "Leipzig",
+            "Lüneburg", "Mainz", "Mannheim", "Minden", "München",
+            "Münster", "Nürnberg", "Nürnberg-Fürth", "Offenburg",
+            "Oldenburg", "Rostock", "Schleswig", "Sigmaringen",
+            "Stade", "Stuttgart", "Trier", "Tübingen",
+            "Zweibrücken",
         ]
         city_courts = [
             "Amtsgericht",
@@ -366,11 +365,12 @@ class CaseRefExtractorMixin:
             r"(?P<reporter>"
             r"BGHZ|BGHSt|BGHR|BVerfGE|BVerwGE|BAGE|BSGE|BFHE|BPatGE"
             r"|RGZ|RGSt"
-            r"|NJW|NVwZ|MDR|DVBl|DÖV|JZ|BB|DB|JR|RiA|FamRZ|ZfA|ZIP|WM"
+            r"|NJW-RR|NJW|NVwZ-RR|NVwZ|MDR|DVBl|DÖV|JZ|BB|DB|JR|RiA|FamRZ|ZfA|ZIP|WM"
             r"|BFH/NV|BStBl\s?II?|EFG|HFR"
-            r"|StV|NStZ|wistra|GA"
-            r"|VersR|VRS|DAR|NZV"
+            r"|StV|NStZ-RR|NStZ|wistra|GA"
+            r"|VersR|VRS|DAR|NZV|NZA-RR|NZA|NZS|NZM|NZG|NZBau|NZWiSt"
             r"|GrS|BayVBl|NordÖR"
+            r"|ZMR|GRUR-RR|GRUR|ZUM|InfAuslR|AuAS|LKRZ|SozR"
             r")"
             r"\s+"
             r"(?P<volume>[0-9]{1,4})"
@@ -392,8 +392,15 @@ class CaseRefExtractorMixin:
             refs.append(marker)
 
         # --- File number citations: "10 C 23.12" ---
+        # Codes that look like case register codes but are common false positives
+        _FP_CODES = {"DM", "EUR", "Rn", "Nr", "Abs", "GHz", "MHz", "KHz", "TB", "GB", "MB", "KB"}
         for match in re.finditer(self.get_file_number_regex(), content):
             file_number = match.group(0)
+            code = match.group("code")
+
+            # Skip false-positive codes (currency, units, etc.)
+            if code in _FP_CODES:
+                continue
 
             # Skip if this span is already covered by a reporter match
             if any(r.start <= match.start(0) < r.end for r in refs):

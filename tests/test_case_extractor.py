@@ -150,6 +150,7 @@ def test_extract_from_bsg_case_1(case_extractor):
                     Ref(ref_type=RefType.CASE, court="", file_number="BSGE 118, 30"),
                     Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
                     Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="NZA 2018, 774"),
                 ],
             }
         ],
@@ -190,6 +191,7 @@ def test_from_bsg_case_1_html(case_extractor):
                     Ref(ref_type=RefType.CASE, court="", file_number="BSGE 118, 30"),
                     Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
                     Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="NZA 2018, 774"),
                 ],
             }
         ],

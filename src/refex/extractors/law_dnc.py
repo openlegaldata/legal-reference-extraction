@@ -28,6 +28,7 @@ class DivideAndConquerLawRefExtractorMixin:
     # Used when reference has only section but no book
     # (citations within a law book to other sections, § 1 AB -> § 2 AB)
     law_book_context = None
+    _compiled_patterns: dict | None = None
 
     # B6: default_law_book_codes as class constant (immutable reference list)
     default_law_book_codes = [
@@ -99,6 +100,44 @@ class DivideAndConquerLawRefExtractorMixin:
     def law_book_codes(self, codes: list[str] | None):
         self._law_book_codes = list(codes) if codes else list(self.default_law_book_codes)
         self._book_ref_regex = self._build_law_book_ref_regex(self._law_book_codes)
+        # B5: pre-compile all regex patterns that use the book pattern
+        self._compiled_patterns: dict[str, re.Pattern] | None = None
+
+    def _precompile_patterns(self) -> dict[str, re.Pattern]:
+        """Pre-compile all regex patterns that use the book OR-list.
+
+        This avoids re-compiling the ~20KB book pattern on every extraction call.
+        """
+        section_sign = "§"
+        sect_space = r"\s"
+        bp = self._book_ref_regex
+        wd = self._default_word_delimiter
+        bla = "(?=" + wd + ")"
+        ac = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"
+        sp = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
+
+        return {
+            "multi": re.compile(
+                section_sign + section_sign + sect_space
+                + r"(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
+                + bp + r")+\s(" + bp + ")" + bla
+            ),
+            "single_book": re.compile(
+                section_sign + sect_space + sp + " (?P<book>" + bp + ")" + bla
+            ),
+            "single_abs_alt": re.compile(
+                section_sign + sect_space + sp
+                + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>" + bp + ")" + bla
+            ),
+            "single_any_book": re.compile(
+                section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                + ac + " (?P<book>(" + bp + "))" + bla
+            ),
+            "single_ivm": re.compile(
+                section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                + ac + r" (?P<next_book>(i\.V\.m\.|iVm))" + bla
+            ),
+        }
 
     def extract_law_ref_markers(self, content: str, is_html: bool = False) -> list[RefMarker]:
         """
@@ -137,18 +176,19 @@ class DivideAndConquerLawRefExtractorMixin:
 
         any_content = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"  # noqa: E501
 
-        # B5: pre-compile patterns
-        multi_pattern = re.compile(
-            section_sign
-            + section_sign
-            + sect_space
-            + r"(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
-            + book_pattern
-            + r")+\s("
-            + book_pattern
-            + ")"
-            + book_look_ahead
-        )
+        # Lazy-init pre-compiled patterns on first use
+        if self._compiled_patterns is None:
+            self._compiled_patterns = self._precompile_patterns()
+
+        # Use pre-compiled patterns for the plain-text path (HTML path still builds inline)
+        if not is_html:
+            multi_pattern = self._compiled_patterns["multi"]
+        else:
+            multi_pattern = re.compile(
+                section_sign + section_sign + sect_space
+                + r"(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
+                + book_pattern + r")+\s(" + book_pattern + ")" + book_look_ahead
+            )
 
         for marker_match in multi_pattern.finditer(content):
             marker_text = marker_match.group(0)
@@ -210,38 +250,33 @@ class DivideAndConquerLawRefExtractorMixin:
             else:
                 logger.warning("No references found in marker: %s ", marker_text)
 
-        # Single refs — use sect_space instead of literal " " after §
-        sect_pattern = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
-        single_patterns = [
-            re.compile(section_sign + sect_space + sect_pattern + " (?P<book>" + book_pattern + ")" + book_look_ahead),
-            re.compile(
-                section_sign
-                + sect_space
-                + sect_pattern
-                + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>"
-                + book_pattern
-                + ")"
-                + book_look_ahead
-            ),
-            re.compile(
-                section_sign
-                + sect_space
-                + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                + any_content
-                + " (?P<book>("
-                + book_pattern
-                + "))"
-                + book_look_ahead
-            ),
-            re.compile(
-                section_sign
-                + sect_space
-                + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                + any_content
-                + r" (?P<next_book>(i\.V\.m\.|iVm))"
-                + book_look_ahead
-            ),
-        ]
+        # Single refs — use pre-compiled patterns for plain text
+        if not is_html:
+            single_patterns = [
+                self._compiled_patterns["single_book"],
+                self._compiled_patterns["single_abs_alt"],
+                self._compiled_patterns["single_any_book"],
+                self._compiled_patterns["single_ivm"],
+            ]
+        else:
+            sect_pattern = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
+            single_patterns = [
+                re.compile(
+                    section_sign + sect_space + sect_pattern + " (?P<book>" + book_pattern + ")" + book_look_ahead
+                ),
+                re.compile(
+                    section_sign + sect_space + sect_pattern
+                    + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>" + book_pattern + ")" + book_look_ahead
+                ),
+                re.compile(
+                    section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                    + any_content + " (?P<book>(" + book_pattern + "))" + book_look_ahead
+                ),
+                re.compile(
+                    section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                    + any_content + r" (?P<next_book>(i\.V\.m\.|iVm))" + book_look_ahead
+                ),
+            ]
 
         markers_waiting_for_book: list[RefMarker] = []
 

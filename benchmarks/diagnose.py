@@ -20,7 +20,7 @@ from benchmarks.datasets import load_dataset
 from refex.extractor import RefExtractor
 
 
-def diagnose(data_dir=None, split="test", limit=None):
+def diagnose(data_dir=None, split="validation", limit=None):
     dataset = load_dataset(data_dir, split=split)
     extractor = RefExtractor()
 
@@ -47,7 +47,12 @@ def diagnose(data_dir=None, split="test", limit=None):
         gold_cits = [c for c in gold_ann.citations if c.type in ("law", "case")]
 
         try:
-            _, markers = extractor.extract(doc.text)
+            content = extractor.remove_markers(doc.text)
+            markers = []
+            if extractor.do_law_refs:
+                markers.extend(extractor.extract_law_ref_markers(content, False))
+            if extractor.do_case_refs:
+                markers.extend(extractor.extract_case_ref_markers(content))
             pred_cits = refmarkers_to_citations(markers)
         except Exception:
             errors += 1
@@ -172,7 +177,10 @@ def diagnose(data_dir=None, split="test", limit=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, default=None)
-    parser.add_argument("--split", default="test")
+    parser.add_argument(
+        "--split", default="validation",
+        help="Split to analyze (default: validation; avoid test for development)",
+    )
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
     diagnose(args.data_dir, args.split, args.limit)

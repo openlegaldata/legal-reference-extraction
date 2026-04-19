@@ -63,7 +63,13 @@ def run_benchmark(
         gold_citations = [c for c in gold_ann.citations if c.type in ("law", "case")]
 
         try:
-            _, markers = extractor.extract(doc.text)
+            # Call extractors directly to avoid replace_content overlap errors
+            markers = []
+            content = extractor.remove_markers(doc.text)
+            if extractor.do_law_refs:
+                markers.extend(extractor.extract_law_ref_markers(content, False))
+            if extractor.do_case_refs:
+                markers.extend(extractor.extract_case_ref_markers(content))
             pred_citations = refmarkers_to_citations(markers)
         except Exception:
             logger.exception("Failed to extract from %s", doc.doc_id)
