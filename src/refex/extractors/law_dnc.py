@@ -404,7 +404,9 @@ class DivideAndConquerLawRefExtractorMixin:
         # Build OR-list, wrapped in a non-capturing group
         or_list = "|".join(escaped)
 
-        # Also include the generic fallback to catch codes not in the list
+        # Include a conservative generic fallback for codes not in the list.
+        # Only match words that look like German law abbreviations (end with
+        # common suffixes like G, O, V, B or contain these in compound forms).
         return f"(?:{or_list}|{self._GENERIC_BOOK_PATTERN})"
 
     # Keep old name as alias for backward compat
