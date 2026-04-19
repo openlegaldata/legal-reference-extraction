@@ -347,11 +347,11 @@ citations whose spans land correctly in the plain-text projection, and
 
 | Metric | Baseline | Current | Delta |
 |--------|----------|---------|-------|
-| Span F1 (exact) | 0.541 | 0.586 | +0.045 |
-| Span F1 (overlap) | 0.728 | 0.759 | +0.031 |
-| Law F1 (exact) | 0.700 | 0.754 | +0.054 |
-| Case F1 (exact) | 0.175 | 0.176 | +0.001 |
-| Book accuracy | 93.6% | 93.0% | -0.6% |
+| Span F1 (exact) | 0.541 | **0.656** | **+0.115** |
+| Span F1 (overlap) | 0.728 | **0.837** | **+0.109** |
+| Law F1 (exact) | 0.700 | **0.755** | **+0.055** |
+| Case F1 (exact) | 0.175 | **0.464** | **+0.289** |
+| Book accuracy | 93.6% | 92.9% | -0.7% |
 | Number accuracy | 96.2% | 96.3% | +0.1% |
 
 **Stream A notes:** Benchmark harness built in sibling project
