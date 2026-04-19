@@ -341,7 +341,7 @@ citations whose spans land correctly in the plain-text projection, and
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | not started | 0 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** (I2,I3,I5) | 80 |
-| J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | not started | 0 |
+| J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J7) | 80 |
 
 **Baseline metrics (2026-04-19, preview_1000 dataset, 992 docs):**
 
