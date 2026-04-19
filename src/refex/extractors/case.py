@@ -10,9 +10,6 @@ logger = logging.getLogger(__name__)
 
 class CaseRefExtractorMixin:
     court_context = None
-    codes = [
-        "Sa",
-    ]
 
     def clean_text_for_tokenizer(self, text):
         """

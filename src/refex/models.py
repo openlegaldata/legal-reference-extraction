@@ -18,11 +18,39 @@ class RefType(Enum):
 class BaseRef:
     ref_type: RefType | None = None
 
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+    def __init__(
+        self,
+        ref_type: RefType | None = None,
+        book: str = "",
+        section: str = "",
+        sentence: str = "",
+        file_number: str = "",
+        ecli: str = "",
+        court: str = "",
+        date: str = "",
+    ):
+        # B2: explicit fields instead of **kwargs
+        self.ref_type = ref_type
+        self.book = book
+        self.section = section
+        self.sentence = sentence
+        self.file_number = file_number
+        self.ecli = ecli
+        self.court = court
+        self.date = date
 
     def __hash__(self):
-        return hash(self.__repr__())
+        # B4: hash the full field tuple, not __repr__
+        return hash((
+            self.ref_type,
+            self.book,
+            self.section,
+            self.sentence,
+            self.file_number,
+            self.ecli,
+            self.court,
+            self.date,
+        ))
 
 
 class CaseRefMixin(BaseRef):
@@ -70,8 +98,8 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
     """
 
     def __lt__(self, other):
-        assert isinstance(other, Ref)
-        # return self.__repr__() < other.__repr__()
+        if not isinstance(other, Ref):
+            return NotImplemented
         return (
             self.ref_type.value,
             self.book,
@@ -87,8 +115,19 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
         )
 
     def __eq__(self, other):
-        assert isinstance(other, Ref)  # assumption for this example
-        return self.__dict__ == other.__dict__
+        # B3: return NotImplemented for foreign types instead of assert
+        if not isinstance(other, Ref):
+            return NotImplemented
+        return (
+            self.ref_type == other.ref_type
+            and self.book == other.book
+            and self.section == other.section
+            and self.sentence == other.sentence
+            and self.file_number == other.file_number
+            and self.ecli == other.ecli
+            and self.court == other.court
+            and self.date == other.date
+        )
 
     def __repr__(self):
         if self.ref_type == RefType.LAW:
@@ -99,8 +138,6 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
             raise ValueError(f"Unsupported ref type: {self.ref_type}")
 
         return f"<Ref({self.ref_type.value}: {data})>"
-        # return 'Ref<%s>' % self.__dict__
-        # return 'Ref<%s>' % sorted(self.__dict__.items(), key=lambda x: x[0])
 
 
 class RefMarker:
@@ -118,7 +155,6 @@ class RefMarker:
     start: int = 0
     end: int = 0
     line: str = ""  # Line cannot be used with HTML content
-    references: list[Ref] = []
 
     # Set by django
     referenced_by = None
@@ -129,26 +165,24 @@ class RefMarker:
         self.start = start
         self.end = end
         self.line = line
+        # B1: instance-level list instead of mutable class default
+        self.references: list[Ref] = []
 
     def replace_content(self, content, marker_offset) -> tuple[str, int]:
         start = self.start + marker_offset
         end = self.end + marker_offset
 
-        # marker_open = '[ref=%i]' % key
-        # Instead of key use uuid
         marker_open = MARKER_OPEN_FORMAT % self.__dict__
         marker_close = MARKER_CLOSE_FORMAT % self.__dict__
 
         marker_offset += len(marker_open) + len(marker_close)
 
-        # double replacements
-        # alternative: content[start:end]
         content = content[:start] + marker_open + self.text + marker_close + content[end:]
 
         return content, marker_offset
 
     def replace_content_with_mask(self, content):
-        mask = "_" * self.get_length()  # length of marker
+        mask = "_" * self.get_length()
 
         return content[: self.start] + mask + content[self.end :]
 
