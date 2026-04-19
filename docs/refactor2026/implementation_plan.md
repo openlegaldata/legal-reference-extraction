@@ -339,7 +339,7 @@ citations whose spans land correctly in the plain-text projection, and
 | E | Grundgesetz / Artikel | C1 | **done** | 100 |
 | F | CRF engine | D, A, HF dataset train split | not started | 0 |
 | G | Transformer engine | F plateau | not started | 0 |
-| H | Migration & deletion | D | not started | 0 |
+| H | Migration & deletion | D | **partial** (H1,H2,H4) | 50 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** (I2,I3,I5) | 80 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J7) | 80 |
 
