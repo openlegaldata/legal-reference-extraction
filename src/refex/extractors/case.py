@@ -325,26 +325,56 @@ class CaseRefExtractorMixin:
 
         refs = []
 
-        # TODO More intelligent by search only in sentences.
+        # --- Reporter citations: "BGHZ 132, 105" / "NJW 2003, 1234" ---
+        reporter_pattern = re.compile(
+            r"(?P<reporter>"
+            r"BGHZ|BGHSt|BGHR|BVerfGE|BVerwGE|BAGE|BSGE|BFHE|BPatGE"
+            r"|RGZ|RGSt"
+            r"|NJW|NVwZ|MDR|DVBl|DÖV|JZ|BB|DB|JR|RiA|FamRZ|ZfA|ZIP|WM"
+            r"|BFH/NV|BStBl\s?II?|EFG|HFR"
+            r"|StV|NStZ|wistra|GA"
+            r"|VersR|VRS|DAR|NZV"
+            r"|GrS|BayVBl|NordÖR"
+            r")"
+            r"\s+"
+            r"(?P<volume>[0-9]{1,4})"
+            r",\s*"
+            r"(?P<page>[0-9]+)"
+            r"(?:,\s*(?P<page2>[0-9]+))?"
+        )
 
-        # Find all file numbers
+        for match in reporter_pattern.finditer(content):
+            reporter = match.group("reporter")
+            volume = match.group("volume")
+            page = match.group("page")
+            marker_text = match.group(0)
+
+            ref_ids = [
+                Ref(ref_type=RefType.CASE, court="", file_number=f"{reporter} {volume}, {page}")
+            ]
+            marker = RefMarker(text=marker_text, start=match.start(0), end=match.end(0))
+            marker.set_uuid()
+            marker.set_references(ref_ids)
+            refs.append(marker)
+
+        # --- File number citations: "10 C 23.12" ---
         for match in re.finditer(self.get_file_number_regex(), content):
             file_number = match.group(0)
 
+            # Skip if this span is already covered by a reporter match
+            if any(r.start <= match.start(0) < r.end for r in refs):
+                continue
+
             court = self.infer_court(file_number, match, content) or self.search_court(match, content) or ""
 
-            file_number = match.group(0)
             ref_ids = [
-                Ref(ref_type=RefType.CASE, court=court, file_number=file_number)  # TODO date field
+                Ref(ref_type=RefType.CASE, court=court, file_number=file_number)
             ]
-            # TODO maintain order for case+law refs
-            marker = RefMarker(text=file_number, start=match.start(0), end=match.end(0), line=0)  # TODO line number
+            marker = RefMarker(text=file_number, start=match.start(0), end=match.end(0))
             marker.set_uuid()
             marker.set_references(ref_ids)
 
             refs.append(marker)
-
-            # print(match.start(0))
 
         return refs
 

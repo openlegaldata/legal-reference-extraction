@@ -123,66 +123,33 @@ def test_extract_from_bsg_case_1(case_extractor):
             {
                 "resource": "bsg_2018-06-27.txt",
                 "refs": [
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="Bundessozialgericht",
-                        file_number="B 6 KA 45/13 R",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="BGH",
-                        file_number="IX ZR 165/12",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="BGH",
-                        file_number="IX ZR 165/12",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="BVerfG",
-                        file_number="1 BvL 7/14",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="LSG Nordrhein-Westfalen",
-                        file_number="L 11 KA 67/10",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="LSG Nordrhein-Westfalen",
-                        file_number="L 24 K 120/10",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Koblenz",  # ERROR: It's actually "Brandenburgische OLG"
-                        file_number="7 U 199/05",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Hamm",
-                        file_number="19 U 98/97",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Koblenz",
-                        file_number="2 U 553/13",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="Bundessozialgericht",
-                        file_number="B 6 KA 39/17 R",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="Bundessozialgericht",
-                        file_number="B 6 KA 40/17 R",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Koblenz",
-                        file_number="IX ZR 103/14",
-                    ),
+                    # File number citations
+                    Ref(ref_type=RefType.CASE, court="Bundessozialgericht", file_number="B 6 KA 45/13 R"),
+                    Ref(ref_type=RefType.CASE, court="BGH", file_number="IX ZR 165/12"),
+                    Ref(ref_type=RefType.CASE, court="BGH", file_number="IX ZR 165/12"),
+                    Ref(ref_type=RefType.CASE, court="BVerfG", file_number="1 BvL 7/14"),
+                    Ref(ref_type=RefType.CASE, court="LSG Nordrhein-Westfalen", file_number="L 11 KA 67/10"),
+                    Ref(ref_type=RefType.CASE, court="LSG Nordrhein-Westfalen", file_number="L 24 K 120/10"),
+                    Ref(ref_type=RefType.CASE, court="OLG Koblenz", file_number="7 U 199/05"),
+                    Ref(ref_type=RefType.CASE, court="OLG Hamm", file_number="19 U 98/97"),
+                    Ref(ref_type=RefType.CASE, court="OLG Koblenz", file_number="2 U 553/13"),
+                    Ref(ref_type=RefType.CASE, court="Bundessozialgericht", file_number="B 6 KA 39/17 R"),
+                    Ref(ref_type=RefType.CASE, court="Bundessozialgericht", file_number="B 6 KA 40/17 R"),
+                    Ref(ref_type=RefType.CASE, court="OLG Koblenz", file_number="IX ZR 103/14"),
+                    # Reporter citations (new in B7)
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 77, 274"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 108, 98"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 108, 98"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 162, 187"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 167, 363"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="RGZ 97, 76"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BVerfGE 85, 248"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BVerfGE 88, 145"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BVerfGE 103, 1"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BSGE 118, 30"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BSGE 118, 30"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
                 ],
             }
         ],
@@ -196,66 +163,33 @@ def test_from_bsg_case_1_html(case_extractor):
             {
                 "resource": "bsg_2018-06-27.txt",
                 "refs": [
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="Bundessozialgericht",
-                        file_number="B 6 KA 45/13 R",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="BGH",
-                        file_number="IX ZR 165/12",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="BGH",
-                        file_number="IX ZR 165/12",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="BVerfG",
-                        file_number="1 BvL 7/14",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="LSG Nordrhein-Westfalen",
-                        file_number="L 11 KA 67/10",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="LSG Nordrhein-Westfalen",
-                        file_number="L 24 K 120/10",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Koblenz",  # ERROR: It's actually "Brandenburgische OLG"
-                        file_number="7 U 199/05",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Hamm",
-                        file_number="19 U 98/97",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Koblenz",
-                        file_number="2 U 553/13",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="Bundessozialgericht",
-                        file_number="B 6 KA 39/17 R",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="Bundessozialgericht",
-                        file_number="B 6 KA 40/17 R",
-                    ),
-                    Ref(
-                        ref_type=RefType.CASE,
-                        court="OLG Koblenz",
-                        file_number="IX ZR 103/14",
-                    ),
+                    # File number citations
+                    Ref(ref_type=RefType.CASE, court="Bundessozialgericht", file_number="B 6 KA 45/13 R"),
+                    Ref(ref_type=RefType.CASE, court="BGH", file_number="IX ZR 165/12"),
+                    Ref(ref_type=RefType.CASE, court="BGH", file_number="IX ZR 165/12"),
+                    Ref(ref_type=RefType.CASE, court="BVerfG", file_number="1 BvL 7/14"),
+                    Ref(ref_type=RefType.CASE, court="LSG Nordrhein-Westfalen", file_number="L 11 KA 67/10"),
+                    Ref(ref_type=RefType.CASE, court="LSG Nordrhein-Westfalen", file_number="L 24 K 120/10"),
+                    Ref(ref_type=RefType.CASE, court="OLG Koblenz", file_number="7 U 199/05"),
+                    Ref(ref_type=RefType.CASE, court="OLG Hamm", file_number="19 U 98/97"),
+                    Ref(ref_type=RefType.CASE, court="OLG Koblenz", file_number="2 U 553/13"),
+                    Ref(ref_type=RefType.CASE, court="Bundessozialgericht", file_number="B 6 KA 39/17 R"),
+                    Ref(ref_type=RefType.CASE, court="Bundessozialgericht", file_number="B 6 KA 40/17 R"),
+                    Ref(ref_type=RefType.CASE, court="OLG Koblenz", file_number="IX ZR 103/14"),
+                    # Reporter citations
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 77, 274"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 108, 98"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 108, 98"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 162, 187"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BGHZ 167, 363"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="RGZ 97, 76"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BVerfGE 85, 248"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BVerfGE 88, 145"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BVerfGE 103, 1"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BSGE 118, 30"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="BSGE 118, 30"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
+                    Ref(ref_type=RefType.CASE, court="", file_number="MDR 2013, 1314"),
                 ],
             }
         ],
