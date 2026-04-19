@@ -41,16 +41,18 @@ class BaseRef:
 
     def __hash__(self):
         # B4: hash the full field tuple, not __repr__
-        return hash((
-            self.ref_type,
-            self.book,
-            self.section,
-            self.sentence,
-            self.file_number,
-            self.ecli,
-            self.court,
-            self.date,
-        ))
+        return hash(
+            (
+                self.ref_type,
+                self.book,
+                self.section,
+                self.sentence,
+                self.file_number,
+                self.ecli,
+                self.court,
+                self.date,
+            )
+        )
 
 
 class CaseRefMixin(BaseRef):

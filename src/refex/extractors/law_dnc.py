@@ -185,9 +185,7 @@ class DivideAndConquerLawRefExtractorMixin:
         # Single refs — use sect_space instead of literal " " after §
         sect_pattern = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
         single_patterns = [
-            re.compile(
-                section_sign + sect_space + sect_pattern + " (?P<book>" + book_pattern + ")" + book_look_ahead
-            ),
+            re.compile(section_sign + sect_space + sect_pattern + " (?P<book>" + book_pattern + ")" + book_look_ahead),
             re.compile(
                 section_sign
                 + sect_space
