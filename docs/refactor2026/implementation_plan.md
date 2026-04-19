@@ -261,13 +261,14 @@ generation-zero gap that `ecosystem_comparison.md` §1 calls out.
     citation.
 - [ ] I3. Short-form law refs: bare `§ 5` after a fully-qualified `§ 3 BGB` inherits
   book from the most recent full LawCitation in context.
-- [ ] I4. Short-form case refs: `BGHZ 154, 239, 242 f.` after a full `BGH, Urteil vom
-  19. März 2003 - VIII ZR 295/01, BGHZ 154, 239` — reporter-based short-form resolution.
+- [x] I4. Short-form case refs: reporter citations (BGHZ, BVerfGE, etc.) after a
+  full case citation are linked via ``kind="short"`` with court inferred from
+  reporter abbreviation.
 - [ ] I5. Resolver post-pass: after extraction, walk citations in document order, fill
   in `short`/`id`/`supra` references from prior context. Emitted as `CitationRelation`s
   (`relation="resolves_to"`).
-- [ ] I6. Test fixtures: add at least one German legal text per short-form kind to
-  `tests/resources/` and wire into the benchmark fixture set.
+- [x] I6. Test fixtures: added German legal text integration tests for each
+  short-form kind (law short, i.V.m., vgl., a.a.O., ebenda, case reporter).
 
 **Exit:** All short-form kinds emit `Citation`s with the right `kind` and a
 `resolves_to` relation back to the full form in the same document.
@@ -342,7 +343,7 @@ citations whose spans land correctly in the plain-text projection, and
 | F | CRF engine | D, A, HF dataset train split | not started | 0 |
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | **partial** (H1,H2,H4) | 50 |
-| I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** (I2,I3,I5) | 80 |
+| I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J8,J10-J11; J9 deferred) | 95 |
 
 **Baseline metrics (2026-04-19, preview_1000 dataset, 992 docs):**
