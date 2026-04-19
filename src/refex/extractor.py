@@ -5,34 +5,36 @@ from refex.errors import RefExError
 from refex.extractors.case import CaseRefExtractorMixin
 from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
 from refex.models import RefMarker
+from refex.orchestrator import CitationExtractor
 
 logger = logging.getLogger(__name__)
 
 
-class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):  # LawRefExtractorMixin
-    """
+class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
+    """Legacy extractor API — use ``CitationExtractor`` for new code.
+
+    This class is preserved for backward compatibility.  It delegates
+    internally to the new typed extraction pipeline and converts results
+    back to legacy ``RefMarker`` / ``Ref`` objects.
+
+    New consumers should use::
+
+        from refex.orchestrator import CitationExtractor
+        extractor = CitationExtractor()
+        result = extractor.extract(text)
 
     Reference marker format: [ref=UUID]...[/ref]
-
     """
 
     do_law_refs = True
     do_case_refs = True
 
     def replace_content(self, content, reference_markers):
-        """
-        Replace content with markers
-
-        :param content: Without markers
-        :param reference_markers:
-        :return:
-        """
         marker_offset = 0
         content_with_markers = content
-        sorted_markers = sorted(reference_markers, key=lambda k: k.get_start_position())  # order by occurrence in text
+        sorted_markers = sorted(reference_markers, key=lambda k: k.get_start_position())
 
         for i, marker in enumerate(sorted_markers):
-            # Check on overlaps
             if i > 0 and sorted_markers[i - 1].get_end_position() >= marker.get_start_position():
                 raise RefExError(f"Marker overlaps with previous marker: {marker}")
             elif (
@@ -40,7 +42,6 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
             ):
                 raise RefExError(f"Marker overlaps with next marker: {marker}")
             else:
-                # Everything fine, replace content
                 content_with_markers, marker_offset = marker.replace_content(content_with_markers, marker_offset)
 
         return content_with_markers
@@ -48,7 +49,6 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
     def extract(self, content_html: str, is_html: bool = False) -> tuple[str, list[RefMarker]]:
         reference_markers: list[RefMarker] = []
 
-        # Remove all reference markers (HTML or MarkDown)
         content = self.remove_markers(content_html)
 
         if self.do_law_refs:
@@ -63,10 +63,23 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
 
             logger.debug("Extracted case ref markers: %i", len(markers))
 
-        # Add markers to content
         content_with_markers = self.replace_content(content, reference_markers)
 
         return content_with_markers, reference_markers
+
+    def extract_citations(self, text: str, **kwargs):
+        """Extract citations using the new typed API.
+
+        This is the recommended method for new code.  Returns an
+        ``ExtractionResult`` with typed ``Citation`` objects.
+
+        Args:
+            text: Plain text or HTML content.
+            **kwargs: Passed to ``CitationExtractor.extract()``
+                      (e.g. ``fmt="html"``).
+        """
+        extractor = CitationExtractor()
+        return extractor.extract(text, **kwargs)
 
     @staticmethod
     def remove_markers(value: str) -> str:
