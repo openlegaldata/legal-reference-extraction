@@ -283,7 +283,65 @@ class DivideAndConquerLawRefExtractorMixin:
             markers.append(marker)
             content = marker.replace_content_with_mask(content)
 
-        # TODO Art GG
+        # --- Artikel references (E1): Art. 12 GG, Art 1, 2, 3 GG ---
+
+        art_sign = r"Art(?:ikel|\.?)"
+        art_sect_space = r"\s"
+
+        # Multi Art refs: "Art. 1, 2, 3 GG" — list of bare numbers separated by , ; und bis
+        # Must contain at least one comma/und/bis separator to qualify as multi
+        art_multi_pattern = re.compile(
+            art_sign
+            + art_sect_space
+            + r"(?P<body>[0-9]+(?:\s?[a-z]?)"
+            + r"(?:\s*(?:,|;|und|bis)\s+[0-9]+(?:\s?[a-z]?))+)"
+            + r"\s+(?P<book>"
+            + book_pattern
+            + r")"
+            + book_look_ahead
+        )
+
+        for marker_match in art_multi_pattern.finditer(content):
+            marker_text = marker_match.group(0)
+            book = Ref.clean_book(marker_match.group("book"))
+            body = marker_match.group("body")
+
+            refs: list[Ref] = []
+            for sect_match in re.finditer(r"([0-9]+(?:\s?[a-z]?))", body):
+                sect = sect_match.group(1).strip()
+                if sect:
+                    refs.append(Ref.init_law(book=book, section=sect))
+
+            if refs:
+                marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
+                marker.set_uuid()
+                marker.set_references(refs)
+                markers.append(marker)
+                content = marker.replace_content_with_mask(content)
+
+        # Single Art ref: "Art. 12 Abs. 1 GG" or "Art 12 GG"
+        art_single_pattern = re.compile(
+            art_sign
+            + art_sect_space
+            + r"(?P<sect>[0-9]+(?:\s?[a-z]?))"
+            + any_content
+            + r"\s+(?P<book>"
+            + book_pattern
+            + r")"
+            + book_look_ahead
+        )
+
+        for marker_match in art_single_pattern.finditer(content):
+            marker_text = marker_match.group(0)
+            book = Ref.clean_book(marker_match.group("book"))
+            sect = marker_match.group("sect").strip()
+
+            ref = Ref.init_law(book=book, section=sect)
+            marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
+            marker.set_uuid()
+            marker.set_references([ref])
+            markers.append(marker)
+            content = marker.replace_content_with_mask(content)
 
         return markers
 

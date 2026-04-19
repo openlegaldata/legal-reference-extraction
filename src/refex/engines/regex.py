@@ -46,14 +46,16 @@ def _law_markers_to_citations(markers: list[RefMarker]) -> list[Citation]:
             if ref.ref_type != RefType.LAW:
                 continue
             cid = make_citation_id(span, "regex")
+            # Detect Art./Artikel by marker text
+            is_article = marker.text.lstrip().startswith(("Art", "art"))
             citations.append(
                 LawCitation(
                     span=span,
                     id=cid,
                     book=ref.book if ref.book else None,
                     number=ref.section if ref.section else None,
-                    unit="paragraph",
-                    delimiter="§",
+                    unit="article" if is_article else "paragraph",
+                    delimiter="Art." if is_article else "§",
                 )
             )
     return citations

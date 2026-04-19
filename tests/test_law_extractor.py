@@ -201,7 +201,6 @@ def test_extract9(law_extractor):
     )
 
 
-@pytest.mark.skip
 def test_extract10(law_extractor):
     assert_refs(
         law_extractor,
@@ -420,7 +419,6 @@ def test_extract22(law_extractor):
     )
 
 
-@pytest.mark.skip
 def test_extract23(law_extractor):
     assert_refs(
         law_extractor,
