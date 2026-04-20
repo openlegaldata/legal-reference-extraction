@@ -117,9 +117,18 @@ def _build_extract_fn(engine: str):
         return extract
 
     if engine == "transformer":
+        import os
+
         from refex.engines.transformer import TransformerExtractor
 
-        tx = TransformerExtractor()
+        model = os.environ.get("REFEX_TRANSFORMER_MODEL")
+        device = os.environ.get("REFEX_TRANSFORMER_DEVICE")
+        kwargs = {}
+        if model:
+            kwargs["model"] = model
+        if device:
+            kwargs["device"] = device
+        tx = TransformerExtractor(**kwargs)
 
         def extract(text: str):
             cits, _ = tx.extract(text)
@@ -128,11 +137,20 @@ def _build_extract_fn(engine: str):
         return extract
 
     if engine == "regex+transformer":
+        import os
+
         from refex.engines.transformer import TransformerExtractor
         from refex.extractor import RefExtractor
 
         regex_ext = RefExtractor()
-        tx = TransformerExtractor()
+        model = os.environ.get("REFEX_TRANSFORMER_MODEL")
+        device = os.environ.get("REFEX_TRANSFORMER_DEVICE")
+        kwargs = {}
+        if model:
+            kwargs["model"] = model
+        if device:
+            kwargs["device"] = device
+        tx = TransformerExtractor(**kwargs)
 
         def extract(text: str):
             content = regex_ext.remove_markers(text)

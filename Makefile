@@ -1,4 +1,4 @@
-.PHONY: help venv install install-ml install-all test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf bench-crf bench-transformer
+.PHONY: help venv install install-ml install-training install-all test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf bench-crf bench-transformer export-bio train-transformer-subset train-transformer eval-transformer bench-transformer-trained
 
 PYTHON ?= python3
 VENV := .venv
@@ -26,6 +26,9 @@ install: venv  ## Install package with dev dependencies (editable)
 
 install-ml: install  ## Install package with ML extras (CRF, transformers, torch)
 	$(INSTALL_CMD) -e ".[ml]"
+
+install-training: install-ml  ## Install training extras (wandb, seqeval, datasets, accelerate)
+	$(INSTALL_CMD) -e ".[training]"
 
 install-all: venv  ## Install package with all optional dependencies
 	$(INSTALL_CMD) -e ".[all]"
@@ -79,6 +82,37 @@ bench-crf: install-ml  ## Benchmark regex+CRF ensemble on validation split
 
 bench-transformer: install-ml  ## Benchmark regex+transformer ensemble (downloads weights)
 	$(BIN)/python -m benchmarks.run -s validation -e regex+transformer $(BENCH_ARGS)
+
+export-bio: install-training  ## Export BIO JSONL for train/validation/test splits
+	$(BIN)/python scripts/export_bio.py --split train --output data/hf_bio/train.jsonl
+	$(BIN)/python scripts/export_bio.py --split validation --output data/hf_bio/validation.jsonl
+	$(BIN)/python scripts/export_bio.py --split test --output data/hf_bio/test.jsonl
+
+train-transformer-subset: install-training  ## Smoke-test training (500 docs, 2 epochs)
+	$(BIN)/python scripts/train_transformer.py \
+		--train data/hf_bio/train.jsonl \
+		--eval data/hf_bio/validation.jsonl \
+		--output models/refex-eurobert-210m-smoke \
+		--device mps --epochs 2 --batch-size 16 --limit 500 \
+		--wandb-run-name eurobert-210m-smoke $(TRAIN_ARGS)
+
+train-transformer: install-training  ## Full transformer training (EuroBERT-210m, 3 epochs)
+	$(BIN)/python scripts/train_transformer.py \
+		--train data/hf_bio/train.jsonl \
+		--eval data/hf_bio/validation.jsonl \
+		--output models/refex-eurobert-210m \
+		--device mps --epochs 3 --batch-size 16 \
+		--wandb-run-name eurobert-210m-full-e3-b16-lr3e5 $(TRAIN_ARGS)
+
+eval-transformer: install-training  ## Evaluate trained transformer on validation (full engine)
+	REFEX_TRANSFORMER_MODEL=models/refex-eurobert-210m REFEX_TRANSFORMER_DEVICE=mps \
+		$(BIN)/python -m benchmarks.run -s validation -e transformer --json \
+		--output logs/bench-transformer-validation.json $(BENCH_ARGS)
+
+bench-transformer-trained: install-training  ## Benchmark regex+trained transformer on validation
+	REFEX_TRANSFORMER_MODEL=models/refex-eurobert-210m REFEX_TRANSFORMER_DEVICE=mps \
+		$(BIN)/python -m benchmarks.run -s validation -e regex+transformer --json \
+		--output logs/bench-regex+transformer-validation.json $(BENCH_ARGS)
 
 clean:  ## Remove virtualenv, build artifacts, and __pycache__ directories
 	rm -rf $(VENV) build/ dist/ *.egg-info src/*.egg-info

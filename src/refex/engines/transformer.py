@@ -106,6 +106,7 @@ class TransformerExtractor:
         label_mapping: dict[str, str] | None = None,
         max_length: int = 512,
         stride: int = 128,
+        trust_remote_code: bool = True,
     ):
         """
         Args:
@@ -120,6 +121,8 @@ class TransformerExtractor:
             max_length: Max input length.  Longer texts are processed in
                 overlapping windows (see ``stride``).
             stride: Overlap between windows when input exceeds ``max_length``.
+            trust_remote_code: Allow models shipping custom code (needed for
+                EuroBERT, ModernGBERT).  Default ``True``.
         """
         self._model_ref = str(model)
         self._device_spec = device
@@ -127,6 +130,7 @@ class TransformerExtractor:
         self._label_mapping = label_mapping or DEFAULT_LABEL_MAP
         self._max_length = max_length
         self._stride = stride
+        self._trust_remote_code = trust_remote_code
 
         # Lazy-loaded to keep import cost low
         self._tokenizer = None
@@ -152,8 +156,12 @@ class TransformerExtractor:
             raise ImportError(msg) from exc
 
         logger.info("Loading transformer model: %s", self._model_ref)
-        self._tokenizer = AutoTokenizer.from_pretrained(self._model_ref, use_fast=True)
-        self._model = AutoModelForTokenClassification.from_pretrained(self._model_ref)
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self._model_ref, use_fast=True, trust_remote_code=self._trust_remote_code
+        )
+        self._model = AutoModelForTokenClassification.from_pretrained(
+            self._model_ref, trust_remote_code=self._trust_remote_code
+        )
 
         # Resolve device
         if isinstance(self._device_spec, str):
@@ -247,7 +255,7 @@ class TransformerExtractor:
             max_length=self._max_length,
             stride=self._stride,
             return_overflowing_tokens=True,
-            padding=False,
+            padding="longest",
         )
 
         num_windows = enc["input_ids"].shape[0]

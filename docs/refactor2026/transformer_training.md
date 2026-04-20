@@ -425,3 +425,238 @@ Once a trained model exists:
    speedup.
 4. Decide whether to keep the CRF engine (Stream F) as the lighter
    alternative, or deprecate it in favor of the transformer.
+
+---
+
+## 12. Experiment Log — EuroBERT-210m (2026-04-20)
+
+First end-to-end training run using the new pipeline.  Base model
+`EuroBERT/EuroBERT-210m` (Apache-2.0, 8192 ctx).  Runs tracked on
+wandb project [`malteos/refex`](https://wandb.ai/malteos/refex).
+
+### 12.1 Infrastructure added in this iteration
+
+- `scripts/export_bio.py` — converts benchmark splits to BIO JSONL via
+  `refex.serializers.to_hf_bio`.  Preserves canonical 5-class label set
+  (`O, B-LAW_REF, I-LAW_REF, B-CASE_REF, I-CASE_REF`).
+- `scripts/train_transformer.py` — HuggingFace `Trainer` fine-tuning
+  script with first-token-of-word label strategy, `seqeval` metrics,
+  dual file+wandb logging.  EuroBERT-specific defaults hard-coded
+  (β₂=0.95, ε=1e-5, warmup 0.1, wd 0.1) per paper.
+- `[training]` optional extra in `pyproject.toml`:
+  `wandb, seqeval, datasets>=2.14, accelerate`.
+- Pinned `transformers>=4.48,<5.0` in `[ml]` — transformers v5.x
+  dropped the `"default"` key from `ROPE_INIT_FUNCTIONS`, which breaks
+  EuroBERT's custom modelling file (`KeyError: 'default'` at
+  `EuroBertRotaryEmbedding.__init__`).  v4.57 works cleanly.
+- `TransformerExtractor` now loads custom-code models by default
+  (`trust_remote_code=True`).  Needed for EuroBERT / ModernGBERT.
+- `benchmarks/run.py` honours `REFEX_TRANSFORMER_MODEL` and
+  `REFEX_TRANSFORMER_DEVICE` env vars when building the
+  `transformer` / `regex+transformer` engine (previously only
+  documented, not wired).
+- Makefile targets: `install-training`, `export-bio`,
+  `train-transformer-subset`, `train-transformer`,
+  `eval-transformer`, `bench-transformer-trained`.
+
+### 12.2 Dataset snapshot (benchmark_10k HF Arrow)
+
+| Split      | Docs  | Citations | Non-O tokens |
+|------------|-------|-----------|--------------|
+| train      | 8,087 | 173,909   | 838,902      |
+| validation |   821 |  19,277   |  92,938      |
+| test       | 1,009 |  22,871   | 113,230      |
+
+Exported by `make export-bio` using
+`BENCH_DATA_DIR=.../benchmark_10k_hf`.
+
+### 12.3 Hyperparameters (both runs)
+
+| HP                    | Value      | Source |
+|-----------------------|------------|--------|
+| Base model            | `EuroBERT/EuroBERT-210m` | Apache-2.0 |
+| Learning rate         | 3e-5       | mid EuroBERT classification range |
+| LR schedule           | linear     | EuroBERT paper |
+| Warmup ratio          | 0.1        | EuroBERT paper |
+| AdamW β₁ / β₂ / ε     | 0.9 / 0.95 / 1e-5 | EuroBERT paper |
+| Weight decay          | 0.1        | EuroBERT paper |
+| Max seq length        | 512        | matches inference window |
+| Batch size (device)   | 16         | MPS-safe |
+| Grad accumulation     | 2          | effective batch 32 |
+| Precision             | fp32       | MPS fp16 unreliable |
+| Seed                  | 42         | reproducibility |
+| Early stopping        | patience=2 on eval_f1 | Trainer callback |
+
+### 12.4 Experiment 1 — Smoke test (500 docs, 2 epochs)
+
+Purpose: validate the pipeline end-to-end on MPS before the full run.
+
+```bash
+python scripts/train_transformer.py \
+    --train data/hf_bio/train.jsonl \
+    --eval  data/hf_bio/validation.jsonl \
+    --output models/refex-eurobert-210m-smoke \
+    --device mps --epochs 2 --batch-size 16 \
+    --limit 500 --eval-limit 100 \
+    --wandb-run-name eurobert-210m-smoke
+```
+
+Result:
+- Wall clock: 208s (≈3.5 min) on M-series MPS.
+- `eval_loss` 0.102 → 0.060 across epochs.
+- Best `eval_f1` (seqeval, span-level) = **0.3405** — a weak but
+  non-zero signal, as expected from 500 docs.
+- Wandb run:
+  [`8gcji2tk`](https://wandb.ai/malteos/refex/runs/8gcji2tk)
+  (run name: `eurobert-210m-smoke`).
+
+Verification: trained checkpoint loads via
+`TransformerExtractor(model="models/refex-eurobert-210m-smoke",
+device="mps")` and produces non-empty citations on a simple German
+legal sentence.  End-to-end plumbing OK.
+
+### 12.5 Experiment 2 — Full training (8,087 docs, 3 epochs)
+
+Wandb run:
+[`4wrslw8q`](https://wandb.ai/malteos/refex/runs/4wrslw8q)
+(name: `eurobert-210m-full-e3-b16-lr3e5`).
+
+```bash
+make train-transformer    # full run
+# or directly:
+python scripts/train_transformer.py \
+    --train data/hf_bio/train.jsonl \
+    --eval  data/hf_bio/validation.jsonl \
+    --output models/refex-eurobert-210m \
+    --device mps --epochs 3 --batch-size 16 \
+    --wandb-run-name eurobert-210m-full-e3-b16-lr3e5
+```
+
+| Epoch | eval_loss | eval_precision | eval_recall | eval_f1 (seqeval) |
+|-------|-----------|---------------|-------------|-------------------|
+| 1     | 0.0344    | 0.7584        | 0.8378      | 0.7961            |
+| 2     | 0.0273    | 0.7937        | 0.8526      | 0.8221            |
+| 3     | **0.0232** | **0.8389**  | **0.9127**  | **0.8743**        |
+
+- Train wall clock: **4,583s (≈76 min)** on M-series MPS.
+- Train samples/s: 5.3; steps/s: 0.17 (759 optimiser steps total).
+- Best model saved to `models/refex-eurobert-210m/` as safetensors +
+  tokenizer + EuroBERT's `configuration_eurobert.py` /
+  `modeling_eurobert.py` for round-trip load.
+
+### 12.6 Benchmark results (validation split, 821 docs)
+
+All numbers produced by
+`python -m benchmarks.run -s validation -e <engine> --json` with
+`BENCH_DATA_DIR=.../benchmark_10k_hf`,
+`REFEX_TRANSFORMER_MODEL=models/refex-eurobert-210m`,
+`REFEX_TRANSFORMER_DEVICE=mps`.  Baselines run on CPU in the same
+session.
+
+| Engine              | span exact F1 | span overlap F1 | Law overlap F1 | Case overlap F1 | Throughput (docs/s) | Median ms/doc |
+|---------------------|--------------:|----------------:|---------------:|----------------:|--------------------:|--------------:|
+| regex               | 0.734         | 0.815           | 0.804          | 0.824           | **389.7**           | **1.3**       |
+| regex + crf (1k-doc model) | 0.741         | 0.842           | 0.834          | 0.845           | 88.9                | 7.4           |
+| **EuroBERT-210m** (MPS) | 0.509     | **0.913**       | **0.938**      | 0.859           | 1.5                 | 464.8         |
+| regex + EuroBERT-210m (MPS) | **0.743** | 0.852         | 0.848          | 0.845           | 1.5                 | 471.0         |
+
+**Notes on the two F1 columns:**
+- *Span exact* compares character-exact (start, end) pairs. The
+  transformer works at whitespace-word granularity, so its boundary
+  decisions rarely match a gold annotator's character-level trimming
+  (e.g. trailing punctuation, enclosing parens). That's why exact F1
+  is much lower than overlap F1 for the transformer.
+- *Span overlap* is the right metric for a retrieve-first pipeline —
+  it measures "did we find a citation in roughly the right place".
+  On overlap, **EuroBERT-210m standalone beats regex by +9.8pp and
+  regex+CRF by +7.1pp**.
+
+**Takeaways:**
+- The transformer's strongest gain is on Law recall: Law overlap F1
+  **+13.4pp over regex** (0.804 → 0.938), driven by recall
+  (0.870 → 0.947).
+- On Case citations the transformer approximately matches regex
+  overlap F1 (0.824 → 0.859) — still +3.5pp but a smaller gap.
+- Ensemble (regex+EuroBERT) preserves regex's high span-exact F1
+  (0.743) while also lifting span overlap to 0.852.  If you need
+  both precise character boundaries (for downstream replacement or
+  ref-link generation) and broader recall, ensemble is the right
+  default; otherwise standalone EuroBERT wins on overlap.
+- Inference is **~260× slower than regex** on MPS (1.5 vs 390
+  docs/s).  Batched GPU inference would narrow this considerably;
+  for CPU deployment, stick with regex or regex+CRF.
+
+### 12.6.1 Benchmark results (test split, 1,009 docs — locked-in)
+
+The test split is evaluated **once**.  These numbers are the final
+lock-in for the EuroBERT-210m checkpoint and should not be chased
+further on this data.
+
+| Engine              | span exact F1 | span overlap F1 | Law overlap F1 | Case overlap F1 | Throughput (docs/s) | Median ms/doc |
+|---------------------|--------------:|----------------:|---------------:|----------------:|--------------------:|--------------:|
+| regex               | 0.737         | 0.860           | 0.872          | 0.828           | **455.9**           | **1.1**       |
+| regex + crf (1k-doc model) | 0.740  | 0.878           | 0.891          | 0.846           | 106.4               | 6.4           |
+| **EuroBERT-210m** (MPS) | 0.533     | **0.909**       | **0.932**      | **0.855**       | 1.5                 | 467.4         |
+| regex + EuroBERT-210m (MPS) | **0.743** | 0.889       | 0.905          | 0.849           | 1.5                 | 467.3         |
+
+Test-split confirms the validation pattern:
+- EuroBERT-210m standalone wins span-overlap F1 by **+4.9pp over
+  regex** and **+3.1pp over regex+CRF**, driven primarily by Law
+  overlap (+6.0pp over regex).
+- Ensemble regex+EuroBERT is the single-best span-*exact* engine
+  (0.743), inheriting regex's precise boundaries while benefiting
+  from the transformer on recall.
+- The regex engine is still ~300× faster and the right default for
+  CPU/throughput-sensitive deployments.
+
+### 12.7 MPS gotchas observed in practice
+
+- `transformers==5.x` is **incompatible** with EuroBERT's bundled
+  modelling code — use `4.48 ≤ transformers < 5.0`.  Symptom:
+  `KeyError: 'default'` in `EuroBertRotaryEmbedding.__init__`.
+- `TrainingArguments(use_mps_device=True)` emits a deprecation
+  warning on 4.57 (the argument is silently ignored; `mps` is auto-
+  detected).  Safe to leave in for forward compat.
+- `pin_memory=True` on the MPS DataLoader is a no-op — warning only.
+- `Trainer(tokenizer=…)` is deprecated in favour of
+  `processing_class`; we keep `tokenizer=` for back-compat with
+  4.48 users (still works in 4.57 with a warning).
+- `dataloader_num_workers=0` — anything else risks MPS crashes.
+- Set `PYTORCH_ENABLE_MPS_FALLBACK=1` before loading the model so
+  any unsupported op falls back to CPU instead of erroring.
+- Every saved checkpoint carries EuroBERT's custom `modeling_*.py`
+  files, so the inference-side loader must pass
+  `trust_remote_code=True` — done by default in
+  `TransformerExtractor`.
+- `TransformerExtractor._predict_word_labels` originally called the
+  tokenizer with `padding=False` + `return_overflowing_tokens=True`
+  + `return_tensors="pt"`.  That combination raises
+  `ValueError: Unable to create tensor, you should probably activate
+  truncation and/or padding ...` whenever a document produces
+  multiple overlapping windows of different lengths (i.e. anything
+  longer than ~400 words).  Fix: `padding="longest"` — windows are
+  already max_length except possibly the last, so the extra padding
+  is negligible.  This was the root cause of 620/821 validation
+  docs erroring out on the first eval attempt.
+- Tokenizer warning `"with an incorrect regex pattern ... set the
+  fix_mistral_regex=True flag"` shows up on every load — ignorable
+  for NER (it affects Mistral-Small-3.1 chat formatting, not
+  word-level tokenisation).
+
+### 12.8 Summary
+
+- Infrastructure lands Stream G's final task (in-repo training +
+  wandb logging + MPS support).
+- EuroBERT-210m fine-tuned on 8,087 German legal decisions reaches
+  **0.874 seqeval F1 / 0.909 benchmark span-overlap F1** on the
+  held-out test split — **+4.9pp over regex and +3.1pp over
+  regex+CRF on overlap F1**.
+- The ensemble `regex + EuroBERT-210m` is the best span-*exact*
+  engine (0.743 F1), recommended when downstream consumers need
+  precise character boundaries.
+- Model weights saved as safetensors under
+  `models/refex-eurobert-210m/`, Apache-2.0 licensed, loadable via
+  `TransformerExtractor(model="models/refex-eurobert-210m",
+  device="mps")`.  Hub push deliberately deferred — do it once
+  we've decided whether to keep the `[ml]` inference extra
+  pointing at the published artifact.

@@ -235,17 +235,36 @@ use `--engine regex+crf` when recall matters more than speed.
   `PaDaS-Lab/gbert-legal-ner` as the default model.  Supports custom
   HuggingFace models via the ``model=`` parameter.
 - [x] G2. Pulled in by the same `[ml]` extra (`transformers`, `torch`).
+  New `[training]` extra adds `wandb`, `seqeval`, `datasets`, `accelerate`
+  for fine-tuning.
 - [x] G3. GPU-batch inference via `extract_batch(texts, batch_size=...)`.  CPU by
   default; pass `device="cuda"` or `device="mps"` for accelerator inference.
   Long inputs are processed in overlapping windows.
-
-**Implementation status:** Code is complete; model training on MPS/GPU is
-user-driven (no in-repo training script for transformers — use HuggingFace
-Trainer API with the `to_hf_bio` serializer).  Benchmark engines: `transformer`
-(standalone) and `regex+transformer` (merged) are available via
-`--engine` flag.
+- [x] G4. In-repo training script `scripts/train_transformer.py` +
+  `scripts/export_bio.py`.  Defaults to `EuroBERT/EuroBERT-210m`
+  (Apache-2.0, 8192 ctx).  HF `Trainer` with seqeval F1 metric,
+  first-token-of-word label strategy (matches inference), dual
+  file + wandb logging.  Makefile targets `export-bio`,
+  `train-transformer-subset`, `train-transformer`,
+  `eval-transformer`, `bench-transformer-trained`.
+- [x] G5. `transformers` pinned to `>=4.48,<5.0` — v5.x dropped
+  `"default"` from `ROPE_INIT_FUNCTIONS`, breaking EuroBERT's custom
+  modelling code.
+- [x] G6. `TransformerExtractor(trust_remote_code=True)` by default so
+  custom-code models (EuroBERT, ModernGBERT) load cleanly.
+  `benchmarks/run.py` honours `REFEX_TRANSFORMER_MODEL` +
+  `REFEX_TRANSFORMER_DEVICE` env vars.
+- [x] G7. End-to-end training experiment on MPS with 8,087 train /
+  821 val / 1,009 test docs.  Hyperparameters from the EuroBERT
+  paper (warmup 0.1, linear decay, AdamW β₁=0.9/β₂=0.95/ε=1e-5,
+  wd 0.1, LR 3e-5).  See
+  [`transformer_training.md`](./transformer_training.md) §12 for
+  the full experiment log + metrics.
 
 **Exit:** Orchestrator can choose engine per-document; regex stays default.
+EuroBERT-210m checkpoint saved as safetensors under
+`models/refex-eurobert-210m/` and loadable via
+`TransformerExtractor(model=…, device="mps")`.
 
 ### Stream H — Phase 2d: Migration & deletion (final)
 
@@ -346,7 +365,7 @@ citations whose spans land correctly in the plain-text projection, and
 | D | Output format & adapters | C1–C4 | **done** | 100 |
 | E | Grundgesetz / Artikel | C1 | **done** | 100 |
 | F | CRF engine | D, A, HF dataset train split | **done** | 100 |
-| G | Transformer engine | F plateau | **code done** (needs training) | 80 |
+| G | Transformer engine | F plateau | **done** (EuroBERT-210m fine-tuned on MPS, 2026-04-20) | 100 |
 | H | Migration & deletion | D | **done** (H1-H4; internal legacy types remain until extractor rewrite) | 100 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J9 N/A after H2) | 100 |
@@ -385,6 +404,43 @@ or `BENCH_DATA_DIR` env var. `make bench` runs full benchmark.
 **Stream B notes:** B1-B6, B8 landed with zero benchmark regression.
 B7 (law_book_codes regex fix) deferred — needs feature flag per O-5.
 B9 (legacy law.py deletion) deferred — needs audit-diff + test migration.
+
+**Stream G — EuroBERT-210m engine metrics (2026-04-20):**
+
+Full experiment log in [`transformer_training.md`](./transformer_training.md) §12.
+Fine-tuned EuroBERT/EuroBERT-210m (Apache-2.0, 8192 ctx) on the
+benchmark_10k train split (8,087 docs, 3 epochs, MPS, 76 min wall).
+
+Best seqeval F1 (validation, word-level BIO): **0.874**.
+
+Benchmark split-level comparison (same environment, same fixtures):
+
+| Engine               | Validation (821 docs) |     | Test (1,009 docs) |     | Speed (docs/s) |
+|----------------------|----------------------:|----:|------------------:|----:|---------------:|
+|                      | exact F1              | overlap F1 | exact F1         | overlap F1 | MPS / CPU      |
+| regex                | 0.734                 | 0.815     | 0.737            | 0.860     | **455.9** (CPU)|
+| regex + CRF (1k)     | 0.741                 | 0.842     | 0.740            | 0.878     | 106.4 (CPU)    |
+| EuroBERT-210m        | 0.509                 | **0.913** | 0.533            | **0.909** | 1.5 (MPS)      |
+| regex + EuroBERT-210m| **0.743**             | 0.852     | **0.743**        | 0.889     | 1.5 (MPS)      |
+
+Key findings:
+- On **span-overlap F1**, EuroBERT-210m standalone beats regex by
+  **+4.9pp (test)** / **+9.8pp (validation)** and beats regex+CRF
+  by **+3.1pp** / **+7.1pp**.  Primary win is Law overlap
+  (+6.0pp / +13.4pp) — the transformer recovers citations the
+  regex misses (unusual book abbreviations, EU regulations).
+- On **span-exact F1**, the transformer alone lags (0.53) because
+  it predicts at whitespace-word granularity and can't match the
+  gold's character-exact boundaries (trailing punctuation etc.).
+  The **ensemble `regex+EuroBERT` matches the best exact F1
+  (0.743) AND lifts overlap F1** — best of both worlds.
+- Inference cost: **~300× slower than regex** on MPS (1.5 vs
+  456 docs/s).  Regex remains the right default for CPU /
+  throughput-sensitive deployments; EuroBERT is the quality
+  target for offline batch processing.
+- Model published locally under `models/refex-eurobert-210m/` as
+  safetensors; Hub push deferred (no commercial-license blockers —
+  EuroBERT and the OLDP license both permit it).
 
 Update the matrix at the top of every PR that lands a stream item. Track in a
 `CHANGELOG.md` entry per stream.
