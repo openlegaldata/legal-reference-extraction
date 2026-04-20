@@ -1,4 +1,4 @@
-.PHONY: venv install install-ml test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf bench-crf bench-transformer
+.PHONY: help venv install install-ml install-all test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf bench-crf bench-transformer
 
 PYTHON ?= python3
 VENV := .venv
@@ -15,69 +15,71 @@ else
   INSTALL_CMD = $(BIN)/pip install
 endif
 
-venv:
+help:  ## Show this help message
+	@awk 'BEGIN {FS = ":.*?## "; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+venv:  ## Create virtualenv (auto-detects uv vs pip)
 	$(VENV_CMD)
 
-install: venv
+install: venv  ## Install package with dev dependencies (editable)
 	$(INSTALL_CMD) -e ".[dev]"
 
-install-ml: install
+install-ml: install  ## Install package with ML extras (CRF, transformers, torch)
 	$(INSTALL_CMD) -e ".[ml]"
 
-test: install
+install-all: venv  ## Install package with all optional dependencies
+	$(INSTALL_CMD) -e ".[all]"
+
+test: install  ## Run pytest test suite
 	$(BIN)/pytest
 
-test-cov: install
+test-cov: install  ## Run tests with coverage report (HTML + terminal)
 	$(BIN)/pytest --cov --cov-report=term-missing --cov-report=html
 
-lint: install
+lint: install  ## Check code with ruff (lint + format check)
 	$(BIN)/ruff check src/ tests/
 	$(BIN)/ruff format --check src/ tests/
 
-format: install
+format: install  ## Auto-fix lint issues and format code with ruff
 	$(BIN)/ruff check --fix src/ tests/
 	$(BIN)/ruff format src/ tests/
 
-# Benchmark: use -s validation for development, -s test only for final eval
-# bench-ci runs against vendored fixtures (no external data needed)
-bench: install
+bench: install  ## Run benchmark (pass extra args via BENCH_ARGS=...)
 	$(BIN)/python -m benchmarks.run $(BENCH_ARGS)
 
-bench-ci: install
+bench-ci: install  ## Run benchmark against vendored CI fixtures (no external data)
 	$(BIN)/python -m benchmarks.run -d benchmarks/fixtures $(BENCH_ARGS)
 
-bench-dev: install
+bench-dev: install  ## Run benchmark against validation split (development)
 	$(BIN)/python -m benchmarks.run -s validation $(BENCH_ARGS)
 
-bench-test: install
+bench-test: install  ## Run benchmark against test split (final evaluation only)
 	$(BIN)/python -m benchmarks.run -s test $(BENCH_ARGS)
 
-bench-quick: install
+bench-quick: install  ## Quick benchmark sanity check (50 validation docs)
 	$(BIN)/python -m benchmarks.run -s validation -n 50
 
-bench-json: install
+bench-json: install  ## Run benchmark with JSON output
 	$(BIN)/python -m benchmarks.run --json $(BENCH_ARGS)
 
-bench-validate: install
+bench-validate: install  ## Run dataset integrity checks
 	$(BIN)/python -m benchmarks.validate $(BENCH_ARGS)
 
-diagnose: install
+diagnose: install  ## Error analysis on validation split
 	$(BIN)/python -m benchmarks.diagnose --split validation $(BENCH_ARGS)
 
-# CRF engine (requires [ml] extra)
-train-crf: install-ml
+train-crf: install-ml  ## Train CRF model (pass args via CRF_ARGS=...)
 	$(BIN)/python -m refex.engines.crf --train $(CRF_ARGS)
 
-eval-crf: install-ml
+eval-crf: install-ml  ## Evaluate trained CRF model
 	$(BIN)/python -m refex.engines.crf --evaluate $(CRF_ARGS)
 
-bench-crf: install-ml
+bench-crf: install-ml  ## Benchmark regex+CRF ensemble on validation split
 	$(BIN)/python -m benchmarks.run -s validation -e regex+crf $(BENCH_ARGS)
 
-# Transformer engine (requires [ml] extra; first run downloads model weights)
-bench-transformer: install-ml
+bench-transformer: install-ml  ## Benchmark regex+transformer ensemble (downloads weights)
 	$(BIN)/python -m benchmarks.run -s validation -e regex+transformer $(BENCH_ARGS)
 
-clean:
+clean:  ## Remove virtualenv, build artifacts, and __pycache__ directories
 	rm -rf $(VENV) build/ dist/ *.egg-info src/*.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
