@@ -77,7 +77,7 @@ def normalize_with_offsets(
     if fmt == "html":
         return _normalize_html_with_offsets(raw, profile)
     if fmt == "markdown":
-        return _normalize_markdown(raw), None
+        return _normalize_markdown_with_offsets(raw)
     return _normalize_plain(raw), None
 
 
@@ -219,19 +219,71 @@ def _normalize_html_with_offsets(raw: str, profile: str | None = None) -> tuple[
     return joined.strip(), final_offsets
 
 
-def _normalize_markdown(raw: str) -> str:
-    """Minimal Markdown normalizer — strip formatting markers."""
-    text = raw
-    # Remove headers: # ## ### etc.
-    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
-    # Remove emphasis: **bold**, *italic*, __bold__, _italic_
-    text = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", text)
-    text = re.sub(r"_{1,2}([^_]+)_{1,2}", r"\1", text)
-    # Remove inline code
-    text = re.sub(r"`([^`]+)`", r"\1", text)
-    # Remove links: [text](url) → text
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
-    return text.strip()
+def _normalize_markdown_with_offsets(raw: str) -> tuple[str, list[int]]:
+    """Normalize Markdown, returning text and character-level offset map.
+
+    Strips formatting markers (headings, emphasis, inline code, links)
+    while tracking which raw offset each output character came from.
+    """
+    # Apply regex substitutions in sequence, rebuilding offset map each time.
+    # Start with identity map.
+    chars = list(raw)
+    offsets = list(range(len(raw)))
+
+    patterns = [
+        # Headers: ^#{1,6}\s+ at line start
+        (re.compile(r"^#{1,6}\s+", re.MULTILINE), ""),
+        # Bold/italic: **text** or *text*
+        (re.compile(r"\*{1,2}([^*]+)\*{1,2}"), r"\1"),
+        # Bold/italic: __text__ or _text_
+        (re.compile(r"_{1,2}([^_]+)_{1,2}"), r"\1"),
+        # Inline code: `text`
+        (re.compile(r"`([^`]+)`"), r"\1"),
+        # Links: [text](url) → text
+        (re.compile(r"\[([^\]]+)\]\([^)]+\)"), r"\1"),
+    ]
+
+    for pattern, repl in patterns:
+        text = "".join(chars)
+        new_chars: list[str] = []
+        new_offsets: list[int] = []
+        last_end = 0
+
+        for m in pattern.finditer(text):
+            # Copy text before the match
+            for i in range(last_end, m.start()):
+                new_chars.append(chars[i])
+                new_offsets.append(offsets[i])
+
+            # Compute replacement
+            if m.lastindex and m.lastindex >= 1:
+                # Replacement is group 1 — copy those chars with their offsets
+                g1_start, g1_end = m.start(1), m.end(1)
+                for i in range(g1_start, g1_end):
+                    new_chars.append(chars[i])
+                    new_offsets.append(offsets[i])
+            # else: empty replacement — skip entire match
+
+            last_end = m.end()
+
+        # Copy remainder
+        for i in range(last_end, len(chars)):
+            new_chars.append(chars[i])
+            new_offsets.append(offsets[i])
+
+        chars = new_chars
+        offsets = new_offsets
+
+    # Strip leading/trailing whitespace
+    result = "".join(chars)
+    strip_left = len(result) - len(result.lstrip())
+    strip_right = len(result) - len(result.rstrip())
+    if strip_right == 0:
+        final_offsets = offsets[strip_left:]
+    else:
+        final_offsets = offsets[strip_left:-strip_right]
+
+    return result.strip(), final_offsets
 
 
 class _HTMLTextExtractor(HTMLParser):

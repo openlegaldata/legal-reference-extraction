@@ -1,6 +1,6 @@
 """Tests for Document model, source profiles, and format detection (Stream J)."""
 
-from refex.citations import LawCitation, Span
+from refex.citations import CaseCitation, LawCitation, Span
 from refex.document import (
     Document,
     detect_format,
@@ -274,3 +274,189 @@ class TestBoilerplateContamination:
         law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
         assert len(law_cits) >= 1
         assert all("154" in c.span.text or "VwGO" in c.span.text for c in law_cits)
+
+
+# --- Real-world HTML extraction integration tests ---
+
+
+class TestHtmlExtractionIntegration:
+    """End-to-end tests: HTML in → citations out → spans round-trip to raw."""
+
+    def test_html_entities_section_sign(self):
+        """HTML-encoded § (&sect; / &#167;) must be decoded for extraction."""
+        raw = "<p>Gem&auml;&szlig; &sect; 433 Abs. 1 BGB schuldet der Verk&auml;ufer.</p>"
+        ext = CitationExtractor()
+        result = ext.extract(raw, fmt="html")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) == 1
+        assert law_cits[0].book == "bgb"
+        assert law_cits[0].number == "433"
+
+    def test_html_entity_section_sign_single(self):
+        """HTML numeric entity &#167; decodes to § for extraction."""
+        raw = "<p>Gem&auml;&szlig; &#167; 154 Abs. 1 VwGO ist dies so.</p>"
+        ext = CitationExtractor()
+        result = ext.extract(raw, fmt="html")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) >= 1
+        assert law_cits[0].book == "vwgo"
+
+    def test_html_case_citation_with_dash_entity(self):
+        """Case citations with HTML dash entities (ndash) must work."""
+        raw = "<p>BGH, Urteil vom 12.03.2020 &ndash; VIII ZR 295/01.</p>"
+        ext = CitationExtractor()
+        result = ext.extract(raw, fmt="html")
+        case_cits = [c for c in result.citations if isinstance(c, CaseCitation)]
+        assert len(case_cits) >= 1
+        assert any("295/01" in c.file_number for c in case_cits if c.file_number)
+
+    def test_html_spans_reference_text_not_raw(self):
+        """All span offsets must index into doc.text, not raw HTML."""
+        raw = (
+            "<div><h4>Gr&uuml;nde</h4></div>"
+            "<div><p>Die Kostenentscheidung beruht auf "
+            "<a>&#167; 154 Abs. 1 VwGO</a>.</p></div>"
+        )
+        doc = Document(raw=raw, format="html")
+        ext = CitationExtractor()
+        result = ext.extract(doc)
+        for cit in result.citations:
+            actual = doc.text[cit.span.start : cit.span.end]
+            assert actual == cit.span.text
+
+    def test_html_offset_round_trip_with_entities(self):
+        """map_span_to_raw must recover a valid substring of raw HTML."""
+        raw = "<p>&#167; 433 Abs. 1 BGB ist ma&szlig;geblich.</p>"
+        doc = Document(raw=raw, format="html")
+        ext = CitationExtractor()
+        result = ext.extract(doc)
+        for cit in result.citations:
+            raw_span = map_span_to_raw(cit.span, doc)
+            assert raw_span.start < raw_span.end
+            assert raw_span.end <= len(raw)
+            # Raw span must contain the key part of the citation
+            assert "433" in raw_span.text
+
+    def test_html_nested_tags_preserved(self):
+        """Citations inside nested tags (em, b, a) are extracted."""
+        raw = "<p>Gemäß <em><b>§ 433 BGB</b></em> ist dies so.</p>"
+        ext = CitationExtractor()
+        result = ext.extract(raw, fmt="html")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) == 1
+        assert law_cits[0].book == "bgb"
+
+    def test_html_multiple_paragraphs(self):
+        """Citations across multiple <p> tags are all found."""
+        raw = (
+            "<p>Die Berufung ist gemäß §§ 511, 513 ZPO zulässig.</p>"
+            "<p>Der Kläger hat gem. § 433 Abs. 1 BGB einen Anspruch.</p>"
+        )
+        ext = CitationExtractor()
+        result = ext.extract(raw, fmt="html")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        books = {c.book for c in law_cits}
+        assert "zpo" in books
+        assert "bgb" in books
+
+
+# --- Real-world Markdown extraction integration tests ---
+
+
+class TestMarkdownExtractionIntegration:
+    """End-to-end tests: Markdown in → citations out → spans round-trip."""
+
+    def test_md_bold_emphasis_stripped(self):
+        """Citations inside **bold** markers are extracted."""
+        md = "Gemäß **§ 433 Abs. 1 BGB** schuldet der Verkäufer."
+        ext = CitationExtractor()
+        result = ext.extract(md, fmt="markdown")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) == 1
+        assert law_cits[0].book == "bgb"
+
+    def test_md_heading_stripped(self):
+        """Headings are stripped but don't interfere with extraction."""
+        md = "# Urteil\n\nDie Kosten folgen aus § 154 Abs. 1 VwGO."
+        ext = CitationExtractor()
+        result = ext.extract(md, fmt="markdown")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) == 1
+        assert law_cits[0].book == "vwgo"
+
+    def test_md_link_stripped(self):
+        """Link syntax is stripped, keeping the visible text for extraction."""
+        md = "Siehe [§ 154 VwGO](https://example.com/vwgo/154)."
+        ext = CitationExtractor()
+        result = ext.extract(md, fmt="markdown")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) == 1
+
+    def test_md_offset_round_trip(self):
+        """Markdown span offsets round-trip back to raw via offset map."""
+        md = "Gemäß **§ 433 BGB** ist dies so."
+        doc = make_document(md, fmt="markdown")
+        assert doc.offset_map is not None  # Markdown has offset map
+        ext = CitationExtractor()
+        result = ext.extract(doc)
+        for cit in result.citations:
+            # Span indexes into text
+            assert doc.text[cit.span.start : cit.span.end] == cit.span.text
+            # Round-trip to raw
+            raw_span = map_span_to_raw(cit.span, doc)
+            assert raw_span.start < raw_span.end
+            assert "433" in raw_span.text
+            assert "BGB" in raw_span.text
+
+    def test_md_case_citation(self):
+        """Case citations in Markdown are extracted."""
+        md = "Vgl. BGH, Urteil vom 12.03.2020 - VIII ZR 295/01."
+        ext = CitationExtractor()
+        result = ext.extract(md, fmt="markdown")
+        case_cits = [c for c in result.citations if isinstance(c, CaseCitation)]
+        assert len(case_cits) >= 1
+
+    def test_md_inline_code_stripped(self):
+        """Inline code markers are stripped for extraction."""
+        md = "Der Anspruch ergibt sich aus `§ 433 BGB`."
+        ext = CitationExtractor()
+        result = ext.extract(md, fmt="markdown")
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        assert len(law_cits) == 1
+
+    def test_md_mixed_formatting(self):
+        """Multiple formatting types in one document."""
+        md = (
+            "# BGH-Urteil\n\n"
+            "Die Kosten folgen aus **§ 154 VwGO** i.V.m. "
+            "[§§ 708, 711 ZPO](https://example.com).\n\n"
+            "Vgl. *BGH, VIII ZR 295/01*."
+        )
+        ext = CitationExtractor()
+        result = ext.extract(md, fmt="markdown")
+        assert len(result.citations) >= 2  # at least law + case
+
+
+# --- Auto-detection integration tests ---
+
+
+class TestAutoDetectIntegration:
+    """Verify format auto-detection works end-to-end."""
+
+    def test_auto_detect_html_and_extract(self):
+        html = "<p>Gemäß § 433 BGB ist der Käufer verpflichtet.</p>"
+        ext = CitationExtractor()
+        result = ext.extract(html)  # no fmt= → auto-detect
+        assert len(result.citations) >= 1
+
+    def test_auto_detect_markdown_and_extract(self):
+        md = "# Urteil\n\nGemäß **§ 433 BGB** ist der Käufer verpflichtet."
+        ext = CitationExtractor()
+        result = ext.extract(md)  # no fmt= → auto-detect
+        assert len(result.citations) >= 1
+
+    def test_auto_detect_plain_and_extract(self):
+        text = "Gemäß § 433 BGB ist der Käufer verpflichtet."
+        ext = CitationExtractor()
+        result = ext.extract(text)  # no fmt= → auto-detect
+        assert len(result.citations) >= 1
