@@ -82,10 +82,7 @@ class TestHtmlFixtures:
             result = extractor.extract(doc)
             for cit in result.citations:
                 actual = doc.text[cit.span.start : cit.span.end]
-                assert actual == cit.span.text, (
-                    f"[{doc_data['doc_id']}] span mismatch: "
-                    f"{actual!r} != {cit.span.text!r}"
-                )
+                assert actual == cit.span.text, f"[{doc_data['doc_id']}] span mismatch: {actual!r} != {cit.span.text!r}"
 
     def test_html_offset_map_exists(self, html_docs):
         """HTML documents must have offset maps for round-tripping."""
@@ -101,12 +98,8 @@ class TestHtmlFixtures:
             result = extractor.extract(doc)
             for cit in result.citations[:10]:  # check first 10 per doc
                 raw_span = map_span_to_raw(cit.span, doc)
-                assert raw_span.start < raw_span.end, (
-                    f"[{doc_data['doc_id']}] empty raw span for {cit.span.text!r}"
-                )
-                assert raw_span.end <= len(doc.raw), (
-                    f"[{doc_data['doc_id']}] raw span out of bounds"
-                )
+                assert raw_span.start < raw_span.end, f"[{doc_data['doc_id']}] empty raw span for {cit.span.text!r}"
+                assert raw_span.end <= len(doc.raw), f"[{doc_data['doc_id']}] raw span out of bounds"
 
     def test_html_diverse_courts(self, html_docs):
         """Fixtures cover at least 4 distinct courts."""
@@ -150,10 +143,7 @@ class TestMarkdownFixtures:
             result = extractor.extract(doc)
             for cit in result.citations:
                 actual = doc.text[cit.span.start : cit.span.end]
-                assert actual == cit.span.text, (
-                    f"[{doc_data['doc_id']}] span mismatch: "
-                    f"{actual!r} != {cit.span.text!r}"
-                )
+                assert actual == cit.span.text, f"[{doc_data['doc_id']}] span mismatch: {actual!r} != {cit.span.text!r}"
 
     def test_md_offset_map_exists(self, md_docs):
         """Markdown documents must have offset maps for round-tripping."""
