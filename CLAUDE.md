@@ -12,17 +12,17 @@
 - `src/refex/resolver.py` — short-form citation resolution (a.a.O., ebenda, i.V.m.)
 - `src/refex/data/` — bundled data files (`law_book_codes.txt`, `file_number_codes.csv`)
 - `benchmarks/` — benchmark runner, metrics, adapter, validator, fixtures
-- `tests/` — pytest test suite (271 tests)
+- `tests/` — pytest test suite
 
 ## Development commands
 
 ```
 make install       # create .venv, install editable + dev deps (auto-detects uv vs pip)
-make test          # pytest (271 tests)
+make test          # pytest
 make lint          # ruff check + format check
 make format        # ruff auto-fix + format
-make bench-ci      # benchmark against vendored CI fixtures (15 plain + 5 HTML + 5 MD docs)
-make bench-dev     # benchmark against full validation split (821 docs)
+make bench-ci      # benchmark against vendored CI fixtures
+make bench-dev     # benchmark against full validation split
 make bench-validate # dataset integrity checks
 make diagnose      # error analysis on validation split
 ```
@@ -47,14 +47,12 @@ make diagnose      # error analysis on validation split
 
 ## Benchmark
 
-- Benchmark data lives in sibling project `german-legal-references-benchmark` (10k HF Arrow dataset).
-- CI fixtures vendored in `benchmarks/fixtures/` (15 plain-text + 5 HTML + 5 Markdown docs).
+- Benchmark data lives in sibling project `german-legal-references-benchmark` (HF Arrow dataset).
+- CI fixtures vendored in `benchmarks/fixtures/` (plain-text, HTML, and Markdown docs).
 - All optimization uses **validation split only**. Test split reserved for final evaluation.
-- Current metrics (val 821 docs): Span F1 0.734, Case F1 0.613, Law F1 0.797, 418 docs/s.
 
 ## Testing
 
-- 271 tests, 2 skipped (known unsupported patterns).
 - Tests use fixtures from `conftest.py`. The `assert_refs` helper extracts from content and compares sorted ref lists.
 - `test_format_fixtures.py` — integration tests for HTML and Markdown input with real court decision fixtures.
 - `test_document.py` — Document model, normalization, offset mapping, format detection.
