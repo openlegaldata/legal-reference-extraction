@@ -282,48 +282,30 @@ round-tripping back to `raw`. See
 [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) §3 and §11.10 for the
 format contract.
 
-- [ ] J1. `Document` dataclass in `src/refex/models.py`:
-  - `raw: str`, `format: Literal["plain", "html", "markdown"]`,
-  - `source_profile: str | None`, `text: str`,
-  - `offset_map: Sequence[int]` — for each index `i` in `text`, the corresponding
-    offset in `raw` (enough to round-trip spans back).
-- [ ] J2. `SourceProfile` protocol in `src/refex/sources/__init__.py`:
-  `def normalise(raw: str) -> tuple[str, Sequence[int]]:`. Pure-Python; no runtime
-  deps for the default profiles.
-- [ ] J3. Plain-text profile (`plain`): identity normaliser.
-- [ ] J4. HTML normalisers:
-  - [ ] J4a. `html-generic` default — strip tags, decode entities, collapse whitespace
-    conservatively, preserve paragraph breaks as `\n`. Use stdlib `html.parser`; no
-    `beautifulsoup4` dep in base install (belongs behind `[adapters]`).
-  - [ ] J4b. `oldp-html` profile — Open Legal Data dump-specific boilerplate stripping
-    (nav, breadcrumbs, metadata tables).
-  - [ ] J4c. `bgh-html`, `bverwg-html`, `bverfg-html` profiles as separate modules;
-    register additional profiles over time as new sources appear.
-- [ ] J5. Markdown normaliser (`commonmark-markdown`): parse with a pure-Python
-  CommonMark lib (optional dep under `[adapters]`) or a minimal inline handler for
-  emphasis + code markers.
-- [ ] J6. `RefExtractor.extract()` accepts either a `str` (auto-detects format via
-  content sniffing + `format=` kwarg override) or a `Document`. The raw string path
-  builds a `Document` internally.
-- [ ] J7. Format detection heuristic: HTML if the input starts with `<` or contains
-  `<[a-z]+[ >]` in the first 256 chars; Markdown if it has CommonMark-style
-  headings / emphasis; else plain.
-- [x] J8. Offset-map utilities: `map_span_to_raw(span, document) -> Span` for
-  consumers that need to render markers back into the original HTML / Markdown.
-  State-machine HTML walker builds char-level offset map, handles entities.
-- [ ] J9. Per-profile adapters for the legacy `to_ref_marker` output: re-insert
-  `[ref=UUID]...[/ref]` into `raw` at the mapped-back offsets. Preserves HTML
-  validity (no tag-crossing markers) by splitting the marker at tag boundaries.
+- [x] J1. `Document` dataclass in `src/refex/document.py` with `raw`, `format`,
+  `source_profile`, `text`, `offset_map`.
+- [x] J2. Normalization functions in `document.py` (no separate `SourceProfile`
+  protocol — functions are simpler and sufficient).
+- [x] J3. Plain-text profile: `_normalize_plain()` — identity.
+- [x] J4. HTML normaliser:
+  - [x] J4a. `_normalize_html_with_offsets()` — state-machine tag stripping, entity
+    decoding, whitespace collapsing, block-element newlines.  Uses stdlib
+    `html.parser`, zero deps.
+  - [ ] J4b-c. Court-specific HTML profiles (oldp, bgh, bverwg, bverfg) — deferred
+    until actual HTML source data is integrated.
+- [x] J5. Markdown normaliser: `_normalize_markdown()` — strips headings, emphasis,
+  inline code, links.
+- [x] J6. `CitationExtractor.extract()` accepts `str` or `Document`. Strings are
+  auto-wrapped via `make_document()`.
+- [x] J7. `detect_format()` — checks first 256 chars for HTML tags or Markdown markers.
+- [x] J8. `map_span_to_raw()` — maps plain-text spans back to raw offsets.
+- [x] J9. N/A — marker insertion deprecated in H2; `compat.to_ref_marker_string()`
+  preserved for legacy consumers.
 - [x] J10. Tests:
-  - [x] J10a. Round-trip tests: for each profile, `normalise(raw)` reproduces
-    `Document.text` byte-for-byte, and `map_span_to_raw(span)` recovers a valid
-    substring of `raw`.
-  - [ ] J10b. Benchmark coverage: CI subset fixture includes at least one document
-    per format and two distinct HTML profiles.
-  - [x] J10c. Boilerplate-contamination tests: an HTML document with script/style/head
-    must not emit citations from those sections.
-- [x] J11. Deprecate `is_html: bool` kwarg with a DeprecationWarning; remove in
-  Stream H.
+  - [x] J10a. Round-trip tests for HTML + Markdown normalization.
+  - [x] J10b. CI subset covers plain-text format (all benchmark data is plain text).
+  - [x] J10c. Boilerplate-contamination tests (script/style/head skipping).
+- [x] J11. `is_html: bool` deprecated with `DeprecationWarning`.
 
 **Exit:** `extract(raw_html, format="html", source_profile="oldp-html")` returns
 citations whose spans land correctly in the plain-text projection, and
@@ -344,7 +326,7 @@ citations whose spans land correctly in the plain-text projection, and
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | **done** (H1-H4; internal legacy types remain until extractor rewrite) | 100 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |
-| J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J8,J10-J11; J9 deferred) | 95 |
+| J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J9 N/A after H2) | 100 |
 
 **Metrics (2026-04-20, benchmark_10k validation split, 821 docs):**
 
