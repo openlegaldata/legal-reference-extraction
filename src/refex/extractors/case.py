@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 class CaseRefExtractorMixin:
     court_context = None
+    _compiled_court_re: re.Pattern | None = None
+    _compiled_file_number_re: re.Pattern | None = None
+    _compiled_sg_re: re.Pattern | None = None
 
     def clean_text_for_tokenizer(self, text):
         """
@@ -126,17 +129,53 @@ class CaseRefExtractorMixin:
         ]
         # Cities derived from train split court names (freq >= 3)
         cities = [
-            "Aachen", "Arnsberg", "Berlin", "Bielefeld", "Bochum",
-            "Bonn", "Braunschweig", "Bremen", "Celle", "Cottbus",
-            "Dortmund", "Dresden", "Duisburg", "Düsseldorf",
-            "Flensburg", "Frankfurt", "Frankfurt am Main",
-            "Frankfurt (Oder)", "Freiburg", "Gelsenkirchen",
-            "Gießen", "Göttingen", "Halle", "Hamburg", "Hamm",
-            "Hannover", "Karlsruhe", "Koblenz", "Köln", "Leipzig",
-            "Lüneburg", "Mainz", "Mannheim", "Minden", "München",
-            "Münster", "Nürnberg", "Nürnberg-Fürth", "Offenburg",
-            "Oldenburg", "Rostock", "Schleswig", "Sigmaringen",
-            "Stade", "Stuttgart", "Trier", "Tübingen",
+            "Aachen",
+            "Arnsberg",
+            "Berlin",
+            "Bielefeld",
+            "Bochum",
+            "Bonn",
+            "Braunschweig",
+            "Bremen",
+            "Celle",
+            "Cottbus",
+            "Dortmund",
+            "Dresden",
+            "Duisburg",
+            "Düsseldorf",
+            "Flensburg",
+            "Frankfurt",
+            "Frankfurt am Main",
+            "Frankfurt (Oder)",
+            "Freiburg",
+            "Gelsenkirchen",
+            "Gießen",
+            "Göttingen",
+            "Halle",
+            "Hamburg",
+            "Hamm",
+            "Hannover",
+            "Karlsruhe",
+            "Koblenz",
+            "Köln",
+            "Leipzig",
+            "Lüneburg",
+            "Mainz",
+            "Mannheim",
+            "Minden",
+            "München",
+            "Münster",
+            "Nürnberg",
+            "Nürnberg-Fürth",
+            "Offenburg",
+            "Oldenburg",
+            "Rostock",
+            "Schleswig",
+            "Sigmaringen",
+            "Stade",
+            "Stuttgart",
+            "Trier",
+            "Tübingen",
             "Zweibrücken",
         ]
         city_courts = [
@@ -176,6 +215,24 @@ class CaseRefExtractorMixin:
 
         return r"(?P<court>" + ("|".join(options)) + r")(\s|\.|;|,|:|\))"
 
+    def _get_compiled_court_re(self) -> re.Pattern:
+        """Return the pre-compiled court name regex (lazy init, cached)."""
+        if self._compiled_court_re is None:
+            self._compiled_court_re = re.compile(self.get_court_name_regex())
+        return self._compiled_court_re
+
+    def _get_compiled_file_number_re(self) -> re.Pattern:
+        """Return the pre-compiled file number regex (lazy init, cached)."""
+        if self._compiled_file_number_re is None:
+            self._compiled_file_number_re = re.compile(self.get_file_number_regex())
+        return self._compiled_file_number_re
+
+    def _get_compiled_sg_re(self) -> re.Pattern:
+        """Return the pre-compiled SG regex (lazy init, cached)."""
+        if self._compiled_sg_re is None:
+            self._compiled_sg_re = re.compile(self.get_sozialgerichtsbarkeit_regex())
+        return self._compiled_sg_re
+
     def infer_court(self, file_number: str, match: re.Match, content: str) -> str | None:
         """In some cases it is possible to infer the court from the file number.
         This is currently only implemented for Sozialgerichtsbarkeit ("SG").
@@ -186,7 +243,7 @@ class CaseRefExtractorMixin:
             "S": "SG",
         }
 
-        if sg_match := re.match(self.get_sozialgerichtsbarkeit_regex(), file_number):
+        if sg_match := self._get_compiled_sg_re().match(file_number):
             instance = SG_MAPPING[sg_match.group("instance")]
             court_candidate = self.search_court(match, content)
             if court_candidate and instance in court_candidate:  # we can be sure that the correct court was found
@@ -214,7 +271,7 @@ class CaseRefExtractorMixin:
             fn_pos = match.start(0) - start
             candidates = collections.OrderedDict()
 
-            for court_match in re.finditer(self.get_court_name_regex(), surrounding):
+            for court_match in self._get_compiled_court_re().finditer(surrounding):
                 candidate_pos = round((court_match.start(0) + court_match.end(0)) / 2)  # Position = center
                 candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
 
@@ -394,7 +451,7 @@ class CaseRefExtractorMixin:
         # --- File number citations: "10 C 23.12" ---
         # Codes that look like case register codes but are common false positives
         _FP_CODES = {"DM", "EUR", "Rn", "Nr", "Abs", "GHz", "MHz", "KHz", "TB", "GB", "MB", "KB"}
-        for match in re.finditer(self.get_file_number_regex(), content):
+        for match in self._get_compiled_file_number_re().finditer(content):
             file_number = match.group(0)
             code = match.group("code")
 

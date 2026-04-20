@@ -68,6 +68,8 @@ def run_benchmark(
 
     t_extract_start = time.perf_counter()
 
+    total_docs = len(dataset.documents) if limit is None else min(limit, len(dataset.documents))
+
     for doc in dataset.documents:
         if limit is not None and processed >= limit:
             break
@@ -88,7 +90,7 @@ def run_benchmark(
                 markers.extend(extractor.extract_law_ref_markers(content, False))
             if extractor.do_case_refs:
                 markers.extend(extractor.extract_case_ref_markers(content))
-            pred_citations = refmarkers_to_citations(markers)
+            pred_citations = refmarkers_to_citations(markers, content)
             t_doc = time.perf_counter() - t_doc_start
             doc_times.append(t_doc)
             doc_chars.append(len(doc.text))
@@ -99,6 +101,21 @@ def run_benchmark(
 
         score_document(gold_citations, pred_citations, result)
         processed += 1
+
+        # Progress logging
+        if processed % 100 == 0 or t_doc > 1.0:
+            elapsed = time.perf_counter() - t_extract_start
+            rate = processed / elapsed if elapsed > 0 else 0
+            slow_tag = f" [SLOW {t_doc * 1000:.0f}ms len={len(doc.text)}]" if t_doc > 1.0 else ""
+            print(
+                f"\r  {processed}/{total_docs} docs  ({rate:.0f} docs/s, {elapsed:.1f}s elapsed){slow_tag}",
+                end="",
+                flush=True,
+                file=sys.stderr,
+            )
+
+    if processed > 100:
+        print(file=sys.stderr)  # newline after progress
 
     t_extract = time.perf_counter() - t_extract_start
 
@@ -148,19 +165,21 @@ def format_summary(result: BenchmarkResult, timing: dict, split: str, data_dir: 
     if "per_doc_ms" in timing:
         pd = timing["per_doc_ms"]
         tp = timing["throughput"]
-        lines.extend([
-            "",
-            "--- Per-document timing ---",
-            f"  Mean:   {pd['mean']:.1f} ms",
-            f"  Median: {pd['median']:.1f} ms",
-            f"  P95:    {pd['p95']:.1f} ms",
-            f"  P99:    {pd['p99']:.1f} ms",
-            f"  Max:    {pd['max']:.1f} ms",
-            "",
-            "--- Throughput ---",
-            f"  {tp['docs_per_second']:.1f} docs/s",
-            f"  {tp['chars_per_second']:.0f} chars/s",
-        ])
+        lines.extend(
+            [
+                "",
+                "--- Per-document timing ---",
+                f"  Mean:   {pd['mean']:.1f} ms",
+                f"  Median: {pd['median']:.1f} ms",
+                f"  P95:    {pd['p95']:.1f} ms",
+                f"  P99:    {pd['p99']:.1f} ms",
+                f"  Max:    {pd['max']:.1f} ms",
+                "",
+                "--- Throughput ---",
+                f"  {tp['docs_per_second']:.1f} docs/s",
+                f"  {tp['chars_per_second']:.0f} chars/s",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -177,19 +196,22 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "-d", "--data-dir",
+        "-d",
+        "--data-dir",
         type=Path,
         default=None,
         help=f"Path to HF dataset or JSONL directory (default: {get_data_dir()})",
     )
     parser.add_argument(
-        "-s", "--split",
+        "-s",
+        "--split",
         choices=["train", "validation", "test"],
         default="test",
         help="Which split to evaluate (default: test)",
     )
     parser.add_argument(
-        "-n", "--limit",
+        "-n",
+        "--limit",
         type=int,
         default=None,
         metavar="N",
@@ -201,14 +223,16 @@ def main() -> None:
         help="Output results as JSON",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=Path,
         default=None,
         metavar="FILE",
         help="Write output to file instead of stdout",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Show per-document extraction errors",
     )

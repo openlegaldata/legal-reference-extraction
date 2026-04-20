@@ -53,7 +53,7 @@ def diagnose(data_dir=None, split="validation", limit=None):
                 markers.extend(extractor.extract_law_ref_markers(content, False))
             if extractor.do_case_refs:
                 markers.extend(extractor.extract_case_ref_markers(content))
-            pred_cits = refmarkers_to_citations(markers)
+            pred_cits = refmarkers_to_citations(markers, content)
         except Exception:
             errors += 1
             continue
@@ -70,13 +70,15 @@ def diagnose(data_dir=None, split="validation", limit=None):
                 if gc.type == "law":
                     gold_books[gc.book or "None"] += 1
                 if gc.type in fn_examples and len(fn_examples[gc.type]) < 30:
-                    fn_examples[gc.type].append({
-                        "doc_id": doc.doc_id,
-                        "text": gc.span.text,
-                        "book": gc.book,
-                        "court": gc.court,
-                        "file_number": gc.file_number,
-                    })
+                    fn_examples[gc.type].append(
+                        {
+                            "doc_id": doc.doc_id,
+                            "text": gc.span.text,
+                            "book": gc.book,
+                            "court": gc.court,
+                            "file_number": gc.file_number,
+                        }
+                    )
                 if gc.type == "case" and gc.file_number:
                     fn_file_number_patterns.append(gc.file_number)
 
@@ -87,13 +89,15 @@ def diagnose(data_dir=None, split="validation", limit=None):
                 if pc.type == "law" and pc.book:
                     pred_books[pc.book] += 1
                 if pc.type in fp_examples and len(fp_examples[pc.type]) < 20:
-                    fp_examples[pc.type].append({
-                        "doc_id": doc.doc_id,
-                        "text": pc.span.text,
-                        "book": pc.book,
-                        "court": pc.court,
-                        "file_number": pc.file_number,
-                    })
+                    fp_examples[pc.type].append(
+                        {
+                            "doc_id": doc.doc_id,
+                            "text": pc.span.text,
+                            "book": pc.book,
+                            "court": pc.court,
+                            "file_number": pc.file_number,
+                        }
+                    )
 
         # Overlap-only matches (partial span match)
         for gkey, gc in gold_spans.items():
@@ -106,14 +110,16 @@ def diagnose(data_dir=None, split="validation", limit=None):
                 ps, pe = pkey
                 if gs < pe and ps < ge and gc.type == pc.type:
                     if len(overlap_mismatches) < 30:
-                        overlap_mismatches.append({
-                            "doc_id": doc.doc_id,
-                            "type": gc.type,
-                            "gold_span": gc.span.text,
-                            "gold_range": f"{gs}-{ge}",
-                            "pred_span": pc.span.text,
-                            "pred_range": f"{ps}-{pe}",
-                        })
+                        overlap_mismatches.append(
+                            {
+                                "doc_id": doc.doc_id,
+                                "type": gc.type,
+                                "gold_span": gc.span.text,
+                                "gold_range": f"{gs}-{ge}",
+                                "pred_span": pc.span.text,
+                                "pred_range": f"{ps}-{pe}",
+                            }
+                        )
 
         processed += 1
 
@@ -178,7 +184,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, default=None)
     parser.add_argument(
-        "--split", default="validation",
+        "--split",
+        default="validation",
         help="Split to analyze (default: validation; avoid test for development)",
     )
     parser.add_argument("--limit", type=int, default=None)

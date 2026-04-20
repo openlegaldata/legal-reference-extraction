@@ -117,25 +117,28 @@ class DivideAndConquerLawRefExtractorMixin:
         sp = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
 
         return {
+            # Two-phase multi-ref: first match a bounded span of legal-ref
+            # characters after §§, then verify it ends with a book code.
+            # The character class [0-9a-zäöüA-ZÄÖÜ§ ,;./\-] prevents
+            # catastrophic backtracking that occurs with the alternation-based
+            # pattern on long comma-separated section lists.
             "multi": re.compile(
-                section_sign + section_sign + sect_space
-                + r"(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
-                + bp + r")+\s(" + bp + ")" + bla
+                section_sign + section_sign + sect_space + r"[0-9a-zäöüA-ZÄÖÜ§ ,;.\-/]{4,200}\s(" + bp + ")" + bla
             ),
-            "single_book": re.compile(
-                section_sign + sect_space + sp + " (?P<book>" + bp + ")" + bla
-            ),
+            "single_book": re.compile(section_sign + sect_space + sp + " (?P<book>" + bp + ")" + bla),
             "single_abs_alt": re.compile(
-                section_sign + sect_space + sp
-                + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>" + bp + ")" + bla
+                section_sign + sect_space + sp + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>" + bp + ")" + bla
             ),
             "single_any_book": re.compile(
-                section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                + ac + " (?P<book>(" + bp + "))" + bla
+                section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) " + ac + " (?P<book>(" + bp + "))" + bla
             ),
             "single_ivm": re.compile(
-                section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                + ac + r" (?P<next_book>(i\.V\.m\.|iVm))" + bla
+                section_sign
+                + sect_space
+                + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                + ac
+                + r" (?P<next_book>(i\.V\.m\.|iVm))"
+                + bla
             ),
         }
 
@@ -185,9 +188,13 @@ class DivideAndConquerLawRefExtractorMixin:
             multi_pattern = self._compiled_patterns["multi"]
         else:
             multi_pattern = re.compile(
-                section_sign + section_sign + sect_space
-                + r"(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
-                + book_pattern + r")+\s(" + book_pattern + ")" + book_look_ahead
+                section_sign
+                + section_sign
+                + sect_space
+                + r"[0-9a-zäöüA-ZÄÖÜ§ ,;.\-/]{4,200}\s("
+                + book_pattern
+                + ")"
+                + book_look_ahead
             )
 
         for marker_match in multi_pattern.finditer(content):
@@ -265,16 +272,31 @@ class DivideAndConquerLawRefExtractorMixin:
                     section_sign + sect_space + sect_pattern + " (?P<book>" + book_pattern + ")" + book_look_ahead
                 ),
                 re.compile(
-                    section_sign + sect_space + sect_pattern
-                    + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>" + book_pattern + ")" + book_look_ahead
+                    section_sign
+                    + sect_space
+                    + sect_pattern
+                    + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>"
+                    + book_pattern
+                    + ")"
+                    + book_look_ahead
                 ),
                 re.compile(
-                    section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                    + any_content + " (?P<book>(" + book_pattern + "))" + book_look_ahead
+                    section_sign
+                    + sect_space
+                    + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                    + any_content
+                    + " (?P<book>("
+                    + book_pattern
+                    + "))"
+                    + book_look_ahead
                 ),
                 re.compile(
-                    section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                    + any_content + r" (?P<next_book>(i\.V\.m\.|iVm))" + book_look_ahead
+                    section_sign
+                    + sect_space
+                    + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                    + any_content
+                    + r" (?P<next_book>(i\.V\.m\.|iVm))"
+                    + book_look_ahead
                 ),
             ]
 

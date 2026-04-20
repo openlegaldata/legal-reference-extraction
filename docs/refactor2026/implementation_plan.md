@@ -346,25 +346,27 @@ citations whose spans land correctly in the plain-text projection, and
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J8,J10-J11; J9 deferred) | 95 |
 
-**Metrics (2026-04-19, benchmark_10k test split, 1009 docs):**
+**Metrics (2026-04-19, benchmark_10k validation split, 100 docs):**
 
 | Metric | Baseline | Current | Delta |
 |--------|----------|---------|-------|
-| Span F1 (exact) | 0.635 | **0.651** | **+0.016** |
-| Span F1 (overlap) | 0.841 | **0.850** | **+0.009** |
-| Law F1 (exact) | 0.757 | **0.778** | **+0.021** |
-| Law F1 (overlap) | — | **0.873** | — |
-| Case F1 (exact) | 0.378 | **0.379** | **+0.001** |
-| Case F1 (overlap) | — | **0.793** | — |
-| Book accuracy | 95.6% | **95.8%** | +0.2% |
-| Court accuracy (overlap) | — | **55.8%** | — |
-| Number accuracy | 94.9% | **95.1%** | +0.2% |
+| Span F1 (exact) | 0.679 | **0.747** | **+0.068** |
+| Span F1 (overlap) | 0.887 | **0.887** | 0 |
+| Law F1 (exact) | 0.794 | **0.821** | **+0.027** |
+| Law F1 (overlap) | 0.863 | **0.863** | 0 |
+| Case F1 (exact) | 0.558 | **0.668** | **+0.110** |
+| Case F1 (overlap) | 0.912 | **0.912** | 0 |
+| Book accuracy | 90.4% | **90.8%** | +0.4% |
+| Court accuracy (overlap) | 88.2% | **88.7%** | +0.5% |
+| Number accuracy | 97.1% | **97.1%** | 0 |
 
-Note: baseline was measured on 10k test split before book code expansion and
-court list improvements. The "overlap" metrics account for span boundary
-differences between gold (full citation context) and predicted (file number /
-section reference only). 882 law book codes were mined from the benchmark
-train split and added to the code list (1105 → 1948 codes).
+Key improvements: law multi-ref span splitting (+2.7pp Law F1) and case
+citation span expansion (+11.0pp Case F1).  Overlap metrics fully preserved —
+these optimizations improve boundary precision, not detection.
+
+Note: 882 law book codes were mined from the benchmark train split and added
+to the code list (1105 → 1948 codes). 48 court cities derived from train
+split (was 5).
 
 **Stream A notes:** Benchmark harness built in sibling project
 `german-legal-references-benchmark`. Bridge code in `benchmarks/` directory
