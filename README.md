@@ -1,17 +1,16 @@
 # Legal Reference Extraction
 
-A toolkit for extracting references and citations from legal documents. References to law sections and case files are supported.
+Extract citations from German legal documents — law references (`§ 433 BGB`)
+and case references (`BGH, VIII ZR 295/01`).
 
-Supported countries:
-
-- Germany (used by [de.openlegaldata.io](https://de.openlegaldata.io/))
+Used by [de.openlegaldata.io](https://de.openlegaldata.io/).
 
 ## Install
 
 ```bash
 pip install legal-reference-extraction
 
-# or install from git
+# or from git
 pip install git+https://github.com/openlegaldata/legal-reference-extraction.git
 
 # local dev
@@ -19,8 +18,6 @@ make install
 ```
 
 ## Usage
-
-### New API (recommended)
 
 ```python
 from refex.orchestrator import CitationExtractor
@@ -33,167 +30,157 @@ for cit in result.citations:
 # law § 42 VwGO
 ```
 
-**JSONL output:**
+### Input formats
+
+Plain text, HTML, and Markdown are supported. Format is auto-detected or
+can be set explicitly:
 
 ```python
-from refex.serializers import to_jsonl
-print(to_jsonl(result, doc_id="example"))
+# HTML — tags are stripped, entities decoded, spans map to plain text
+result = extractor.extract("<p>Gemäß &#167; 433 BGB ist der Käufer verpflichtet.</p>", fmt="html")
+
+# Markdown — formatting markers stripped
+result = extractor.extract("Gemäß **§ 433 BGB** ist der Käufer verpflichtet.", fmt="markdown")
+
+# Auto-detect (based on content sniffing)
+result = extractor.extract(html_content)
 ```
 
-**Other output formats:**
+For HTML and Markdown input, span offsets reference the canonical plain-text
+projection. Use `map_span_to_raw` to recover positions in the original:
 
 ```python
-from refex.serializers import to_hf_bio, to_gliner, to_spacy_doc, to_web_annotation, to_akn_ref
+from refex.document import Document, map_span_to_raw
 
-bio = to_hf_bio(result, text)          # HuggingFace BIO tags
-spans = to_gliner(result)              # GLiNER span format
-doc = to_spacy_doc(result, text)       # spaCy Doc dict
-annos = to_web_annotation(result)      # W3C Web Annotation
-xml = to_akn_ref(result, text)         # Akoma Ntoso XML
+doc = Document(raw="<p>§ 433 BGB</p>", format="html")
+result = extractor.extract(doc)
+for cit in result.citations:
+    raw_span = map_span_to_raw(cit.span, doc)
+    print(f"{cit.span.text} → raw[{raw_span.start}:{raw_span.end}]")
 ```
 
-**HTML input:**
+### Output formats
 
 ```python
-result = extractor.extract("<p>§ 433 BGB</p>", fmt="html")
-```
+from refex.serializers import to_jsonl, to_hf_bio, to_gliner, to_spacy_doc, to_web_annotation, to_akn_ref
 
-### Legacy API
-
-```python
-from refex.extractor import RefExtractor
-
-extractor = RefExtractor()
-
-content, markers = extractor.extract('<p>Ein Satz mit § 3b AsylG, und weiteren Sachen.</p>')
+to_jsonl(result, doc_id="example")      # JSONL (primary format)
+to_hf_bio(result, text)                 # HuggingFace BIO tags
+to_gliner(result)                       # GLiNER span format
+to_spacy_doc(result, text)              # spaCy Doc dict
+to_web_annotation(result)               # W3C Web Annotation
+to_akn_ref(result, text)                # Akoma Ntoso XML
 ```
 
 ### Examples
 
-**Single law reference** -- a basic `§` citation is extracted with the section number and law book code:
+**Law references** — `§` and `§§` patterns with section numbers and law book codes:
+
+```python
+result = extractor.extract(
+    "Bar und bar §§ 1, 2 Abs. 2, 3, 10 Abs. 1 Nr. 1 BGB foo."
+)
+for cit in result.citations:
+    print(cit.book, cit.number)
+# bgb 1
+# bgb 2
+# bgb 3
+# bgb 10
+```
+
+**Cross-references** — `i.V.m.` (in conjunction with) linking sections across law books:
+
+```python
+result = extractor.extract(
+    "Die vorläufige Vollstreckbarkeit folgt aus "
+    "§ 167 VwGO i.V.m. §§ 708 Nr. 11, 711 ZPO."
+)
+for cit in result.citations:
+    print(cit.book, cit.number)
+# vwgo 167
+# zpo 708
+# zpo 711
+```
+
+**Case references** — court names and file numbers:
+
+```python
+result = extractor.extract(
+    "Das OVG Schleswig habe bereits in seinem Urteil vom 22.04.2010 "
+    "(1 KN 19/09) entschieden."
+)
+for cit in result.citations:
+    print(cit.court, cit.file_number)
+# OVG Schleswig 1 KN 19/09
+```
+
+**Artikel / Grundgesetz** — `Art.` references are supported:
+
+```python
+result = extractor.extract("Gemäß Art. 12 Abs. 1 GG besteht Berufsfreiheit.")
+```
+
+**Law book context** — extract bare `§` references within a specific law:
+
+```python
+extractor = CitationExtractor()
+# ... set law_book_context on the underlying engine if needed
+```
+
+### Legacy API
+
+The old `RefExtractor` API is still available but deprecated:
 
 ```python
 from refex.extractor import RefExtractor
 
 extractor = RefExtractor()
-
-content, markers = extractor.extract(
-    "Die Entscheidung beruht auf § 42 VwGO."
-)
-
-for marker in markers:
-    for ref in marker.get_references():
-        print(ref)
-# <Ref(law: vwgo/42)>
-```
-
-The returned `content` wraps each matched reference with marker tags:
-```
-Die Entscheidung beruht auf [ref=<uuid>]§ 42 VwGO[/ref].
-```
-
-**Multiple sections from the same law** -- `§§` with comma-separated or semicolon-separated sections:
-
-```python
-content, markers = extractor.extract(
-    "Bar und bar §§ 1, 2 Abs. 2, 3, 10 Abs. 1 Nr. 1 BGB foo."
-)
-
-refs = [ref for m in markers for ref in m.get_references()]
-print(sorted(refs))
-# [<Ref(law: bgb/1)>, <Ref(law: bgb/10)>, <Ref(law: bgb/2)>, <Ref(law: bgb/3)>]
-```
-
-**Cross-references between laws** -- `i.V.m.` (in conjunction with) linking sections across different law books:
-
-```python
-content, markers = extractor.extract(
-    "Die Entscheidung über die vorläufige Vollstreckbarkeit folgt aus "
-    "§ 167 VwGO i.V.m. §§ 708 Nr. 11, 711 ZPO."
-)
-
-refs = [ref for m in markers for ref in m.get_references()]
-print(sorted(refs))
-# [<Ref(law: vwgo/167)>, <Ref(law: zpo/708)>, <Ref(law: zpo/711)>]
-```
-
-**Case references** -- court names and file numbers are extracted from citations:
-
-```python
-extractor = RefExtractor()
-extractor.do_law_refs = False  # only extract case references
-extractor.do_case_refs = True
-
-content, markers = extractor.extract(
-    "Das OVG Schleswig habe bereits in seinem Urteil vom 22.04.2010 "
-    "(1 KN 19/09) zur im Wesentlichen gleichlautenden Vorgängervorschrift "
-    "im LROP-TF 2004 festgestellt, dass dieser Vorschrift die erforderliche "
-    "Bestimmtheit nicht zukomme."
-)
-
-for marker in markers:
-    for ref in marker.get_references():
-        print(ref)
-# <Ref(case: OVG Schleswig/1 KN 19/09/)>
-```
-
-**Multiple case references** -- multiple courts and file numbers from a single passage:
-
-```python
-content, markers = extractor.extract(
-    "(vgl. BVerwG, Beschluss vom 12.11.1987 - 4 B 216/87 -, juris [Rn. 2]; "
-    "VGH BW, Urteil vom 10.01.2007 - 3 S 1251/06 -, juris [Rn. 25])"
-)
-
-for marker in markers:
-    for ref in marker.get_references():
-        print(ref.court, ref.file_number)
-# BVerwG 4 B 216/87
-# VGH BW 3 S 1251/06
-```
-
-**Law book context** -- when extracting from within a specific law's text, set `law_book_context` to resolve bare `§` references without an explicit book code:
-
-```python
-extractor = RefExtractor()
-extractor.do_case_refs = False
-extractor.law_book_context = "bgb"
-
-content, markers = extractor.extract(
-    "Der Vorsitzende kann einen solchen Vertreter auch bestellen, "
-    "wenn in den Fällen des § 20 eine nicht prozessfähige Person bei dem "
-    "Gericht ihres Aufenthaltsortes verklagt werden soll."
-)
-
-refs = [ref for m in markers for ref in m.get_references()]
-print(refs[0])
-# <Ref(law: bgb/20)>
+content, markers = extractor.extract("Ein Satz mit § 3b AsylG.")
+# Note: content no longer contains [ref=UUID] markers (deprecated in v0.7.0)
 ```
 
 ## Development
 
 ```bash
 make install   # create venv + install in editable mode with dev deps
-make test      # run pytest
+make test      # run pytest (271 tests)
 make lint      # ruff check + format check
 make format    # auto-fix lint + format
 ```
 
 ## Benchmark
 
-Run the extraction benchmark against the German Legal References Benchmark dataset:
+Run the extraction benchmark against gold-annotated German legal documents:
 
 ```bash
-make bench              # run against default dataset
-make bench-quick        # quick run (10 docs)
-make bench-json         # output as JSON
+make bench-ci           # vendored CI subset (15 docs, no external data needed)
+make bench-dev          # full validation split (821 docs)
+make bench-quick        # quick check (50 docs on validation)
+make bench-validate     # dataset integrity checks
+make diagnose           # error analysis
 ```
 
-See `benchmarks/` for details.
+Current metrics (validation split, 821 docs):
+
+| Metric | Value |
+|--------|-------|
+| Span F1 (exact) | 0.734 |
+| Case F1 (exact) | 0.613 |
+| Law F1 (exact) | 0.797 |
+| Throughput | 418 docs/s |
+
+See [`benchmarks/README.md`](benchmarks/README.md) for details.
+
+## Optional extras
+
+```bash
+pip install "legal-reference-extraction[adapters]"  # spaCy adapter
+pip install "legal-reference-extraction[ml]"        # CRF + transformer engines
+```
 
 ## See also
 
-- [CiteURL supports citations to U.S. court decisions and U.S. code](https://github.com/raindrum/citeurl)
+- [CiteURL — citations to U.S. court decisions and U.S. code](https://github.com/raindrum/citeurl)
 
 ## License
 
