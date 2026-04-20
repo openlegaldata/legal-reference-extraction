@@ -8,7 +8,7 @@ parser for precision.
 The CRF is trained on the benchmark's train split and complements the
 regex engine by catching citation patterns the regex misses.
 
-Requires the ``[ml]`` extra: ``pip install legal-reference-extraction[ml]``
+Requires the ``[crf]`` extra: ``pip install legal-reference-extraction[crf]``
 """
 
 from __future__ import annotations

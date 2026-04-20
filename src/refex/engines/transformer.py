@@ -18,8 +18,8 @@ Training is separate: use the ``to_hf_bio`` serializer to export training
 data and fine-tune a model with the HuggingFace Trainer API or any
 framework that accepts BIO labels.  See ``docs/train-transformer.md``.
 
-Requires the ``[ml]`` extra:
-``pip install legal-reference-extraction[ml]``
+Requires the ``[transformers]`` extra:
+``pip install legal-reference-extraction[transformers]``
 """
 
 from __future__ import annotations
@@ -150,8 +150,8 @@ class TransformerExtractor:
             from transformers import AutoModelForTokenClassification, AutoTokenizer
         except ImportError as exc:
             msg = (
-                "TransformerExtractor requires the '[ml]' extra. "
-                "Install with: pip install legal-reference-extraction[ml]"
+                "TransformerExtractor requires the '[transformers]' extra. "
+                "Install with: pip install legal-reference-extraction[transformers]"
             )
             raise ImportError(msg) from exc
 

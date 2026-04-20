@@ -34,7 +34,7 @@ make diagnose      # error analysis on validation split
 - Data files accessed via `importlib.resources.files("refex") / "data"`, not `os.path`.
 - Regex strings use raw string literals (`r"..."`) to avoid escape sequence warnings.
 - Ruff rules: `E, F, I, UP, W`. Line length 120. E501 suppressed in tests (German legal text fixtures).
-- No runtime dependencies. Optional extras: `[adapters]` (spaCy), `[ml]` (CRF, transformers).
+- No runtime dependencies. Optional extras: `[adapters]` (spaCy), `[crf]` (sklearn-crfsuite), `[transformers]` (transformers + torch), `[training]` (wandb + seqeval + datasets + accelerate, for fine-tuning).
 
 ## Architecture
 

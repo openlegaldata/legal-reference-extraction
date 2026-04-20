@@ -5,6 +5,8 @@ and case references (`BGH, VIII ZR 295/01`).
 
 Used by [de.openlegaldata.io](https://de.openlegaldata.io/).
 
+**Supported Python versions:** 3.11, 3.12, 3.13 (tested on every CI run).
+
 ## Install
 
 ```bash
@@ -173,10 +175,19 @@ See [`benchmarks/README.md`](benchmarks/README.md) for details.
 
 ## Optional extras
 
+The base install has zero runtime dependencies.  Inference engines
+and format adapters live in opt-in extras — pick the ones you need:
+
 ```bash
-pip install "legal-reference-extraction[adapters]"  # spaCy adapter
-pip install "legal-reference-extraction[ml]"        # CRF + transformer engines
+pip install "legal-reference-extraction[adapters]"     # spaCy adapter for to_spacy_doc
+pip install "legal-reference-extraction[crf]"          # CRF engine  (~30 MB, sklearn-crfsuite)
+pip install "legal-reference-extraction[transformers]" # transformer engine (~2 GB, transformers + torch)
+pip install "legal-reference-extraction[training]"     # fine-tuning utilities (wandb, seqeval, datasets, accelerate)
 ```
+
+Most users pick exactly one inference engine (`[crf]` *or*
+`[transformers]`).  `[training]` is only needed when fine-tuning a
+transformer via `scripts/train_transformer.py`.
 
 ## See also
 

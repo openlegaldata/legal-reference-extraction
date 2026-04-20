@@ -1,4 +1,4 @@
-.PHONY: help venv install install-ml install-training install-all test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf bench-crf bench-transformer export-bio train-transformer-subset train-transformer eval-transformer bench-transformer-trained
+.PHONY: help venv install install-crf install-transformers install-training install-all test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf bench-crf bench-transformer export-bio train-transformer-subset train-transformer eval-transformer bench-transformer-trained
 
 PYTHON ?= python3
 VENV := .venv
@@ -24,11 +24,14 @@ venv:  ## Create virtualenv (auto-detects uv vs pip)
 install: venv  ## Install package with dev dependencies (editable)
 	$(INSTALL_CMD) -e ".[dev]"
 
-install-ml: install  ## Install package with ML extras (CRF, transformers, torch)
-	$(INSTALL_CMD) -e ".[ml]"
+install-crf: install  ## Install CRF engine extras (sklearn-crfsuite)
+	$(INSTALL_CMD) -e ".[crf]"
 
-install-training: install-ml  ## Install training extras (wandb, seqeval, datasets, accelerate)
-	$(INSTALL_CMD) -e ".[training]"
+install-transformers: install  ## Install transformer engine extras (transformers, torch)
+	$(INSTALL_CMD) -e ".[transformers]"
+
+install-training: install  ## Install training extras (CRF + transformers + wandb + seqeval + datasets + accelerate)
+	$(INSTALL_CMD) -e ".[crf,transformers,training]"
 
 install-all: venv  ## Install package with all optional dependencies
 	$(INSTALL_CMD) -e ".[all]"
@@ -71,16 +74,16 @@ bench-validate: install  ## Run dataset integrity checks
 diagnose: install  ## Error analysis on validation split
 	$(BIN)/python -m benchmarks.diagnose --split validation $(BENCH_ARGS)
 
-train-crf: install-ml  ## Train CRF model (pass args via CRF_ARGS=...)
+train-crf: install-crf  ## Train CRF model (pass args via CRF_ARGS=...)
 	$(BIN)/python -m refex.engines.crf --train $(CRF_ARGS)
 
-eval-crf: install-ml  ## Evaluate trained CRF model
+eval-crf: install-crf  ## Evaluate trained CRF model
 	$(BIN)/python -m refex.engines.crf --evaluate $(CRF_ARGS)
 
-bench-crf: install-ml  ## Benchmark regex+CRF ensemble on validation split
+bench-crf: install-crf  ## Benchmark regex+CRF ensemble on validation split
 	$(BIN)/python -m benchmarks.run -s validation -e regex+crf $(BENCH_ARGS)
 
-bench-transformer: install-ml  ## Benchmark regex+transformer ensemble (downloads weights)
+bench-transformer: install-transformers  ## Benchmark regex+transformer ensemble (downloads weights)
 	$(BIN)/python -m benchmarks.run -s validation -e regex+transformer $(BENCH_ARGS)
 
 export-bio: install-training  ## Export BIO JSONL for train/validation/test splits
@@ -104,12 +107,12 @@ train-transformer: install-training  ## Full transformer training (EuroBERT-210m
 		--device mps --epochs 3 --batch-size 16 \
 		--wandb-run-name eurobert-210m-full-e3-b16-lr3e5 $(TRAIN_ARGS)
 
-eval-transformer: install-training  ## Evaluate trained transformer on validation (full engine)
+eval-transformer: install-transformers  ## Evaluate trained transformer on validation (full engine)
 	REFEX_TRANSFORMER_MODEL=models/refex-eurobert-210m REFEX_TRANSFORMER_DEVICE=mps \
 		$(BIN)/python -m benchmarks.run -s validation -e transformer --json \
 		--output logs/bench-transformer-validation.json $(BENCH_ARGS)
 
-bench-transformer-trained: install-training  ## Benchmark regex+trained transformer on validation
+bench-transformer-trained: install-transformers  ## Benchmark regex+trained transformer on validation
 	REFEX_TRANSFORMER_MODEL=models/refex-eurobert-210m REFEX_TRANSFORMER_DEVICE=mps \
 		$(BIN)/python -m benchmarks.run -s validation -e regex+transformer --json \
 		--output logs/bench-regex+transformer-validation.json $(BENCH_ARGS)
