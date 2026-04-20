@@ -216,7 +216,9 @@ class TestResolveCaseShortForms:
     def test_reporter_after_full_citation_linked(self):
         cits = [
             CaseCitation(span=Span(0, 20, "BGH VIII ZR 295/01"), id="c1", court="BGH", file_number="VIII ZR 295/01"),
-            CaseCitation(span=Span(30, 45, "BGHZ 154, 239"), id="c2", reporter="BGHZ", reporter_volume="154", reporter_page="239"),
+            CaseCitation(
+                span=Span(30, 45, "BGHZ 154, 239"), id="c2", reporter="BGHZ", reporter_volume="154", reporter_page="239"
+            ),
         ]
         result = _resolve_case_short_forms(cits)
         assert result[1].kind == "short"
@@ -224,7 +226,9 @@ class TestResolveCaseShortForms:
 
     def test_reporter_without_prior_full_not_resolved(self):
         cits = [
-            CaseCitation(span=Span(0, 15, "BGHZ 154, 239"), id="c1", reporter="BGHZ", reporter_volume="154", reporter_page="239"),
+            CaseCitation(
+                span=Span(0, 15, "BGHZ 154, 239"), id="c1", reporter="BGHZ", reporter_volume="154", reporter_page="239"
+            ),
         ]
         result = _resolve_case_short_forms(cits)
         assert result[0].kind == "full"  # Unchanged
@@ -232,7 +236,9 @@ class TestResolveCaseShortForms:
     def test_reporter_mismatched_court_not_resolved(self):
         cits = [
             CaseCitation(span=Span(0, 20, "BVerwG 10 C 23.12"), id="c1", court="BVerwG", file_number="10 C 23.12"),
-            CaseCitation(span=Span(30, 45, "BGHZ 154, 239"), id="c2", reporter="BGHZ", reporter_volume="154", reporter_page="239"),
+            CaseCitation(
+                span=Span(30, 45, "BGHZ 154, 239"), id="c2", reporter="BGHZ", reporter_volume="154", reporter_page="239"
+            ),
         ]
         result = _resolve_case_short_forms(cits)
         assert result[1].kind == "full"  # Mismatched court
@@ -240,7 +246,13 @@ class TestResolveCaseShortForms:
     def test_bverfge_after_bverfg(self):
         cits = [
             CaseCitation(span=Span(0, 20, "BVerfG 1 BvL 7/14"), id="c1", court="BVerfG", file_number="1 BvL 7/14"),
-            CaseCitation(span=Span(30, 45, "BVerfGE 85, 248"), id="c2", reporter="BVerfGE", reporter_volume="85", reporter_page="248"),
+            CaseCitation(
+                span=Span(30, 45, "BVerfGE 85, 248"),
+                id="c2",
+                reporter="BVerfGE",
+                reporter_volume="85",
+                reporter_page="248",
+            ),
         ]
         result = _resolve_case_short_forms(cits)
         assert result[1].kind == "short"
@@ -250,7 +262,9 @@ class TestResolveCaseShortForms:
         cits = [
             LawCitation(span=Span(0, 10, "§ 433 BGB"), id="c1", book="bgb"),
             CaseCitation(span=Span(20, 35, "BGH IX ZR 165/12"), id="c2", court="BGH", file_number="IX ZR 165/12"),
-            CaseCitation(span=Span(50, 65, "BGHZ 108, 98"), id="c3", reporter="BGHZ", reporter_volume="108", reporter_page="98"),
+            CaseCitation(
+                span=Span(50, 65, "BGHZ 108, 98"), id="c3", reporter="BGHZ", reporter_volume="108", reporter_page="98"
+            ),
         ]
         result = _resolve_case_short_forms(cits)
         assert result[0].type == "law"  # Preserved
@@ -319,7 +333,9 @@ class TestShortFormFixtures:
             LawCitation(span=Span(0, 15, "§ 433 Abs. 1 BGB"), id="c1", book="bgb", number="433"),
             LawCitation(span=Span(25, 30, "§ 434"), id="c2", book=None, number="434"),
             CaseCitation(span=Span(40, 60, "BGH IX ZR 165/12"), id="c3", court="BGH", file_number="IX ZR 165/12"),
-            CaseCitation(span=Span(70, 85, "BGHZ 108, 98"), id="c4", reporter="BGHZ", reporter_volume="108", reporter_page="98"),
+            CaseCitation(
+                span=Span(70, 85, "BGHZ 108, 98"), id="c4", reporter="BGHZ", reporter_volume="108", reporter_page="98"
+            ),
         ]
         text = "§ 433 Abs. 1 BGB i.V.m. § 434 weist auf BGH IX ZR 165/12 sowie BGHZ 108, 98 etwas hin."
         resolved, rels = resolve_short_forms(cits, text)

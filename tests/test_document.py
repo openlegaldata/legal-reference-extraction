@@ -241,7 +241,9 @@ class TestOffsetMap:
             # Map back to raw
             raw_span = map_span_to_raw(cit.span, doc)
             # The raw span should contain the citation text
-            assert cit.span.text.replace(" ", "") in raw_span.text.replace(" ", "").replace("<b>", "").replace("</b>", "")
+            assert cit.span.text.replace(" ", "") in raw_span.text.replace(" ", "").replace("<b>", "").replace(
+                "</b>", ""
+            )
 
 
 # --- J10c: Boilerplate-contamination tests ---
@@ -264,7 +266,7 @@ class TestBoilerplateContamination:
         assert all("123" not in c.span.text for c in result.citations)
 
     def test_citations_in_body_only(self):
-        raw = '<head><title>§ 1 GG</title></head><p>Laut § 154 VwGO sind die Kosten zu tragen.</p>'
+        raw = "<head><title>§ 1 GG</title></head><p>Laut § 154 VwGO sind die Kosten zu tragen.</p>"
         doc = Document(raw=raw, format="html")
         ext = CitationExtractor()
         result = ext.extract(doc)

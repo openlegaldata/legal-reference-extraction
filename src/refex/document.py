@@ -39,9 +39,7 @@ class Document:
 
     def __post_init__(self):
         if not self.text:
-            self.text, self.offset_map = normalize_with_offsets(
-                self.raw, self.format, self.source_profile
-            )
+            self.text, self.offset_map = normalize_with_offsets(self.raw, self.format, self.source_profile)
 
 
 def normalize(
@@ -126,9 +124,7 @@ def _normalize_html(raw: str, profile: str | None = None) -> str:
     return text
 
 
-def _normalize_html_with_offsets(
-    raw: str, profile: str | None = None
-) -> tuple[str, list[int]]:
+def _normalize_html_with_offsets(raw: str, profile: str | None = None) -> tuple[str, list[int]]:
     """Strip HTML tags, returning text and a character-level offset map.
 
     Uses a simple state machine to walk the raw HTML and build

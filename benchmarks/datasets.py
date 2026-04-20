@@ -196,9 +196,7 @@ def _load_hf_dataset(data_dir: Path, split: str) -> BenchmarkDataset:
         citations = [_parse_citation(c) for c in cit_data]
         rels = [_parse_relation(r) for r in rel_data]
 
-        annotations[doc_id] = AnnotationSet(
-            doc_id=doc_id, citations=citations, relations=rels
-        )
+        annotations[doc_id] = AnnotationSet(doc_id=doc_id, citations=citations, relations=rels)
 
     return BenchmarkDataset(documents=documents, annotations=annotations)
 
@@ -263,8 +261,6 @@ def _load_jsonl_dataset(data_dir: Path) -> BenchmarkDataset:
                 a = json.loads(line)
                 citations = [_parse_citation(c) for c in a.get("citations", [])]
                 rels = [_parse_relation(r) for r in a.get("relations", [])]
-                annotations[a["doc_id"]] = AnnotationSet(
-                    doc_id=a["doc_id"], citations=citations, relations=rels
-                )
+                annotations[a["doc_id"]] = AnnotationSet(doc_id=a["doc_id"], citations=citations, relations=rels)
 
     return BenchmarkDataset(documents=documents, annotations=annotations)

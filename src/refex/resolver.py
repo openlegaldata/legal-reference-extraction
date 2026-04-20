@@ -94,14 +94,17 @@ def _resolve_case_short_forms(citations: list[Citation]) -> list[Citation]:
 
     # Map reporter abbreviations to courts
     _REPORTER_COURT_MAP = {
-        "BGHZ": "BGH", "BGHSt": "BGH", "BGHR": "BGH",
+        "BGHZ": "BGH",
+        "BGHSt": "BGH",
+        "BGHR": "BGH",
         "BVerfGE": "BVerfG",
         "BVerwGE": "BVerwG",
         "BAGE": "BAG",
         "BSGE": "BSG",
         "BFHE": "BFH",
         "BPatGE": "BPatG",
-        "RGZ": "RG", "RGSt": "RG",
+        "RGZ": "RG",
+        "RGSt": "RG",
     }
 
     for cit in citations:
