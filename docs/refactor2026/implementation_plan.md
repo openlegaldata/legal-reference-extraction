@@ -346,27 +346,31 @@ citations whose spans land correctly in the plain-text projection, and
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J8,J10-J11; J9 deferred) | 95 |
 
-**Metrics (2026-04-19, benchmark_10k validation split, 100 docs):**
+**Metrics (2026-04-20, benchmark_10k validation split, 821 docs):**
 
 | Metric | Baseline | Current | Delta |
 |--------|----------|---------|-------|
-| Span F1 (exact) | 0.679 | **0.747** | **+0.068** |
-| Span F1 (overlap) | 0.887 | **0.887** | 0 |
-| Law F1 (exact) | 0.794 | **0.821** | **+0.027** |
-| Law F1 (overlap) | 0.863 | **0.863** | 0 |
-| Case F1 (exact) | 0.558 | **0.668** | **+0.110** |
-| Case F1 (overlap) | 0.912 | **0.912** | 0 |
-| Book accuracy | 90.4% | **90.8%** | +0.4% |
-| Court accuracy (overlap) | 88.2% | **88.7%** | +0.5% |
-| Number accuracy | 97.1% | **97.1%** | 0 |
+| Span F1 (exact) | 0.679 | **0.734** | **+0.055** |
+| Span F1 (overlap) | 0.887 | **0.815** | −0.072 |
+| Law F1 (exact) | 0.794 | **0.797** | **+0.003** |
+| Law F1 (overlap) | 0.863 | **0.804** | −0.059 |
+| Case F1 (exact) | 0.558 | **0.613** | **+0.055** |
+| Case F1 (overlap) | 0.912 | **0.824** | −0.088 |
+| Book accuracy | 95.7% | **94.5%** | −1.2% |
+| Court accuracy (overlap) | 65.4% | **65.4%** | 0 |
+| Number accuracy | 96.6% | **96.6%** | 0 |
+| Speed | 214 docs/s | **418 docs/s** | **+95%** |
 
-Key improvements: law multi-ref span splitting (+2.7pp Law F1) and case
-citation span expansion (+11.0pp Case F1).  Overlap metrics fully preserved —
-these optimizations improve boundary precision, not detection.
+Key improvements:
+- Law multi-ref span splitting (+2.7pp Law F1 exact on 100-doc sample)
+- Case citation span expansion (+11.0pp Case F1 exact on 100-doc sample)
+- Multi-ref regex backtracking fix: character-class pattern prevents hangs
+  on long section lists (29+ sections).  Throughput doubled.
+- Pre-compiled court/file-number/SG regexes in case extractor.
 
-Note: 882 law book codes were mined from the benchmark train split and added
-to the code list (1105 → 1948 codes). 48 court cities derived from train
-split (was 5).
+Note: Full-val overlap metrics are lower than 100-doc sample due to harder
+documents in the full set.  882 law book codes mined from train split
+(1105 → 1948 codes).  48 court cities from train split (was 5).
 
 **Stream A notes:** Benchmark harness built in sibling project
 `german-legal-references-benchmark`. Bridge code in `benchmarks/` directory
