@@ -1,0 +1,40 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "src/**"
+      - "benchmarks/**"
+      - "pyproject.toml"
+
+jobs:
+  bench-ci:
+    name: Benchmark (CI subset)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Validate fixtures
+        run: make bench-validate BENCH_ARGS="-d benchmarks/fixtures"
+
+      - name: Run benchmark on CI subset
+        run: make bench-ci BENCH_ARGS="--json -o bench-result.json"
+
+      - name: Show results
+        run: cat bench-result.json | python -m json.tool
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-result
+          path: bench-result.json

@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openlegaldata.io/schemas/benchmark/annotation.schema.json",
+  "title": "Benchmark Annotation",
+  "description": "Annotations (citations and relations) for a legal document in the benchmark.",
+  "type": "object",
+  "required": ["doc_id", "citations", "relations"],
+  "properties": {
+    "doc_id": {
+      "type": "string",
+      "description": "Reference to the document this annotation belongs to."
+    },
+    "citations": {
+      "type": "array",
+      "description": "List of citation annotations found in the document.",
+      "items": {
+        "$ref": "#/$defs/citation"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "description": "List of relations between citations.",
+      "items": {
+        "$ref": "#/$defs/relation"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "span": {
+      "type": "object",
+      "description": "Character-offset span in the plain-text projection.",
+      "required": ["start", "end", "text"],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Start character offset (inclusive)."
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "End character offset (exclusive)."
+        },
+        "text": {
+          "type": "string",
+          "description": "Matched surface text."
+        }
+      },
+      "additionalProperties": false
+    },
+    "citation": {
+      "type": "object",
+      "description": "A single citation annotation.",
+      "required": ["id", "type", "kind", "span"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique citation identifier within the annotation set."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["law", "case"],
+          "description": "Citation type."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["full", "short", "id", "ibid", "supra", "aao", "ebenda"],
+          "description": "Citation kind indicating its textual form."
+        },
+        "span": {
+          "$ref": "#/$defs/span"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score of the annotation."
+        },
+        "annotator": {
+          "type": "string",
+          "description": "Name or identifier of the annotator (human or model)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text notes about this citation."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "law" } }
+          },
+          "then": {
+            "properties": {
+              "unit": {
+                "type": "string",
+                "description": "Cited unit, e.g. paragraph or article symbol."
+              },
+              "delimiter": {
+                "type": "string",
+                "description": "Delimiter between unit components."
+              },
+              "book": {
+                "type": "string",
+                "description": "Name or abbreviation of the law."
+              },
+              "number": {
+                "type": "string",
+                "description": "Numeric part of the citation."
+              },
+              "structure": {
+                "type": "object",
+                "description": "Parsed hierarchical structure of the cited provision.",
+                "additionalProperties": true
+              },
+              "range_end": {
+                "type": ["string", "null"],
+                "description": "End of a cited range, if applicable."
+              },
+              "range_extensions": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Additional range extensions (e.g. 'ff.')."
+              },
+              "resolves_to": {
+                "type": ["string", "null"],
+                "description": "Canonical identifier the citation resolves to."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "case" } }
+          },
+          "then": {
+            "properties": {
+              "court": {
+                "type": ["string", "null"],
+                "description": "Court abbreviation."
+              },
+              "file_number": {
+                "type": ["string", "null"],
+                "description": "Case file number (Aktenzeichen)."
+              },
+              "date": {
+                "type": ["string", "null"],
+                "description": "Decision date."
+              },
+              "decision_type": {
+                "type": ["string", "null"],
+                "description": "Type of decision (Urteil, Beschluss, etc.)."
+              },
+              "ecli": {
+                "type": ["string", "null"],
+                "description": "European Case Law Identifier."
+              },
+              "reporter": {
+                "type": ["string", "null"],
+                "description": "Reporter name (e.g. NJW, BGHZ)."
+              },
+              "reporter_volume": {
+                "type": ["string", "null"],
+                "description": "Reporter volume."
+              },
+              "reporter_page": {
+                "type": ["string", "null"],
+                "description": "Reporter page number."
+              },
+              "reporter_marginal": {
+                "type": ["string", "null"],
+                "description": "Reporter marginal number."
+              },
+              "file_number_parts": {
+                "type": "object",
+                "description": "Parsed components of the file number.",
+                "additionalProperties": true
+              },
+              "parallel_citations": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Parallel citations for the same decision."
+              },
+              "resolves_to": {
+                "type": ["string", "null"],
+                "description": "Canonical identifier the citation resolves to."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "relation": {
+      "type": "object",
+      "description": "A relation between two citations.",
+      "required": ["source_id", "target_id", "relation"],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "description": "ID of the source citation."
+        },
+        "target_id": {
+          "type": "string",
+          "description": "ID of the target citation."
+        },
+        "relation": {
+          "type": "string",
+          "enum": ["ivm", "vgl", "aao", "ebenda", "siehe", "resolves_to", "parallel"],
+          "description": "Relation type between the two citations."
+        },
+        "span": {
+          "$ref": "#/$defs/span",
+          "description": "Optional text span of the relation marker."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

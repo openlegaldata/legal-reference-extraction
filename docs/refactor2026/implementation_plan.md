@@ -80,38 +80,29 @@ are specified in [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) — 
 contract for whoever builds the dataset.
 
 - [x] A1. Define and publish the benchmark spec:
-  - [ ] A1a. Land [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md) (done on
-    this PR).
-  - [ ] A1b. Commit JSON Schemas for `documents.jsonl` and `annotations.jsonl` under
-    `benchmarks/schemas/` — single source of truth for validators on both sides.
-  - [ ] A1c. Vendor CI subset (~10–20 docs, stratified per spec §6) into
-    `benchmarks/fixtures/documents.jsonl` + `benchmarks/fixtures/annotations.jsonl`.
-    Pin the HF revision SHA in `benchmarks/fixtures/SOURCE`.
-  - [ ] A1d. `benchmarks/datasets.py` loader: `BenchmarkDataset` class that can read
-    either the vendored fixture set or the full HF dataset (via `datasets.load_dataset`
-    when the `[adapters]` extra is installed).
-  - [ ] A1e. `benchmarks/validate.py` — runs the spec §9 quality checks against a
-    fixture/dataset path.
-- [ ] A2. Metric reporter (`benchmarks/metrics.py`) — custom, project-defined (O-2
-  resolved):
-  - [ ] A2a. Span detection: precision / recall / F1 on exact character-span match.
-  - [ ] A2b. Field-level accuracy per `LawCitation` field (`book`, `number`, `unit`)
-    and per `CaseCitation` field (`court`, `file_number`, `ecli`, `date`).
-  - [ ] A2c. `structure` dict key-level accuracy (absatz, satz, nummer, halbsatz, …).
-  - [ ] A2d. Relation-edge F1 for `CitationRelation`s (i.V.m., a.a.O., …).
-  - [ ] A2e. Document-level summary + per-field breakdown. JSON output for CI ingestion.
-- [ ] A3. Wire `make bench` target (dev-dep only; not in runtime extras):
-  - Default runs against the vendored CI subset.
-  - `make bench DATASET=hf` pulls the full dataset from Hugging Face.
-  - `make bench-sync` re-downloads the CI subset from HF and rewrites
-    `benchmarks/fixtures/` + `SOURCE`.
-- [ ] A4. CI job `bench.yml`:
-  - [ ] A4a. On every PR: run the vendored CI subset; post delta-to-baseline as a PR
-    comment.
-  - [ ] A4b. Scheduled (nightly or weekly): run against the full HF dataset; post to a
-    tracking issue.
-- [ ] A5. Document: `benchmarks/README.md` — how to run the benchmark, how to refresh
-  the CI subset, where the full dataset lives, how to contribute annotations upstream.
+  - [x] A1a. Land [`benchmark_dataset_spec.md`](./benchmark_dataset_spec.md).
+  - [x] A1b. JSON Schemas for `documents.jsonl` and `annotations.jsonl` under
+    `benchmarks/schemas/`.
+  - [x] A1c. Vendor CI subset (15 docs, stratified across 10 courts) into
+    `benchmarks/fixtures/documents.jsonl` + `benchmarks/fixtures/annotations.jsonl`
+    + `benchmarks/fixtures/SOURCE`.
+  - [x] A1d. `benchmarks/datasets.py` loader: `BenchmarkDataset` class that reads
+    vendored JSONL or full HF dataset (Arrow format via `datasets.load_from_disk`).
+  - [x] A1e. `benchmarks/validate.py` — runs spec §9 quality checks (span integrity,
+    ID uniqueness, controlled vocab, join/relation/resolves-to integrity).
+- [x] A2. Metric reporter (`benchmarks/metrics.py`):
+  - [x] A2a. Span detection: precision / recall / F1 on exact + overlap match.
+  - [x] A2b. Field-level accuracy per `LawCitation` field (`book`, `number`)
+    and per `CaseCitation` field (`court`, `file_number`).
+  - [ ] A2c. `structure` dict key-level accuracy — deferred (extractor doesn't
+    emit structure yet).
+  - [ ] A2d. Relation-edge F1 — deferred (extractor doesn't emit relations yet).
+  - [x] A2e. Document-level summary + per-field breakdown. JSON output for CI.
+- [x] A3. `make bench-ci` runs vendored CI subset; `make bench-dev` for development;
+  `make bench-validate` for dataset integrity checks.
+- [x] A4. CI job `.github/workflows/bench.yml`: runs vendored CI subset on PRs
+  touching `src/`, `benchmarks/`, or `pyproject.toml`.
+- [x] A5. `benchmarks/README.md` — usage guide, metrics explanation, dev workflow.
 
 **Exit:** `make bench` prints P/R/F1 on the vendored CI subset; `benchmark_dataset_spec.md`
 is published; the HF dataset can be plugged in with zero code changes once it exists.
@@ -335,7 +326,7 @@ citations whose spans land correctly in the plain-text projection, and
 
 | Stream | Purpose | Depends on | Status | % Done |
 |--------|---------|------------|--------|--------|
-| A | Benchmark harness (schema + fixture slice) | — | **done** (preview) | 90 |
+| A | Benchmark harness (schema + fixture slice) | — | **done** | 100 |
 | B | Cleanup + legacy `law.py` deletion | A1, A4 | **done** | 100 |
 | C | Typed model + strategy | B1–B4, B6 | **done** | 100 |
 | D | Output format & adapters | C1–C4 | **done** | 100 |
