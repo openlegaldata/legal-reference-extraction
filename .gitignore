@@ -108,3 +108,6 @@ media/courts/*
 logs/*
 
 workingdir
+
+# Trained CRF model (regenerate with `make train-crf`)
+src/refex/data/crf_model.pkl

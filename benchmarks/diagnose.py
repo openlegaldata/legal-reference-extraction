@@ -17,6 +17,7 @@ os.environ.setdefault("HF_HOME", "/tmp/hf-home")
 
 from benchmarks.adapter import refmarkers_to_citations
 from benchmarks.datasets import load_dataset
+
 from refex.extractor import RefExtractor
 
 

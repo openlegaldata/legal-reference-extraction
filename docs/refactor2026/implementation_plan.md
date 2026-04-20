@@ -204,17 +204,30 @@ Per [`output_format_recommendation.md`](./output_format_recommendation.md) §7.
 
 ### Stream F — Phase 2.5: CRF engine (optional, gated on D + benchmark baseline)
 
-- [ ] F1. Add `sklearn-crfsuite` under the `[ml]` extra.
-- [ ] F2. `CRFLawExtractor` trained on the external benchmark's train split.
-- [ ] F3. `CRFCaseExtractor` for case-ref detection; case parsing still falls through to
-  the regex parser.
-- [ ] F4. Document retraining command in `benchmarks/README.md`.
-- [ ] F5. Decide fate of `case.get_codes()` + `file_number_codes.csv` (O-9 resolved,
-  deferred to here): either use the curated codes as a CRF feature source, or delete
-  the method and move the CSV under `benchmarks/` / `tools/` if CRF training doesn't
-  need it.
+- [x] F1. `sklearn-crfsuite` in the `[ml]` extra.
+- [x] F2. Unified `CRFExtractor` trained on the benchmark's train split — detects both
+  law and case spans via BIO tags over whitespace tokens.  Field parsing (book,
+  number, court, file_number) uses simple regex heuristics.
+- [x] F3. Engine lives in `src/refex/engines/crf.py` and implements the `Extractor`
+  protocol.  Integrates with `CitationExtractor` orchestrator and the benchmark runner
+  via `--engine regex+crf` flag.
+- [x] F4. Makefile targets: `make train-crf`, `make eval-crf`, `make bench-crf`.
+  Training with progress logging to `logs/crf.log` to survive crashes.
+- [x] F5. `file_number_codes.csv` is used as a CRF feature (`word.is_register`).
 
-**Exit:** CRF engine reports F1 ≥ regex baseline on the benchmark's dev split.
+**Results** (validation 100 docs, 1000-doc trained model):
+
+| Metric | Regex | Regex+CRF | Delta |
+|--------|-------|-----------|-------|
+| Span F1 exact | 0.743 | 0.753 | +1.0pp |
+| Span F1 overlap | 0.886 | 0.914 | **+2.8pp** |
+| Case F1 overlap | 0.912 | 0.937 | **+2.5pp** |
+| Law F1 overlap | 0.862 | 0.892 | **+3.0pp** |
+| Speed | 3.2 ms/doc | 19.9 ms/doc | 6× slower |
+
+**Exit:** CRF complements regex — substantial overlap F1 gains from catching patterns
+the regex misses (EU regulations, unusual abbreviations).  Regex stays the default;
+use `--engine regex+crf` when recall matters more than speed.
 
 ### Stream G — Phase 3: Transformer engine (optional, gated on F plateau)
 
@@ -322,7 +335,7 @@ citations whose spans land correctly in the plain-text projection, and
 | C | Typed model + strategy | B1–B4, B6 | **done** | 100 |
 | D | Output format & adapters | C1–C4 | **done** | 100 |
 | E | Grundgesetz / Artikel | C1 | **done** | 100 |
-| F | CRF engine | D, A, HF dataset train split | not started | 0 |
+| F | CRF engine | D, A, HF dataset train split | **done** | 100 |
 | G | Transformer engine | F plateau | not started | 0 |
 | H | Migration & deletion | D | **done** (H1-H4; internal legacy types remain until extractor rewrite) | 100 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |

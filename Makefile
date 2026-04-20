@@ -1,4 +1,4 @@
-.PHONY: venv install test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose
+.PHONY: venv install install-ml test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf
 
 PYTHON ?= python3
 VENV := .venv
@@ -20,6 +20,9 @@ venv:
 
 install: venv
 	$(INSTALL_CMD) -e ".[dev]"
+
+install-ml: install
+	$(INSTALL_CMD) -e ".[ml]"
 
 test: install
 	$(BIN)/pytest
@@ -60,6 +63,16 @@ bench-validate: install
 
 diagnose: install
 	$(BIN)/python -m benchmarks.diagnose --split validation $(BENCH_ARGS)
+
+# CRF engine (requires [ml] extra)
+train-crf: install-ml
+	$(BIN)/python -m refex.engines.crf --train $(CRF_ARGS)
+
+eval-crf: install-ml
+	$(BIN)/python -m refex.engines.crf --evaluate $(CRF_ARGS)
+
+bench-crf: install-ml
+	$(BIN)/python -m benchmarks.run -s validation -e regex+crf $(BENCH_ARGS)
 
 clean:
 	rm -rf $(VENV) build/ dist/ *.egg-info src/*.egg-info

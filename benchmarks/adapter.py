@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 
 from benchmarks.datasets import Citation, Span
+
 from refex.models import Ref, RefMarker, RefType
 
 
