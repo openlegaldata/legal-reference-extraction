@@ -545,7 +545,12 @@ def test_citation_styles(law_extractor):
 
         markers = x.extract_law_ref_markers(content)
 
-        law_extractor.replace_content(content, markers)
+        # Verify all markers have valid positions and references
+        for m in markers:
+            assert m.start >= 0
+            assert m.end <= len(content)
+            assert m.end > m.start
+            assert len(m.get_references()) > 0
 
 
 @pytest.mark.skip

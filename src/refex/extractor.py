@@ -2,7 +2,6 @@ import logging
 import re
 import warnings
 
-from refex.errors import RefExError
 from refex.extractors.case import CaseRefExtractorMixin
 from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
 from refex.models import RefMarker
@@ -14,40 +13,27 @@ logger = logging.getLogger(__name__)
 class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
     """Legacy extractor API — use ``CitationExtractor`` for new code.
 
-    This class is preserved for backward compatibility.  It delegates
-    internally to the new typed extraction pipeline and converts results
-    back to legacy ``RefMarker`` / ``Ref`` objects.
+    .. deprecated:: 0.7.0
+       Use :class:`refex.orchestrator.CitationExtractor` instead.
 
     New consumers should use::
 
         from refex.orchestrator import CitationExtractor
         extractor = CitationExtractor()
         result = extractor.extract(text)
-
-    Reference marker format: [ref=UUID]...[/ref]
     """
 
     do_law_refs = True
     do_case_refs = True
 
-    def replace_content(self, content, reference_markers):
-        marker_offset = 0
-        content_with_markers = content
-        sorted_markers = sorted(reference_markers, key=lambda k: k.get_start_position())
-
-        for i, marker in enumerate(sorted_markers):
-            if i > 0 and sorted_markers[i - 1].get_end_position() >= marker.get_start_position():
-                raise RefExError(f"Marker overlaps with previous marker: {marker}")
-            elif (
-                i + 1 < len(sorted_markers) and sorted_markers[i + 1].get_start_position() <= marker.get_end_position()
-            ):
-                raise RefExError(f"Marker overlaps with next marker: {marker}")
-            else:
-                content_with_markers, marker_offset = marker.replace_content(content_with_markers, marker_offset)
-
-        return content_with_markers
-
     def extract(self, content_html: str, is_html: bool = False) -> tuple[str, list[RefMarker]]:
+        """Extract references and return ``(content, markers)``.
+
+        .. deprecated:: 0.7.0
+           The first element of the tuple (content with ``[ref=...]``
+           markers) is now always the plain input text.  Use
+           ``CitationExtractor`` for new code.
+        """
         if is_html:
             warnings.warn(
                 "is_html is deprecated. Use CitationExtractor with format='html' instead: "
@@ -72,9 +58,9 @@ class RefExtractor(DivideAndConquerLawRefExtractorMixin, CaseRefExtractorMixin):
 
             logger.debug("Extracted case ref markers: %i", len(markers))
 
-        content_with_markers = self.replace_content(content, reference_markers)
-
-        return content_with_markers, reference_markers
+        # H2: No longer inserts [ref=UUID]...[/ref] markers into content.
+        # The first tuple element is now the plain text for backward compat.
+        return content, reference_markers
 
     def extract_citations(self, text: str, **kwargs):
         """Extract citations using the new typed API.

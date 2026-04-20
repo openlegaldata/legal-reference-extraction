@@ -3,9 +3,12 @@ import uuid
 from enum import Enum
 from functools import total_ordering
 
-from refex import MARKER_CLOSE_FORMAT, MARKER_OPEN_FORMAT
-
 logger = logging.getLogger(__name__)
+
+# Legacy marker format constants — kept for compat.py backward compatibility.
+# Not part of public API; use CitationExtractor for new code.
+_MARKER_OPEN_FORMAT = "[ref=%(uuid)s]"
+_MARKER_CLOSE_FORMAT = "[/ref]"
 
 
 class RefType(Enum):
@@ -171,11 +174,16 @@ class RefMarker:
         self.references: list[Ref] = []
 
     def replace_content(self, content, marker_offset) -> tuple[str, int]:
+        """Insert ``[ref=UUID]...[/ref]`` markers into content.
+
+        .. deprecated:: 0.7.0
+           Use ``CitationExtractor`` instead. This method will be removed.
+        """
         start = self.start + marker_offset
         end = self.end + marker_offset
 
-        marker_open = MARKER_OPEN_FORMAT % self.__dict__
-        marker_close = MARKER_CLOSE_FORMAT % self.__dict__
+        marker_open = _MARKER_OPEN_FORMAT % self.__dict__
+        marker_close = _MARKER_CLOSE_FORMAT % self.__dict__
 
         marker_offset += len(marker_open) + len(marker_close)
 

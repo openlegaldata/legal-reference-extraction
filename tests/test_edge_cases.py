@@ -3,7 +3,6 @@
 import pytest
 
 from refex.errors import RefExError
-from refex.extractor import RefExtractor
 from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
 from refex.models import BaseRef, Ref, RefMarker, RefType
 
@@ -32,37 +31,18 @@ def test_ref_repr_unsupported_type():
         repr(ref2)
 
 
-# --- extractor.py: lines 37, 41 (overlap detection) ---
+# --- RefMarker overlap scenarios ---
 
 
-def test_replace_content_overlap_previous():
-    ext = RefExtractor()
+def test_ref_marker_mask_non_overlapping():
+    """Non-overlapping markers can be masked sequentially."""
     m1 = RefMarker(text="§ 1 BGB", start=0, end=7)
-    m1.uuid = "a"
-    m1.references = [Ref(ref_type=RefType.LAW, book="bgb", section="1")]
+    m2 = RefMarker(text="§ 2 BGB", start=12, end=19)
 
-    m2 = RefMarker(text="§ 1 BGB", start=5, end=12)
-    m2.uuid = "b"
-    m2.references = [Ref(ref_type=RefType.LAW, book="bgb", section="1")]
-
-    content = "§ 1 BGB § 1 BGB rest"
-    with pytest.raises(RefExError, match="overlaps"):
-        ext.replace_content(content, [m1, m2])
-
-
-def test_replace_content_overlap_next():
-    ext = RefExtractor()
-    m1 = RefMarker(text="§ 1 BGB", start=0, end=10)
-    m1.uuid = "a"
-    m1.references = [Ref(ref_type=RefType.LAW, book="bgb", section="1")]
-
-    m2 = RefMarker(text="§ 2 BGB", start=8, end=15)
-    m2.uuid = "b"
-    m2.references = [Ref(ref_type=RefType.LAW, book="bgb", section="2")]
-
-    content = "§ 1 BGB  § 2 BGB rest"
-    with pytest.raises(RefExError, match="overlaps"):
-        ext.replace_content(content, [m1, m2])
+    content = "§ 1 BGB foo § 2 BGB rest"
+    content = m1.replace_content_with_mask(content)
+    content = m2.replace_content_with_mask(content)
+    assert content == "_______ foo _______ rest"
 
 
 # --- law_dnc.py: line 272 (law_book_codes is None) ---

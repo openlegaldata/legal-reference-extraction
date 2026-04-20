@@ -1,12 +1,24 @@
 from refex.models import Ref, RefMarker, RefType
 
 
-def test_replace_content():
+def test_ref_marker_basics():
+    """RefMarker stores text, position, and references."""
     text = "§ 123 ABC"
     marker = RefMarker(text, 0, len(text))
-    marker.uuid = "foo"
-    marker.references = [Ref(ref_type=RefType.LAW, book="abc", section=123)]
+    marker.set_uuid()
+    marker.set_references([Ref(ref_type=RefType.LAW, book="abc", section="123")])
 
-    content = text + " and other text..."
+    assert marker.text == text
+    assert marker.start == 0
+    assert marker.end == len(text)
+    assert marker.get_length() == len(text)
+    assert len(marker.get_references()) == 1
+    assert marker.get_references()[0].book == "abc"
 
-    assert marker.replace_content(content, 0)[0] == "[ref=foo]§ 123 ABC[/ref] and other text...", "Invalid content"
+
+def test_ref_marker_replace_content_with_mask():
+    """replace_content_with_mask replaces the span with underscores."""
+    content = "Foo § 123 ABC bar"
+    marker = RefMarker("§ 123 ABC", 4, 13)
+    result = marker.replace_content_with_mask(content)
+    assert result == "Foo _________ bar"

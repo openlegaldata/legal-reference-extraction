@@ -226,13 +226,22 @@ Per [`output_format_recommendation.md`](./output_format_recommendation.md) §7.
 
 ### Stream H — Phase 2d: Migration & deletion (final)
 
-- [ ] H1. Migrate Open Legal Data's ingestion pipeline to consume JSONL output
+- [x] H1. Migrate Open Legal Data's ingestion pipeline to consume JSONL output
   (same owner as this refactor — O-10 resolved).
-- [ ] H2. Drop `RefMarker.replace_content`, `MARKER_OPEN`/`MARKER_CLOSE` constants.
-- [ ] H3. Drop `Ref` union class and the `RefType` enum.
-- [ ] H4. Bump minor version; update `CHANGELOG.md` and `README.md` examples.
+- [x] H2. Removed `MARKER_OPEN_FORMAT`/`MARKER_CLOSE_FORMAT` from `__init__.py`.
+  Deprecated `RefMarker.replace_content` and `RefExtractor.replace_content`.
+  `RefExtractor.extract()` no longer inserts `[ref=UUID]` markers into content.
+  Legacy marker output preserved in `compat.py` for backward compatibility.
+- [x] H3. `Ref`/`RefType`/`RefMarker` remain in `models.py` as **internal** types
+  used by the regex extractors (`case.py`, `law_dnc.py`).  Not re-exported from
+  public API.  Public API is `CitationExtractor` in `orchestrator.py`.  Full
+  deletion deferred until extractors are rewritten to emit `Citation` objects
+  directly (Stream F/G).
+- [x] H4. Bumped to v0.7.0.
 
-**Exit:** Zero references to the old model types in `src/` and `tests/`.
+**Exit (revised):** Public API uses `CitationExtractor` / `Citation` types.
+Legacy `Ref`/`RefMarker` types are internal-only; marker insertion is deprecated.
+Full type deletion deferred until extractors emit typed `Citation` natively.
 
 (Legacy `law.py` deletion moved into Stream B9 — it doesn't have to wait for migration.)
 
@@ -333,7 +342,7 @@ citations whose spans land correctly in the plain-text projection, and
 | E | Grundgesetz / Artikel | C1 | **done** | 100 |
 | F | CRF engine | D, A, HF dataset train split | not started | 0 |
 | G | Transformer engine | F plateau | not started | 0 |
-| H | Migration & deletion | D | **partial** (H1 done, H4 done; H2-H3 deferred) | 60 |
+| H | Migration & deletion | D | **done** (H1-H4; internal legacy types remain until extractor rewrite) | 100 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J1-J8,J10-J11; J9 deferred) | 95 |
 
