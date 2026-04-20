@@ -4,7 +4,7 @@
   "title": "Benchmark Document",
   "description": "A legal document record for the legal-reference-extraction benchmark.",
   "type": "object",
-  "required": ["doc_id", "format", "raw", "text", "language", "source", "license"],
+  "required": ["doc_id", "format", "raw", "text", "language", "source"],
   "properties": {
     "doc_id": {
       "type": "string",
@@ -48,10 +48,6 @@
     "decision_type": {
       "type": "string",
       "description": "Type of decision, e.g. Urteil, Beschluss."
-    },
-    "license": {
-      "type": "string",
-      "description": "License under which the document is distributed."
     }
   },
   "additionalProperties": false

@@ -1,8 +1,6 @@
 Source: German Legal References Benchmark (10k)
 Split: validation (to avoid test-set leakage)
-Dataset: /workspace/projects/openlegaldata/german-legal-references-benchmark/data/benchmark_10k_hf/
-Selected: 15 documents for CI fixture subset
-Selection criteria: court diversity (BGH, BVerfG, BVerwG, BAG, BSG, BFH, lower courts),
+Selected: 15 plain-text + 5 HTML + 5 Markdown documents for CI fixture subset
+Selection criteria: court diversity (BGH, BVerfG, BVerwG, BAG, BSG, BFH, OLG, LG, VG, LAG, BPatG),
   document length mix (short <2000, long >10000 chars), preference for docs
   with both law and case citations.
-License: CC0-1.0
