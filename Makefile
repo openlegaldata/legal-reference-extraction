@@ -1,4 +1,4 @@
-.PHONY: venv install install-ml test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf
+.PHONY: venv install install-ml test test-cov lint format clean bench bench-ci bench-dev bench-test bench-quick bench-json bench-validate diagnose train-crf eval-crf bench-crf bench-transformer
 
 PYTHON ?= python3
 VENV := .venv
@@ -73,6 +73,10 @@ eval-crf: install-ml
 
 bench-crf: install-ml
 	$(BIN)/python -m benchmarks.run -s validation -e regex+crf $(BENCH_ARGS)
+
+# Transformer engine (requires [ml] extra; first run downloads model weights)
+bench-transformer: install-ml
+	$(BIN)/python -m benchmarks.run -s validation -e regex+transformer $(BENCH_ARGS)
 
 clean:
 	rm -rf $(VENV) build/ dist/ *.egg-info src/*.egg-info

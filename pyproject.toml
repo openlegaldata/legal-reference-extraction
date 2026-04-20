@@ -47,6 +47,10 @@ select = ["E", "F", "I", "UP", "W"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: tests requiring large model downloads or GPU (run with `-m slow`)",
+]
 
 [tool.coverage.run]
 source = ["refex"]

@@ -338,49 +338,134 @@ def train_crf(
     c2: float = 0.1,
     max_iterations: int = 50,
     limit: int | None = None,
+    algorithm: str = "lbfgs",
 ) -> Path:
     """Train a CRF model and save it to disk.
+
+    Uses ``pycrfsuite.Trainer`` directly with streaming ``append()``
+    so the full training set doesn't need to fit in Python memory —
+    features are flushed to the C-side CRFsuite buffer per document.
 
     Args:
         data_dir: Benchmark dataset directory.
         output_path: Where to save the model. Defaults to
             ``src/refex/data/crf_model.pkl``.
-        c1: L1 regularization coefficient.
+        c1: L1 regularization coefficient (lbfgs only).
         c2: L2 regularization coefficient.
         max_iterations: Maximum training iterations.
         limit: Train on at most this many documents (None = all).
+        algorithm: Training algorithm: "lbfgs" (default, best F1 but
+            memory-hungry) or "l2sgd" (stochastic gradient descent,
+            much less memory, scales to larger datasets).
 
     Returns:
         Path to the saved model file.
     """
-    import sklearn_crfsuite
+    import pycrfsuite
+    from benchmarks.datasets import load_dataset
 
     if output_path is None:
         output_path = Path(__file__).parent.parent / "data" / "crf_model.pkl"
-
-    logger.info("Building training data (limit=%s)...", limit)
-    X_train, y_train = build_training_data(data_dir, split="train", limit=limit)
-    total_tokens = sum(len(x) for x in X_train)
-    logger.info("Training on %d documents, %d tokens", len(X_train), total_tokens)
-
-    logger.info("Fitting CRF: c1=%.3f c2=%.3f max_iter=%d", c1, c2, max_iterations)
-    crf = sklearn_crfsuite.CRF(
-        algorithm="lbfgs",
-        c1=c1,
-        c2=c2,
-        max_iterations=max_iterations,
-        all_possible_transitions=True,
-        verbose=True,  # emits per-iteration loss to stdout
-    )
-    crf.fit(X_train, y_train)
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "wb") as f:
-        pickle.dump(crf, f)
 
-    file_size_kb = output_path.stat().st_size / 1024
-    logger.info("Model saved to %s (%.1f KB)", output_path, file_size_kb)
+    # CRFsuite saves in its own binary format; we write a pickle wrapper
+    # around the file path so CRFExtractor can load it.
+    crfsuite_path = str(output_path.with_suffix(".crfsuite"))
+
+    params = {
+        "c2": c2,
+        "max_iterations": max_iterations,
+        "feature.possible_transitions": 1,
+    }
+    if algorithm == "lbfgs":
+        params["c1"] = c1
+
+    logger.info("Streaming training data to CRFsuite (algorithm=%s, limit=%s)", algorithm, limit)
+    trainer = pycrfsuite.Trainer(algorithm=algorithm, params=params, verbose=True)
+
+    ds = load_dataset(data_dir, split="train")
+    total_docs = len(ds.documents)
+    logger.info("Scanning %d documents (skip_empty=True)", total_docs)
+
+    appended = 0
+    total_tokens = 0
+    for doc_idx, doc in enumerate(ds.documents):
+        if limit is not None and appended >= limit:
+            break
+
+        ann = ds.annotations.get(doc.doc_id)
+        if not ann:
+            continue
+
+        citations = [c for c in ann.citations if c.type in ("law", "case")]
+        if not citations:
+            continue
+
+        text = doc.text
+        token_spans = tokenize(text)
+        if not token_spans:
+            continue
+
+        tokens = [t[2] for t in token_spans]
+        features = [extract_features(tokens, i) for i in range(len(tokens))]
+
+        labels = ["O"] * len(token_spans)
+        for cit in citations:
+            label = cit.type.upper() + "_REF"
+            first = True
+            for i, (ts, te, _) in enumerate(token_spans):
+                if te <= cit.span.start:
+                    continue
+                if ts >= cit.span.end:
+                    break
+                labels[i] = f"B-{label}" if first else f"I-{label}"
+                first = False
+
+        # Convert feature dicts to pycrfsuite's string format
+        # (each feature is either "key" for boolean or "key=value" for string)
+        crf_features = [_dict_to_crfsuite_features(f) for f in features]
+        trainer.append(crf_features, labels)
+
+        # Free local refs immediately after append — the data is now
+        # in the C-side buffer.
+        del features, crf_features, labels
+        appended += 1
+        total_tokens += len(token_spans)
+
+        if appended % 200 == 0:
+            logger.info(
+                "Streamed %d/%s docs (scanned %d/%d, %d tokens)",
+                appended,
+                limit or "all",
+                doc_idx + 1,
+                total_docs,
+                total_tokens,
+            )
+
+    logger.info("Training data ready: %d docs, %d tokens. Fitting...", appended, total_tokens)
+    logger.info("Fitting CRF: algorithm=%s c1=%.3f c2=%.3f max_iter=%d", algorithm, c1, c2, max_iterations)
+    trainer.train(crfsuite_path)
+
+    # Wrap the path in a pickle for CRFExtractor's loader
+    with open(output_path, "wb") as f:
+        pickle.dump({"format": "crfsuite", "path": crfsuite_path}, f)
+
+    size_kb = Path(crfsuite_path).stat().st_size / 1024
+    logger.info("Model saved to %s (%.1f KB)", crfsuite_path, size_kb)
     return output_path
+
+
+def _dict_to_crfsuite_features(d: dict) -> list[str]:
+    """Convert a feature dict to pycrfsuite's list-of-strings format."""
+    out = []
+    for k, v in d.items():
+        if v is True:
+            out.append(k)
+        elif v is False:
+            continue
+        else:
+            out.append(f"{k}={v}")
+    return out
 
 
 # --- Extractor engine ---
@@ -403,17 +488,38 @@ class CRFExtractor:
         if model_path is None:
             model_path = Path(__file__).parent.parent / "data" / "crf_model.pkl"
         self._model_path = Path(model_path)
-        self._crf = None
+        self._tagger = None  # pycrfsuite.Tagger or sklearn_crfsuite.CRF
+        self._backend = None  # "crfsuite" or "sklearn"
 
     def _load_model(self):
-        if self._crf is not None:
+        if self._tagger is not None:
             return
         if not self._model_path.exists():
             raise FileNotFoundError(
                 f"CRF model not found at {self._model_path}. Train it first: python -m refex.engines.crf --train"
             )
         with open(self._model_path, "rb") as f:
-            self._crf = pickle.load(f)
+            obj = pickle.load(f)
+
+        # New format: dict with path to .crfsuite file (from pycrfsuite.Trainer)
+        if isinstance(obj, dict) and obj.get("format") == "crfsuite":
+            import pycrfsuite
+
+            crfsuite_path = obj["path"]
+            # If path is relative, resolve against the pickle's directory
+            p = Path(crfsuite_path)
+            if not p.is_absolute():
+                p = self._model_path.parent / p.name
+            if not p.exists():
+                # Try next to the pickle
+                p = self._model_path.with_suffix(".crfsuite")
+            self._tagger = pycrfsuite.Tagger()
+            self._tagger.open(str(p))
+            self._backend = "crfsuite"
+        else:
+            # Legacy: pickled sklearn_crfsuite.CRF
+            self._tagger = obj
+            self._backend = "sklearn"
 
     def extract(self, text: str) -> tuple[list[Citation], list[CitationRelation]]:
         """Extract citations from plain text using CRF tagging."""
@@ -423,7 +529,13 @@ class CRFExtractor:
         if not features:
             return [], []
 
-        labels = self._crf.predict_single(features)
+        if self._backend == "crfsuite":
+            # pycrfsuite expects list-of-strings features
+            crf_features = [_dict_to_crfsuite_features(f) for f in features]
+            labels = list(self._tagger.tag(crf_features))
+        else:
+            labels = self._tagger.predict_single(features)
+
         spans = bio_to_spans(labels, token_spans, text)
         citations = spans_to_citations(spans)
 
@@ -474,6 +586,12 @@ def main():
     parser.add_argument("--max-iter", type=int, default=50)
     parser.add_argument("--limit", type=int, default=None, help="Limit training to N docs")
     parser.add_argument(
+        "--algorithm",
+        choices=["lbfgs", "l2sgd"],
+        default="lbfgs",
+        help="Training algorithm: lbfgs (best F1, high memory) or l2sgd (lower memory, scales better)",
+    )
+    parser.add_argument(
         "--log-file",
         type=Path,
         default=Path("logs/crf.log"),
@@ -493,6 +611,7 @@ def main():
             c2=args.c2,
             max_iterations=args.max_iter,
             limit=args.limit,
+            algorithm=args.algorithm,
         )
         dt = time.perf_counter() - t0
         print(f"Training completed in {dt:.1f}s. Model: {model_path}")

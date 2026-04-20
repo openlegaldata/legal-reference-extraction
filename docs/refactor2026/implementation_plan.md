@@ -231,9 +231,19 @@ use `--engine regex+crf` when recall matters more than speed.
 
 ### Stream G — Phase 3: Transformer engine (optional, gated on F plateau)
 
-- [ ] G1. `TransformerLawExtractor` using `PaDaS-Lab/gbert-legal-ner` as default weights.
-- [ ] G2. Pulled in by the same `[ml]` extra as Stream F.
-- [ ] G3. GPU-batch inference path for Open Legal Data's batch ingestion.
+- [x] G1. `TransformerExtractor` in `src/refex/engines/transformer.py` with
+  `PaDaS-Lab/gbert-legal-ner` as the default model.  Supports custom
+  HuggingFace models via the ``model=`` parameter.
+- [x] G2. Pulled in by the same `[ml]` extra (`transformers`, `torch`).
+- [x] G3. GPU-batch inference via `extract_batch(texts, batch_size=...)`.  CPU by
+  default; pass `device="cuda"` or `device="mps"` for accelerator inference.
+  Long inputs are processed in overlapping windows.
+
+**Implementation status:** Code is complete; model training on MPS/GPU is
+user-driven (no in-repo training script for transformers — use HuggingFace
+Trainer API with the `to_hf_bio` serializer).  Benchmark engines: `transformer`
+(standalone) and `regex+transformer` (merged) are available via
+`--engine` flag.
 
 **Exit:** Orchestrator can choose engine per-document; regex stays default.
 
@@ -336,7 +346,7 @@ citations whose spans land correctly in the plain-text projection, and
 | D | Output format & adapters | C1–C4 | **done** | 100 |
 | E | Grundgesetz / Artikel | C1 | **done** | 100 |
 | F | CRF engine | D, A, HF dataset train split | **done** | 100 |
-| G | Transformer engine | F plateau | not started | 0 |
+| G | Transformer engine | F plateau | **code done** (needs training) | 80 |
 | H | Migration & deletion | D | **done** (H1-H4; internal legacy types remain until extractor rewrite) | 100 |
 | I | Short-form / id / supra / a.a.O. / ebenda | C1 | **done** | 100 |
 | J | Input format handling (plain / HTML / Markdown + per-source profiles) | C1 | **done** (J9 N/A after H2) | 100 |

@@ -116,7 +116,49 @@ def _build_extract_fn(engine: str):
 
         return extract
 
-    msg = f"Unknown engine: {engine!r}. Expected one of: regex, crf, regex+crf"
+    if engine == "transformer":
+        from refex.engines.transformer import TransformerExtractor
+
+        tx = TransformerExtractor()
+
+        def extract(text: str):
+            cits, _ = tx.extract(text)
+            return [_crf_citation_to_benchmark(c) for c in cits]
+
+        return extract
+
+    if engine == "regex+transformer":
+        from refex.engines.transformer import TransformerExtractor
+        from refex.extractor import RefExtractor
+
+        regex_ext = RefExtractor()
+        tx = TransformerExtractor()
+
+        def extract(text: str):
+            content = regex_ext.remove_markers(text)
+            markers = []
+            if regex_ext.do_law_refs:
+                markers.extend(regex_ext.extract_law_ref_markers(content, False))
+            if regex_ext.do_case_refs:
+                markers.extend(regex_ext.extract_case_ref_markers(content))
+            regex_cits = refmarkers_to_citations(markers, content)
+
+            tx_cits_raw, _ = tx.extract(content)
+            tx_cits = [_crf_citation_to_benchmark(c) for c in tx_cits_raw]
+
+            # Merge: drop transformer citations that overlap with regex
+            regex_spans = [(c.span.start, c.span.end) for c in regex_cits]
+            merged = list(regex_cits)
+            for c in tx_cits:
+                cs, ce = c.span.start, c.span.end
+                overlaps = any(cs < re_end and re_start < ce for re_start, re_end in regex_spans)
+                if not overlaps:
+                    merged.append(c)
+            return merged
+
+        return extract
+
+    msg = f"Unknown engine: {engine!r}. Expected one of: regex, crf, regex+crf, transformer, regex+transformer"
     raise ValueError(msg)
 
 
@@ -316,7 +358,7 @@ def main() -> None:
     parser.add_argument(
         "-e",
         "--engine",
-        choices=["regex", "crf", "regex+crf"],
+        choices=["regex", "crf", "regex+crf", "transformer", "regex+transformer"],
         default="regex",
         help="Which extraction engine to use (default: regex)",
     )
