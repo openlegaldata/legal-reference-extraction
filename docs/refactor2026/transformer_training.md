@@ -99,31 +99,106 @@ Use the first-token strategy to match our inference code.
 
 ## 2. Base Model Candidates
 
-Pick based on compute budget and domain match.  All are PyTorch-compatible
-via `transformers` and support token classification out of the box.
+Researched as of **April 2026**. Picks ordered by recommendation for
+German legal NER.  All are encoder-style token-classification compatible
+unless noted.
 
-| Model | Params | VRAM (fp32) | Domain | License | Notes |
-|-------|--------|------------|--------|---------|-------|
-| **`PaDaS-Lab/gbert-legal-ner`** | 110M | ~2 GB | German legal NER | MIT | **Recommended default.** Already fine-tuned on legal NER; shortest path to results. Label schema may need mapping. |
-| `deepset/gbert-base` | 110M | ~2 GB | General German | MIT | Strong general-purpose German BERT. Needs fine-tuning from scratch for our schema. |
-| `deepset/gbert-large` | 335M | ~5 GB | General German | MIT | Larger version. Better quality, slower inference. |
-| `dbmdz/bert-base-german-uncased` | 110M | ~2 GB | General German | MIT | Older but very widely used baseline. |
-| `xlm-roberta-base` | 280M | ~4 GB | Multilingual | MIT | Useful if you later extend beyond German. |
-| `microsoft/mdeberta-v3-base` | 280M | ~4 GB | Multilingual | MIT | Often best on NER among ~300M-param models. |
-| `stefan-it/german-gpt2` or similar | — | — | — | — | **Not recommended** — decoder-only models are poor for token classification. |
+### 2.1 Modern era (2024–2025) — recommended
 
-### 2.1 Suggested order
+| Model | HF ID | Params | Ctx | Release | License | Fit |
+|-------|-------|--------|-----|---------|---------|-----|
+| **ModernGBERT-1B** | `LSX-UniWue/ModernGBERT_1B` | 1.0B | 8192 | 2025-05 | **RAIL-M (research-only)** | **SOTA German NER** (SuperGLEBer NER 0.845; +8pp over XLM-R-XL at 3.5x smaller).  8192 ctx covers most legal decisions without windowing. |
+| **ModernGBERT-134M** | `LSX-UniWue/ModernGBERT_134M` | 134M | 8192 | 2025-05 | **RAIL-M (research-only)** | Best small-footprint German base.  SuperGLEBer avg 0.749 vs GBERT-base 0.718. |
+| **EuroBERT-610m** | `EuroBERT/EuroBERT-610m` | 610M | 8192 | 2025-03 | Apache-2.0 | Multilingual (15 EU languages incl. German) ModernBERT-style.  Matches XLM-R-XL (3.5B) on multilingual benchmarks. **Best commercial-license option**. |
+| EuroBERT-210m | `EuroBERT/EuroBERT-210m` | 210M | 8192 | 2025-03 | Apache-2.0 | Smaller multilingual alternative. |
+| EuroBERT-2.1B | `EuroBERT/EuroBERT-2.1B` | 2.1B | 8192 | 2025-03 | Apache-2.0 | Tops 10/18 multilingual tasks but requires A100-80GB for full fine-tune. |
 
-1. **Start with `deepset/gbert-base`** — clean slate, easy to reproduce.
-   Expected exact-span F1: 0.85–0.92 on the validation split after 3–5
-   epochs.
-2. **Try `PaDaS-Lab/gbert-legal-ner` as a warm start** — it's already
-   seen legal German, so fine-tuning from its checkpoint converges
-   faster.  Requires aligning the label head (remap or replace the final
-   classification layer to match our 5 labels: `O`, `B-LAW_REF`,
-   `I-LAW_REF`, `B-CASE_REF`, `I-CASE_REF`).
-3. **If you need headroom**, `gbert-large` or `mdeberta-v3-base` for the
-   final model.
+### 2.2 Classic baselines (still useful)
+
+| Model | HF ID | Params | Ctx | License | Fit |
+|-------|-------|--------|-----|---------|-----|
+| `deepset/gbert-base` | `deepset/gbert-base` | 110M | 512 | MIT | Proven German BERT, widely used for reproducibility comparisons. |
+| `deepset/gbert-large` | `deepset/gbert-large` | 335M | 512 | MIT | Larger German BERT. SuperGLEBer avg 0.768. |
+| `microsoft/mdeberta-v3-base` | `microsoft/mdeberta-v3-base` | 278M | 512 | MIT | Strong cross-lingual NER.  No v4 / mDeBERTa-v4 exists as of 2026-04. |
+| `xlm-roberta-large` | `FacebookAI/xlm-roberta-large` | 560M | 512 | MIT | Standard multilingual baseline; predictable fine-tuning behaviour. |
+
+### 2.3 Legal-domain pre-trained
+
+| Model | HF ID | Params | Ctx | License | Fit |
+|-------|-------|--------|-----|---------|-----|
+| `joelniklaus/legal-xlm-roberta-large` | — | ~560M | 512 | CC-BY-SA | Warm-started XLM-R-large with 128k legal BPE, trained on MultiLegalPile (689 GB, 24 languages incl. German).  Good starting point when training data is limited. |
+| `joelniklaus/legal-xlm-roberta-base` | — | ~200M | 512 | CC-BY-SA | Smaller version of above. |
+| `joelniklaus/legal-german-roberta-base` | — | ~125M | 512 | CC-BY-SA | **German-only** legal RoBERTa from MultiLegalPile. |
+| `PaDaS-Lab/gbert-legal-ner` | — | 110M | 512 | Unspecified | **Task model** (already NER fine-tuned with 18 classes).  Use as baseline, not as pre-training checkpoint — the classification head would need to be replaced. |
+
+### 2.4 Not recommended for this task
+
+- **`answerdotai/ModernBERT-base` / `ModernBERT-large`** — despite the
+  name, **trained English + code only**.  Model card explicitly warns
+  about non-English performance.  Use ModernGBERT or EuroBERT instead.
+- **`Alibaba-NLP/gte-multilingual-base`** — retrieval-contrastive
+  embedding model, not a good NER base.  If you want the mGTE
+  architecture, fine-tune from the MLM variant
+  (`gte-multilingual-mlm-base`, 306M, Apache-2.0).
+- **`jhu-clsp/mmBERT-base`** — the authors' own paper notes NER/POS is
+  not its strong suit due to the Gemma-2 tokenizer's word-boundary
+  behaviour.
+- **Decoder-only LLMs** (Qwen3, Llama, SmolLM, phi, German GPT-2) —
+  poor fit for token classification without substantial surgery.
+- **`xlm-roberta-xl` / `xxl`** — 3.5B/10.7B params; rarely worth the
+  compute over EuroBERT-2.1B or ModernGBERT-1B at 30–50% the size.
+- **`nlpaueb/legal-bert-*`** — English (EU/US) legal corpora only.
+
+### 2.5 VRAM estimates for fine-tuning
+
+Batch size 32, sequence length 512, AdamW optimiser, mixed precision
+(bf16 on Ampere+, fp16 elsewhere):
+
+| Class | VRAM (full FT) | VRAM (LoRA) |
+|-------|----------------|-------------|
+| 110–210M (gbert-base, EuroBERT-210m, ModernGBERT-134M) | **6–10 GB** | 2–4 GB |
+| 280–610M (mdeberta-v3, XLM-R-large, EuroBERT-610m, ModernGBERT-1B w/ grad-ckpt) | **14–22 GB** | 4–8 GB |
+| 1B (ModernGBERT-1B full FT) | **24–32 GB** (A100-40 or RTX 4090 + grad-ckpt) | 6–10 GB |
+| 2–3.5B (EuroBERT-2.1B, XLM-R-XL) | **40–80 GB** | 10–24 GB |
+| 10B+ (XLM-R-XXL) | Not practical for NER | 30–48 GB |
+
+ModernBERT-style models (ModernGBERT, EuroBERT) are 2–4× faster than
+classic XLM-R at seq 512 and scale much better at longer contexts,
+thanks to Flash-Attention 2 and local-global alternating attention.
+
+### 2.6 Recommended training order
+
+1. **First baseline: `deepset/gbert-base`** (110M, MIT, 512 ctx).  Easy,
+   fast, reproducible.  Expected Span F1 exact: 0.85–0.92 after 3–5
+   epochs.  Publish as the default model.
+2. **Quality target: `EuroBERT-610m`** (Apache-2.0, 8192 ctx).  Best
+   commercial-friendly model with enough capacity to saturate the
+   task.  Can replace gbert-base once metrics are confirmed.
+3. **Research target: `ModernGBERT-1B`** (RAIL-M research-only, 8192
+   ctx).  Highest expected F1 on German NER, but license prevents
+   commercial distribution.  Useful for internal evaluation and as an
+   upper bound on what's achievable with German pre-training.
+4. **Long-doc extension: any 8192-ctx model** (EuroBERT, ModernGBERT)
+   eliminates the need for our inference-time sliding window at
+   `max_length=512 / stride=128`.  Update `TransformerExtractor`'s
+   defaults to `max_length=4096` or higher when using a model that
+   supports it.
+5. **Small-footprint edge: `EuroBERT-210m`** or `ModernGBERT-134M`
+   when VRAM or CPU inference latency is tight.
+6. **Legal pre-adaptation**: `joelniklaus/legal-xlm-roberta-large`
+   (CC-BY-SA) if the training set is small (<5K documents) and
+   pre-adapted weights matter more than a modern architecture.
+
+### 2.7 License watch
+
+Stream G is blocked on a commercial-friendly baseline if the model is
+to be redistributed by OLDP:
+
+- **Apache-2.0**: EuroBERT family, ModernBERT (but English-only), mmBERT.
+- **MIT**: gbert-base/large, mdeberta-v3, xlm-roberta.
+- **CC-BY-SA**: joelniklaus/legal-* family — requires attribution + share-alike.
+- **RAIL-M (research-only)**: ModernGBERT family — cannot redistribute
+  commercially without explicit permission from LSX-UniWue.
 
 ---
 
@@ -271,14 +346,21 @@ var / CLI flag if needed.)
 Target metrics on the 821-doc validation split, measured with the
 benchmark's span F1 metric:
 
-| Engine | Span F1 exact | Span F1 overlap | Throughput (CPU) |
-|--------|---------------|-----------------|------------------|
-| Regex (current) | 0.734 | 0.887 | ~300 docs/s |
-| Regex + CRF | ~0.75 | ~0.91 | ~200 docs/s |
-| Regex + Transformer | **0.80+** | **0.93+** | ~20–50 docs/s |
-| Transformer alone | 0.85–0.92 | 0.93–0.95 | ~20–50 docs/s |
+| Engine | Base model | Span F1 exact | Span F1 overlap | Throughput (CPU) |
+|--------|------------|---------------|-----------------|------------------|
+| Regex (current) | — | 0.734 | 0.887 | ~300 docs/s |
+| Regex + CRF | sklearn-crfsuite | ~0.75 | ~0.91 | ~200 docs/s |
+| Regex + Transformer | gbert-base | **0.80+** | **0.93+** | ~20–50 docs/s |
+| Transformer alone | gbert-base | 0.85–0.92 | 0.93–0.95 | ~20–50 docs/s |
+| Transformer alone | EuroBERT-610m | 0.90–0.94 | 0.94–0.97 | ~15–35 docs/s |
+| Transformer alone | ModernGBERT-1B | **0.92–0.95** | **0.96–0.98** | ~8–15 docs/s (CPU), research-only |
 
-Transformer throughput on GPU: **1,000+ docs/s** with batching.
+Transformer throughput on GPU with batching: **1,000+ docs/s** for
+base-sized models, **300–500 docs/s** for 1B-param models.
+
+Long-context bonus: EuroBERT / ModernGBERT at 8192 ctx eliminates the
+`max_length=512 / stride=128` sliding window in
+`TransformerExtractor`, reducing inference overhead per doc.
 
 ---
 
