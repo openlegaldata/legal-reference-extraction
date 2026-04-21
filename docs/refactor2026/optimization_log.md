@@ -17,7 +17,10 @@ improvement → stop and document the plateau.
 | E0 | Add `--profile` / `--profile-output` to `benchmarks/run.py` (no hot-path change) | ✅ | 0.7338 | 0.8151 | 389.7 | 1.3 | 8.3 | `0fe847c` |
 | **E1** | Pre-compile `full_name`, `art_multi`, `art_single` patterns in `law_dnc._precompile_patterns`; plain-text callsites read from the cache, HTML path still builds inline | ✅ | **0.7338** | **0.8151** | **462.3** | 1.1 | 7.1 | `4642ac5` |
 | E2 | Cache reporter-pattern in `case._get_compiled_reporter_re` (code-consistency only; no measurable speed gain — Python's `re._compile` LRU already handled it) | ✅ | 0.7338 | 0.8151 | 460.6 | 1.2 | 7.1 | `76a1f3f` |
-| E3 | Pre-compile `_book_pattern_re` in `__init__`; add `multi_ref_sections` to the precompiled dict; multi-ref inner loop no longer recompiles the book alternation or the section splitter per marker | ✅ | 0.7338 | 0.8151 | 466.0 | 1.1 | 7.2 | _this commit_ |
+| E3 | Pre-compile `_book_pattern_re` in `__init__`; add `multi_ref_sections` to the precompiled dict; multi-ref inner loop no longer recompiles the book alternation or the section splitter per marker | ✅ | 0.7338 | 0.8151 | 466.0 | 1.1 | 7.2 | `21e8ebc` |
+| E4a | Single-pass ±500 court scan + distance-bucket classifier | ✅ | 0.7339 | 0.8151 | 435.9 | 1.2 | 7.8 | **reverted** |
+| E4b | Replace `content[start:end]` substring with `finditer(content, pos, endpos)`; keep 3-pass early-exit | ✅ | 0.7338 | 0.8151 | 462.2 | 1.1 | 7.2 | **reverted (within noise)** |
+| **final** | after revert of E4a/E4b; state matches `21e8ebc` (E3) | ✅ | **0.7338** | **0.8151** | **464.2** | 1.1 | 7.2 | `21e8ebc` |
 
 ## E1 — pre-compile remaining law patterns
 
@@ -73,6 +76,81 @@ budget.
 
 **Δ throughput: +1.2 %.**  Modest — confirms `search_court` is
 the bigger target left (E4).
+
+## E4 — court-search variants (both reverted)
+
+Two attempts on `src/refex/extractors/case.py::search_court`, both
+F1-neutral but throughput-neutral-or-worse and therefore reverted.
+
+**E4a (single-pass over ±500 window + distance buckets).**  Replace
+the three overlapping `finditer` scans with one scan of the widest
+window, then classify candidates into the 100 / 200 / 500 bucket
+that fully contains them.  Result: **−6.5 % throughput** on
+validation.  Reason: the original early-exits on the ±100 window
+whenever a candidate is within it (the common case).  Always
+scanning the ±500 window triples the regex work on the happy
+path.  Reverted.
+
+**E4b (keep 3-pass, use `pos`/`endpos` instead of slicing).**
+Replace `surrounding = content[start:end]` + `finditer(surrounding)`
+with `finditer(content, start, end)` — saves the substring
+allocation per pass but scans the same range.  Result:
+**−0.8 % throughput** (within noise).  Reverted.
+
+Takeaway: `search_court` is genuinely bounded by the regex-engine
+cost of matching the ~1,947-term court alternation against
+~200–1,000 chars per file number.  Moving the work around doesn't
+help; the remaining gains would need an algorithmic rethink of
+how we propose court candidates (e.g. a lightweight pre-filter
+that narrows the alternation before the full scan) — out of scope
+for this pass.
+
+## Stop reason — plateau reached
+
+Per the pre-registered stop rule, two consecutive experiments
+delivering <1 % throughput improvement ends the loop.  E2 (−0.4 %)
+and E4b (−0.8 %) both fell below the bar, with E3 (+1.2 %) in
+between.  E4a was a clear regression.  Total gain landed in **E0
+diagnostic + E1 + E3**.
+
+## Summary — validation split (821 docs)
+
+| | baseline | optimized | Δ |
+|-|---------:|----------:|--:|
+| F1 exact     | 0.7338 | 0.7338 | 0.0000 |
+| F1 overlap   | 0.8151 | 0.8151 | 0.0000 |
+| Throughput   | 389.7  | **464.2** | **+19.1 %** |
+| Median ms    | 1.3    | 1.1    | −15.4 % |
+| P95 ms       | 8.3    | 7.2    | −13.3 % |
+| Max ms       | 58.5   | 40.2   | −31.3 % |
+
+## Summary — test split (1,009 docs), locked-in
+
+| | baseline | optimized | Δ |
+|-|---------:|----------:|--:|
+| F1 exact     | 0.7373 | 0.7373 | 0.0000 |
+| F1 overlap   | 0.8600 | 0.8600 | 0.0000 |
+| Throughput   | 455.9  | **487.8** | **+7.0 %** |
+| Median ms    | 1.1    | 1.1    | 0.0 |
+| P95 ms       | 6.9    | 6.5    | −5.8 % |
+
+F1 is bit-identical to 4 decimal places on both splits.  Net
+throughput gain is **+19.1 %** on validation and **+7.0 %** on
+test (the test-split baseline was already faster, so the same
+optimizations have less headroom).
+
+Next avenues — intentionally out of scope for this pass, tagged
+here for future reference:
+
+- Pre-filter court candidates (e.g. bloom-style or prefix-trie
+  over the 1,947 court names) before the regex pass, then confirm
+  with the full regex.  Would require care to preserve
+  positional semantics.
+- Cache the result of `infer_court`/`search_court` per
+  `(doc_id, fn_span)` when the same file number appears multiple
+  times in a document.
+- Replace the `RefMarker.replace_content_with_mask` string-concat
+  masking with an interval list (no string rebuild per match).
 
 ## E0 — profile-first diagnostic
 
