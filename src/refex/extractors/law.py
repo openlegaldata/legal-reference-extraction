@@ -72,16 +72,22 @@ class DivideAndConquerLawRefExtractorMixin:
 
         # B6: instance-level copy, not shared class state
         self._law_book_codes: list[str] = list(self.default_law_book_codes)
+        # E2 — per-code default_unit hint ("article", "paragraph", or missing).
+        # Populated from the optional second tab-separated column in
+        # ``law_book_codes.txt``.  Keys are lower-cased to match the canonical
+        # ``Ref.book`` value (``LawRefMixin.clean_book`` lower-cases books).
+        self._book_unit_hints: dict[str, str] = {}
 
         # B7: load full code list from bundled data file
         if self.use_precise_book_regex:
-            file_codes = self._load_book_codes_from_file()
+            file_codes, file_hints = self._load_book_codes_from_file()
             # Merge: file codes + default codes (no duplicates)
             seen = {c.lower() for c in self._law_book_codes}
             for code in file_codes:
                 if code.lower() not in seen:
                     self._law_book_codes.append(code)
                     seen.add(code.lower())
+            self._book_unit_hints.update(file_hints)
 
         # B5: pre-compile the book regex once
         self._book_ref_regex = self._build_law_book_ref_regex(self._law_book_codes)
@@ -90,17 +96,47 @@ class DivideAndConquerLawRefExtractorMixin:
         self._book_pattern_re: re.Pattern = re.compile(self._book_ref_regex)
 
     @staticmethod
-    def _load_book_codes_from_file() -> list[str]:
-        """Load law book codes from the bundled data file."""
+    def _load_book_codes_from_file() -> tuple[list[str], dict[str, str]]:
+        """Load law book codes from the bundled data file.
+
+        Returns ``(codes, unit_hints)``.  Each line is ``<code>`` or
+        ``<code>\\t<unit>`` where ``<unit>`` is ``article`` or ``paragraph``.
+        Lines without a tab are treated as unit-less (hint omitted).
+        """
         data_files = importlib.resources.files("refex") / "data"
         code_path = data_files / "law_book_codes.txt"
+        codes: list[str] = []
+        hints: dict[str, str] = {}
         try:
             with importlib.resources.as_file(code_path) as path:
                 with open(path) as f:
-                    return [line.strip() for line in f if line.strip()]
+                    for raw in f:
+                        line = raw.rstrip("\n")
+                        if not line.strip():
+                            continue
+                        parts = line.split("\t", 1)
+                        code = parts[0].strip()
+                        if not code:
+                            continue
+                        codes.append(code)
+                        if len(parts) == 2:
+                            unit = parts[1].strip().lower()
+                            if unit in ("article", "paragraph"):
+                                hints[code.lower()] = unit
         except FileNotFoundError:
             logger.warning("law_book_codes.txt not found, using defaults only")
-            return []
+        return codes, hints
+
+    def get_unit_hint(self, book_code: str | None) -> str | None:
+        """Return the authoritative default unit for ``book_code`` (E2).
+
+        ``book_code`` comparison is case-insensitive.  Returns ``None`` when
+        the data file has no annotation for this code — callers should fall
+        back to their text-prefix heuristic.
+        """
+        if not book_code:
+            return None
+        return self._book_unit_hints.get(book_code.lower())
 
     @property
     def law_book_codes(self) -> list[str]:

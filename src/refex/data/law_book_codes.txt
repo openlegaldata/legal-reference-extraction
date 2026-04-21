@@ -111,7 +111,7 @@ BEGDV 3
 BEGDV 6
 BEGebV 2008
 BFStrMG
-BGB
+BGB	paragraph
 BGBEG
 BGSG 1994
 BHO
@@ -481,7 +481,7 @@ GärtnAusbV
 GüKG 1998
 GüKGrKabotageV 2012
 HAG
-HGB
+HGB	paragraph
 HGBEG
 HGrG
 HRG
@@ -808,18 +808,18 @@ SEAG
 SEBG
 SEIVerfMAusbV 2004
 SG
-SGB 1
-SGB 10
-SGB 11
-SGB 12
-SGB 2
-SGB 3
-SGB 4
-SGB 5
-SGB 6
-SGB 7
-SGB 8
-SGB 9
+SGB 1	paragraph
+SGB 10	paragraph
+SGB 11	paragraph
+SGB 12	paragraph
+SGB 2	paragraph
+SGB 3	paragraph
+SGB 4	paragraph
+SGB 5	paragraph
+SGB 6	paragraph
+SGB 7	paragraph
+SGB 8	paragraph
+SGB 9	paragraph
 SGG
 SLV 2002
 SPV
@@ -898,10 +898,10 @@ StBDV
 StBGebV
 StBerG
 StFachAngAusbV
-StGB
+StGB	paragraph
 StGBEG
 StGebO 2011
-StPO
+StPO	paragraph
 StRSaarEG
 StUG
 StV/WasAusbV
@@ -1024,8 +1024,8 @@ VerschG
 ViehVerkV 2007
 VulkAusbV 2004
 VwFAngAusbV 1999
-VwGO
-VwVfG
+VwGO	paragraph
+VwVfG	paragraph
 WDO 2002
 WG
 WHG 2009
@@ -1076,7 +1076,7 @@ ZHG§8DV
 ZIV
 ZO-Zahnärzte
 ZO-Ärzte
-ZPO
+ZPO	paragraph
 ZPOEG
 ZSG
 ZTechAusbV
@@ -1163,7 +1163,7 @@ Arbeitsplatzschutzgesetz
 Arbeitssicherheit
 ArchG BY
 Arzneimittelgesetz
-AsylG
+AsylG	paragraph
 AsylVfG
 AsylbLG
 Asylverfahrensgesetz
@@ -1189,7 +1189,7 @@ BKatV
 BKleingG
 BLV
 BMG
-BNatSchG
+BNatSchG	paragraph
 BOKraft
 BPflV
 BPolG
@@ -1206,7 +1206,7 @@ BVO
 BVSG NW
 BWG
 BWO
-BauGB
+BauGB	paragraph
 BauKaG NRW
 BauO BY
 BauO LSA
@@ -1322,7 +1322,7 @@ EOG
 ESch-VO
 EStDV
 EUStBV
-EUV
+EUV	article
 EUrlDbV
 EV
 EVZStiftG
@@ -1376,7 +1376,7 @@ GAL
 GBV
 GFG
 GFlHG
-GG
+GG	article
 GGV
 GKG
 GKG-LSA
@@ -1709,15 +1709,15 @@ RsprEinhG
 SAG
 SBG
 SEG
-SGB II
-SGB III
-SGB IV
-SGB IX
-SGB VI
-SGB VII
-SGB VIII
-SGB XI
-SGB XII
+SGB II	paragraph
+SGB III	paragraph
+SGB IV	paragraph
+SGB IX	paragraph
+SGB VI	paragraph
+SGB VII	paragraph
+SGB VIII	paragraph
+SGB XI	paragraph
+SGB XII	paragraph
 SLV
 SOG
 SOG LSA

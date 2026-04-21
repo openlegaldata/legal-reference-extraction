@@ -24,7 +24,7 @@ class RegexLawExtractor(DivideAndConquerLawRefExtractorMixin):
 
     def extract(self, text: str) -> tuple[list[Citation], list[CitationRelation]]:
         markers = self.extract_law_ref_markers(text, is_html=False)
-        citations = _law_markers_to_citations(markers)
+        citations = _law_markers_to_citations(markers, unit_hint=self.get_unit_hint)
         return citations, []
 
 
@@ -37,8 +37,17 @@ class RegexCaseExtractor(CaseRefExtractorMixin):
         return citations, []
 
 
-def _law_markers_to_citations(markers: list[RefMarker]) -> list[Citation]:
-    """Convert law RefMarkers to typed LawCitation objects."""
+def _law_markers_to_citations(
+    markers: list[RefMarker],
+    unit_hint: callable | None = None,
+) -> list[Citation]:
+    """Convert law RefMarkers to typed LawCitation objects.
+
+    ``unit_hint`` (E2) is an optional ``(book_code) -> "article"|"paragraph"|None``
+    callable.  When it returns a non-None value for a book, that unit is
+    authoritative; otherwise we fall back to the marker-text prefix
+    heuristic (``Art.*`` → article, else paragraph).
+    """
     citations: list[Citation] = []
     for marker in markers:
         span = Span(start=marker.start, end=marker.end, text=marker.text)
@@ -46,8 +55,16 @@ def _law_markers_to_citations(markers: list[RefMarker]) -> list[Citation]:
             if ref.ref_type != RefType.LAW:
                 continue
             cid = make_citation_id(span, "regex")
-            # Detect Art./Artikel by marker text
+            # Detect Art./Artikel by marker text (fallback heuristic)
             is_article = marker.text.lstrip().startswith(("Art", "art"))
+
+            # E2: authoritative override from the data file when present.
+            hint = unit_hint(ref.book) if unit_hint else None
+            if hint == "article":
+                is_article = True
+            elif hint == "paragraph":
+                is_article = False
+
             citations.append(
                 LawCitation(
                     span=span,
