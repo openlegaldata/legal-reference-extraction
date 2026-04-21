@@ -185,6 +185,8 @@ def run_benchmark(
     limit: int | None = None,
     split: str = "test",
     engine: str = "regex",
+    profile: bool = False,
+    profile_output: Path | None = None,
 ) -> tuple[BenchmarkResult, dict]:
     """Run the full benchmark pipeline.
 
@@ -196,6 +198,11 @@ def run_benchmark(
             - "regex" (default): legacy regex extractors with span optimizations
             - "crf": CRF-only
             - "regex+crf": both, merged via orchestrator
+        profile: If True, wrap the extraction loop in a cProfile context
+            and print the top-20 callers by cumulative time on stderr
+            (and to ``profile_output`` when provided). Off by default.
+        profile_output: Optional path to write the full cProfile stats
+            (human-readable text). Ignored when ``profile`` is False.
 
     Returns:
         (BenchmarkResult, timing_stats) tuple.
@@ -218,6 +225,13 @@ def run_benchmark(
     t_extract_start = time.perf_counter()
 
     total_docs = len(dataset.documents) if limit is None else min(limit, len(dataset.documents))
+
+    profiler = None
+    if profile:
+        import cProfile
+
+        profiler = cProfile.Profile()
+        profiler.enable()
 
     for doc in dataset.documents:
         if limit is not None and processed >= limit:
@@ -260,6 +274,26 @@ def run_benchmark(
         print(file=sys.stderr)  # newline after progress
 
     t_extract = time.perf_counter() - t_extract_start
+
+    if profiler is not None:
+        import io
+        import pstats
+
+        profiler.disable()
+        buf = io.StringIO()
+        stats = pstats.Stats(profiler, stream=buf).sort_stats("cumulative")
+        stats.print_stats(20)
+        top = buf.getvalue()
+        sys.stderr.write("\n=== cProfile (top 20 by cumulative time) ===\n")
+        sys.stderr.write(top)
+        if profile_output is not None:
+            profile_output.parent.mkdir(parents=True, exist_ok=True)
+            with profile_output.open("w", encoding="utf-8") as f:
+                full = io.StringIO()
+                pstats.Stats(profiler, stream=full).sort_stats("cumulative").print_stats(60)
+                pstats.Stats(profiler, stream=full).sort_stats("tottime").print_stats(60)
+                f.write(full.getvalue())
+            sys.stderr.write(f"Full profile written to {profile_output}\n")
 
     # Compute timing stats
     timing: dict = {
@@ -386,6 +420,18 @@ def main() -> None:
         action="store_true",
         help="Show per-document extraction errors",
     )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Wrap the extract loop in cProfile; print top-20 to stderr on exit.",
+    )
+    parser.add_argument(
+        "--profile-output",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="With --profile, also write the full cProfile stats (top 60 by cumulative + tottime) to this file.",
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -393,7 +439,14 @@ def main() -> None:
 
     data_dir = args.data_dir or get_data_dir()
 
-    result, timing = run_benchmark(data_dir=data_dir, limit=args.limit, split=args.split, engine=args.engine)
+    result, timing = run_benchmark(
+        data_dir=data_dir,
+        limit=args.limit,
+        split=args.split,
+        engine=args.engine,
+        profile=args.profile,
+        profile_output=args.profile_output,
+    )
 
     if args.json:
         out = result.to_dict()
