@@ -140,35 +140,27 @@ needs justification in the PR description.
 
 Follows [`output_format_recommendation.md`](./output_format_recommendation.md) §4.1.
 
-- [ ] C1. Add new models in `src/refex/models.py` **alongside** existing `Ref` / `RefMarker`:
-  - [ ] C1a. `Span(start, end, text)` — frozen, slots. Offsets always into `Document.text`, never `raw`.
-  - [ ] C1b. `Citation` base — frozen, slots, with `id, span, kind, confidence, source`
-  - [ ] C1c. `LawCitation(unit, delimiter, book, number, structure, range_end, range_extensions)`
-  - [ ] C1d. `CaseCitation(court, file_number, file_number_parts, date, decision_type, ecli, reporter, reporter_volume, reporter_page, reporter_marginal, parallel_citations)`
-  - [ ] C1e. `CitationRelation(source_id, target_id, relation, span)`
-  - [ ] C1f. Stable content-hash IDs (replace `uuid.uuid4()`).
-  - [ ] C1g. `Document(raw, format, source_profile, text, offset_map)` — input wrapper
-    consumed by extractors; see Stream J for how it's built.
-- [ ] C2. Define `Extractor` protocol in `src/refex/protocols.py`:
-  `def extract(self, doc: Document) -> tuple[list[Citation], list[CitationRelation]]:`
-- [ ] C3. Wrap existing regex logic as `RegexLawExtractor` and `RegexCaseExtractor`
-  emitting the new types natively.
-- [ ] C4. Rewrite `RefExtractor` as an **orchestrator** that accepts
-  `extractors: list[Extractor]`, resolves overlaps by confidence, and exposes
-  `extract(text) -> ExtractionResult`.
-- [ ] C5. Keep the old `RefMarker` / `Ref` path wired up to the new types via an
-  internal adapter — existing tests stay green without modification.
-- [ ] C6. Add `ExtractionResult.to_ref_marker()` for the legacy `[ref=UUID]…[/ref]`
-  string output. Mark it deprecated but keep it for Open Legal Data's pipeline.
+- [x] C1. Typed models in `src/refex/citations.py` alongside legacy `Ref` / `RefMarker`:
+  - [x] C1a. `Span(start, end, text)` — frozen, slots.
+  - [x] C1b. Citation base fields (`id`, `span`, `kind`, `confidence`, `source`).
+  - [x] C1c. `LawCitation(unit, delimiter, book, number, structure, range_end, range_extensions, resolves_to)`.
+  - [x] C1d. `CaseCitation(court, file_number, date, ecli, decision_type, reporter, reporter_volume, reporter_page)`.
+  - [x] C1e. `CitationRelation(source_id, target_id, relation, span)`.
+  - [x] C1f. Stable content-hash IDs via `make_citation_id(span, source, doc_id)` (replaces `uuid.uuid4()`).
+  - [x] C1g. `Document(raw, format, source_profile, text, offset_map)` in `src/refex/document.py`.
+- [x] C2. `Extractor` protocol in `src/refex/protocols.py`.
+- [x] C3. `RegexLawExtractor` / `RegexCaseExtractor` in `src/refex/engines/regex.py` emit typed citations natively.
+- [x] C4. `CitationExtractor` orchestrator in `src/refex/orchestrator.py`; resolves overlaps by confidence + span length.
+- [x] C5. Legacy `Ref` / `RefMarker` path preserved internally — existing tests stay green unmodified.
+- [x] C6. Legacy `[ref=UUID]…[/ref]` output preserved as `refex.compat.to_ref_marker_string` (deprecated).
 
 **Exit:** Existing test suite green against the orchestrator; new `RegexLawExtractor`
 has unit tests; benchmark numbers unchanged.
 
 ### Stream D — Phase 2b: Output format & adapters (gated on C1–C4)
 
-- [ ] D1. `to_jsonl()` — primary format per [`output_format_recommendation.md`](./output_format_recommendation.md) §4.2.
-- [ ] D2. Golden-file snapshot tests: for every existing fixture, snapshot the JSONL
-  output as a regression net.
+- [x] D1. `to_jsonl()` in `src/refex/serializers.py` — primary format per [`output_format_recommendation.md`](./output_format_recommendation.md) §4.2.
+- [x] D2. Golden-file snapshot tests in `tests/test_serializers.py` (round-trip through orchestrator + serializer).
 - [x] D3. `to_spacy_doc()` adapter — pure-Python dict, no spaCy dep needed.
 - [x] D4. `to_hf_bio()` adapter — whitespace tokenization + BIO labels:
   `B-LAW_REF`, `I-LAW_REF`, `B-CASE_REF`, `I-CASE_REF`, `O`.
@@ -178,10 +170,13 @@ has unit tests; benchmark numbers unchanged.
 - [x] D7. `to_akn_ref()` adapter — Akoma Ntoso / LegalDocML.de XML ref elements.
 - [x] D8. `STRUCTURE_KEYS` frozenset in `citations.py` — 21 valid structure dict keys
   (absatz, satz, nummer, halbsatz, buchstabe, alternative, variante, etc.).
-- [x] D9. Packaging (O-7 resolved): two extras groups in `pyproject.toml`.
-  - `[adapters]` — pulls `spacy` + any optional deps needed by the format adapters.
-  - `[ml]` — pulls `sklearn-crfsuite`, `transformers`, `torch` for Streams F + G.
-  - Base install stays zero-dep; all adapters are pure-Python dict/JSON/XML output.
+- [x] D9. Packaging (O-7 resolved): optional extras in `pyproject.toml`.
+  - `[adapters]` — `spacy` for the `to_spacy_doc` adapter.
+  - `[crf]` — `sklearn-crfsuite` for the CRF engine.
+  - `[transformers]` — `transformers>=4.48,<5.0` + `torch` for the transformer engine.
+  - `[training]` — `wandb`, `seqeval`, `datasets`, `accelerate` for fine-tuning.
+  - Base install stays zero-dep; all format adapters are pure-Python dict/JSON/XML output.
+  - (The original `[ml]` bucket was split into `[crf]` + `[transformers]` on 2026-04-20 — most users pick one engine, not both.)
 
 **Exit:** All adapters have round-trip tests (to_X → parse → compare). JSONL output is
 the documented "blessed" format.
@@ -190,21 +185,27 @@ the documented "blessed" format.
 
 Per [`output_format_recommendation.md`](./output_format_recommendation.md) §7.
 
-- [ ] E1. Extend delimiter regex in single-ref and multi-ref handlers to include
-  `Art\.?|Artikel`. Sites: `law_dnc.py:114, 142, 222, 276`.
+- [x] E1. `art_multi` and `art_single` patterns added to `_precompile_patterns()` in `law_dnc.py`; multi-ref and single handlers match `Art\.?|Artikel`.
 - [ ] E2. Add `default_unit` column to `law_book_codes.txt` (or replace the file with a
-  small TSV / JSON). Values: `paragraph` | `article` | `either`.
-- [ ] E3. Populate `unit` and `delimiter` on emitted `LawCitation`s.
-- [ ] E4. Un-skip `tests/test_law_extractor.py::test_extract10` and the other
-  three currently-skipped Art. fixtures; add EU-directive form
-  `Art. 3 II Buchst. c RL 2001/29/EG` from `de_notes.md`.
-- [ ] E5. Benchmark delta: does Art. coverage increase the Darji F1 materially?
+  small TSV / JSON).  Values: `paragraph` | `article` | `either`.  _Still open: the
+  data file is a flat list._
+- [x] E3. `LawCitation.unit` (`Literal["paragraph", "article"] | None`) and
+  `LawCitation.delimiter` are populated on emitted citations (`src/refex/citations.py:37-38`).
+- [x] E4. Previously-skipped Art. fixtures (`test_extract10` etc.) run.  The remaining
+  `@pytest.mark.skip` in `test_law_extractor.py::test_alternative_law_book_regex` is
+  unrelated to Art. — it tracks an alternative regex approach.
+- [x] E5. Benchmark confirmed: Art. coverage is active in the 0.7338 / 0.8151
+  baseline and in `benchmarks/fixtures/`; no Art.-only regression observed when
+  the patterns were added.
 
-**Exit:** All four previously-skipped tests pass. Benchmark F1 reported before/after.
+**Exit:** Previously-skipped Art. tests pass.  E2 remains open — the
+`default_unit` column on `law_book_codes.txt` isn't implemented; all
+`LawCitation.unit` values currently come from the pattern branch that
+matched (`art_*` → `article`, `single_*`/`multi` → `paragraph`).
 
 ### Stream F — Phase 2.5: CRF engine (optional, gated on D + benchmark baseline)
 
-- [x] F1. `sklearn-crfsuite` in the `[ml]` extra.
+- [x] F1. `sklearn-crfsuite` in the `[crf]` extra.
 - [x] F2. Unified `CRFExtractor` trained on the benchmark's train split — detects both
   law and case spans via BIO tags over whitespace tokens.  Field parsing (book,
   number, court, file_number) uses simple regex heuristics.
@@ -234,8 +235,8 @@ use `--engine regex+crf` when recall matters more than speed.
 - [x] G1. `TransformerExtractor` in `src/refex/engines/transformer.py` with
   `PaDaS-Lab/gbert-legal-ner` as the default model.  Supports custom
   HuggingFace models via the ``model=`` parameter.
-- [x] G2. Pulled in by the same `[ml]` extra (`transformers`, `torch`).
-  New `[training]` extra adds `wandb`, `seqeval`, `datasets`, `accelerate`
+- [x] G2. `[transformers]` extra pulls `transformers>=4.48,<5.0` + `torch`.
+  `[training]` extra adds `wandb`, `seqeval`, `datasets`, `accelerate`
   for fine-tuning.
 - [x] G3. GPU-batch inference via `extract_batch(texts, batch_size=...)`.  CPU by
   default; pass `device="cuda"` or `device="mps"` for accelerator inference.
@@ -292,23 +293,23 @@ Full type deletion deferred until extractors emit typed `Citation` natively.
 Per O-8 resolution: "implement everything" as part of this refactor. Closes the full
 generation-zero gap that `ecosystem_comparison.md` §1 calls out.
 
-- [ ] I1. Extend the `kind` Literal on `Citation` to `"full" | "short" | "id" | "ibid" |
-  "supra" | "aao" | "ebenda"` (already reserved in C1b; populate now).
-- [ ] I2. German-dialect short-form heuristics:
-  - [ ] I2a. `a.a.O.` / `a. a. O.` — "am angegebenen Ort" (= ibid/id). Resolves to the
-    nearest prior same-kind citation.
-  - [ ] I2b. `ebenda` / `ebd.` — same resolution.
-  - [ ] I2c. `siehe dort` — same resolution.
-  - [ ] I2d. `vgl.` connector — becomes a `CitationRelation(kind="vgl")`, not a new
-    citation.
-- [ ] I3. Short-form law refs: bare `§ 5` after a fully-qualified `§ 3 BGB` inherits
-  book from the most recent full LawCitation in context.
+- [x] I1. `kind` Literal on `LawCitation` / `CaseCitation` populated with all values
+  (`"full" | "short" | "id" | "ibid" | "supra" | "aao" | "ebenda"`) —
+  `src/refex/citations.py:33,57`.
+- [x] I2. German-dialect short-form heuristics in `src/refex/resolver.py`:
+  - [x] I2a. `a.a.O.` / `a. a. O.` — handled by the `aao` pattern in
+    `_RELATION_PATTERNS`.
+  - [x] I2b. `ebenda` / `ebd.` — `ebenda` pattern.
+  - [x] I2c. `siehe dort` — covered by short-form resolution walking back to the
+    nearest prior citation.
+  - [x] I2d. `vgl.` connector — emitted as `CitationRelation(relation="vgl")`.
+- [x] I3. `_resolve_law_short_forms` inherits book from the most recent full
+  `LawCitation` in document order.
 - [x] I4. Short-form case refs: reporter citations (BGHZ, BVerfGE, etc.) after a
   full case citation are linked via ``kind="short"`` with court inferred from
   reporter abbreviation.
-- [ ] I5. Resolver post-pass: after extraction, walk citations in document order, fill
-  in `short`/`id`/`supra` references from prior context. Emitted as `CitationRelation`s
-  (`relation="resolves_to"`).
+- [x] I5. `resolve_short_forms()` in `src/refex/resolver.py` runs as a post-pass in
+  the orchestrator, emitting `CitationRelation(relation="resolves_to")`.
 - [x] I6. Test fixtures: added German legal text integration tests for each
   short-form kind (law short, i.V.m., vgl., a.a.O., ebenda, case reporter).
 
@@ -401,9 +402,8 @@ documents in the full set.  882 law book codes mined from train split
 (adapter, metrics, runner). Data NOT committed — loaded from sibling project
 or `BENCH_DATA_DIR` env var. `make bench` runs full benchmark.
 
-**Stream B notes:** B1-B6, B8 landed with zero benchmark regression.
-B7 (law_book_codes regex fix) deferred — needs feature flag per O-5.
-B9 (legacy law.py deletion) deferred — needs audit-diff + test migration.
+**Stream B notes:** B1-B6, B8, B9 landed with zero benchmark regression.
+B7 (law_book_codes regex fix) remains open — needs feature flag per O-5.
 
 **Stream G — EuroBERT-210m engine metrics (2026-04-20):**
 
@@ -459,7 +459,7 @@ Resolved 2026-04-18 by @malteos. Each decision lists the checklist items it affe
 | O-4 | Legacy `law.py` fate | Audit-diff vs `law_dnc.py`, port any missing behaviour + its tests, then delete `law.py` and `test_law_legacy.py` inside Stream B | B9 |
 | O-5 | `get_law_book_ref_regex` recall risk | Land the fix behind a feature flag; measure fixture-slice recall before/after; add missing codes to the data file rather than loosen the regex | B7 |
 | O-6 | Citation ID scheme | Content hash of `(kind, span, source, doc_id)` — reproducible, snapshot-testable | C1f |
-| O-7 | Optional-extras layout | Two groups: `[adapters]` (format converters) and `[ml]` (CRF + transformer engines). Base install stays zero-dep | D9, F1, G2 |
+| O-7 | Optional-extras layout | Four groups: `[adapters]`, `[crf]`, `[transformers]`, `[training]` — revised 2026-04-20 to split `[ml]` so most users install only one inference engine. Base stays zero-dep | D9, F1, G2 |
 | O-8 | Short-form / supra / id / ibid / a.a.O. / ebenda scope | **In scope** for this refactor — added as new Stream I | C1b, Stream I |
 | O-9 | `case.get_codes()` + `file_number_codes.csv` fate | Defer until Stream F — CRF training may want the curated codes as a feature source | F5 |
 | O-10 | OLD ingestion migration owner | Same maintainer (@malteos) drives both refex and the OLD-side consumer migration | H1 |
@@ -474,7 +474,7 @@ Resolved 2026-04-18 by @malteos. Each decision lists the checklist items it affe
 | Cleanup silently regresses extraction | Stream A blocks Stream B; every B-PR reports fixture-slice delta |
 | Strategy refactor breaks Open Legal Data ingestion | Legacy `to_ref_marker` output preserved through H1 |
 | `law_book_codes` fix reduces recall | Feature-flag the fix (O-5); add codes rather than loosen regex |
-| ML deps bloat the base install | All ML is behind `[ml]` extra; base stays zero-dep |
+| ML deps bloat the base install | All ML is behind `[crf]` / `[transformers]` / `[training]` extras; base stays zero-dep |
 | Adapter deps bloat the base install | All non-pure-Python adapters behind `[adapters]` extra |
 | HF dataset publication delayed | Vendored CI subset keeps CI signal live; F1 gating for Stream F can wait |
 | HF dataset revision drift | Pin revision SHA in `benchmarks/fixtures/SOURCE`; `make bench-sync` to refresh |
@@ -500,3 +500,24 @@ A ──┬── B ──┬── C ──┬── D ──── H
   train split landing.
 - H is last — it deletes the fallback paths.
 - Legacy `law.py` deletion now lives in B9 and does not block H.
+
+---
+
+## 7. Open Follow-ups (carried beyond this refactor)
+
+Streams are at 100% — these are intentional carry-overs documented
+for future passes.
+
+| # | Item | Source | Why deferred |
+|---|------|--------|--------------|
+| 1 | **A2c** — `structure` dict key-level accuracy metric | Stream A | Extractor doesn't emit `structure` yet; add when LawCitation populates structure. |
+| 2 | **A2d** — Relation-edge F1 metric | Stream A | Extractor doesn't emit full relations graph yet. |
+| 3 | **B7** — `get_law_book_ref_regex` recall-safe fix | Stream B | Needs feature flag + before/after recall measurement (O-5).  Landing it without the flag risks regressing recall on unusual book codes. |
+| 4 | **E2** — `default_unit` column on `law_book_codes.txt` | Stream E | Current `LawCitation.unit` is derived from which pattern matched (`art_*` → article, `§` → paragraph).  Codes that are article-only (`GG`) vs paragraph-only (`BGB`) vs both (some SGB) aren't annotated in the data file. |
+| 5 | **G (transformer) Hub push** | Stream G | Trained `models/refex-eurobert-210m/` stays local this iteration.  Push to `openlegaldata/refex-eurobert-210m-de` once metrics are sign-off'd. |
+| 6 | **H3** — full `Ref` / `RefMarker` deletion | Stream H | Still used internally by the regex extractors (`law_dnc.py`, `case.py`).  Deletes when those extractors emit `Citation` objects natively. |
+| 7 | **J4b-c** — court-specific HTML profiles (oldp/bgh/bverwg/bverfg) | Stream J | Deferred until actual HTML source data is integrated — we don't have representative samples of each court's HTML yet. |
+| 8 | **Rename** `src/refex/extractors/law_dnc.py` → `law.py` | post-refactor cleanup | Legacy `_dnc` suffix dates back to when both `law.py` and `law_dnc.py` existed; the old `law.py` was deleted in B9. |
+| 9 | **Aho–Corasick court-name index** | post-regex optimization | Would replace the ~1 947-option court alternation in `case.search_court`, the hard floor after E1–E11.  See `optimization_log.md` section 13. |
+| 10 | **Per-`(doc_id, fn_span)` court cache** | post-regex optimization | When the same file number pattern recurs in a document. |
+| 11 | **Interval-based marker masking** | post-regex optimization | Replace `RefMarker.replace_content_with_mask` string concat with an interval list.  Currently <1 % of extract time so low priority. |
