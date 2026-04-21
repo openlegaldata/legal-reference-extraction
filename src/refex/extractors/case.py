@@ -1,4 +1,3 @@
-import collections
 import importlib.resources
 import logging
 import re
@@ -279,26 +278,29 @@ class CaseRefExtractorMixin:
         """Heuristic search. Not yet very reliably (see error cases in test_case_extractor.py)"""
 
         court = None
+        fn_start = match.start(0)
+        fn_end = match.end(0)
+        court_re = self._get_compiled_court_re()  # E6: hoist attr lookup out of loop
+        content_len = len(content)
 
         # Search in surroundings for court names
         for diff in [100, 200, 500]:
             # TODO maybe search left first, then to the right
 
-            start = max(0, match.start(0) - diff)
-            end = min(len(content), match.end(0) + diff)
+            start = max(0, fn_start - diff)
+            end = min(content_len, fn_end + diff)
             surrounding = content[start:end]
 
-            # print('Surroundings: %s'  % content[start:end])
-
             # File number position in surroundings
-            fn_pos = match.start(0) - start
-            candidates = collections.OrderedDict()
+            fn_pos = fn_start - start
+            # E6: plain dict (Python 3.7+ preserves insertion order, so
+            # first-inserted == next(iter(candidates.values())) semantics
+            # are identical to the OrderedDict used previously).
+            candidates: dict[int, re.Match] = {}
 
-            for court_match in self._get_compiled_court_re().finditer(surrounding):
+            for court_match in court_re.finditer(surrounding):
                 candidate_pos = round((court_match.start(0) + court_match.end(0)) / 2)  # Position = center
                 candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
-
-                # print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
 
                 if candidate_dist not in candidates:
                     candidates[candidate_dist] = court_match
@@ -306,7 +308,7 @@ class CaseRefExtractorMixin:
                     logger.warning(f"Court candidate with same distance exist already: {court_match}")
 
             # Court is the candidate with smallest distance to file number
-            if len(candidates) > 0:
+            if candidates:
                 court = next(iter(candidates.values())).group("court")
                 # Stop searching if court was found with this range
                 break
