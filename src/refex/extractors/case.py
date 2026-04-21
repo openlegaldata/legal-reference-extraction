@@ -14,6 +14,14 @@ class CaseRefExtractorMixin:
     _compiled_sg_re: re.Pattern | None = None
     _compiled_reporter_re: re.Pattern | None = None
 
+    # E7 — class-level frozenset of codes that the file-number regex
+    # catches but which are never actual case references (currencies,
+    # frequency units, abbreviations).  Was rebuilt on every extract
+    # call.
+    _FILE_NUMBER_FALSE_POSITIVE_CODES: frozenset[str] = frozenset(
+        {"DM", "EUR", "Rn", "Nr", "Abs", "GHz", "MHz", "KHz", "TB", "GB", "MB", "KB"}
+    )
+
     def clean_text_for_tokenizer(self, text):
         """
         Remove elements from text that can make the tokenizer fail.
@@ -456,14 +464,13 @@ class CaseRefExtractorMixin:
             refs.append(marker)
 
         # --- File number citations: "10 C 23.12" ---
-        # Codes that look like case register codes but are common false positives
-        _FP_CODES = {"DM", "EUR", "Rn", "Nr", "Abs", "GHz", "MHz", "KHz", "TB", "GB", "MB", "KB"}
+        fp_codes = self._FILE_NUMBER_FALSE_POSITIVE_CODES
         for match in self._get_compiled_file_number_re().finditer(content):
             file_number = match.group(0)
             code = match.group("code")
 
             # Skip false-positive codes (currency, units, etc.)
-            if code in _FP_CODES:
+            if code in fp_codes:
                 continue
 
             # Skip if this span is already covered by a reporter match
