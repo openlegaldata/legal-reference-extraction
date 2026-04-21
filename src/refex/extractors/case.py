@@ -465,6 +465,11 @@ class CaseRefExtractorMixin:
 
         # --- File number citations: "10 C 23.12" ---
         fp_codes = self._FILE_NUMBER_FALSE_POSITIVE_CODES
+        # E8: flatten reporter spans to tuples once so the per-file-number
+        # overlap check uses plain tuple indexing instead of RefMarker
+        # attribute lookups.  Reporter markers are added in text order so
+        # the list is naturally sorted on (start, end).
+        reporter_spans = [(r.start, r.end) for r in refs]
         for match in self._get_compiled_file_number_re().finditer(content):
             file_number = match.group(0)
             code = match.group("code")
@@ -474,7 +479,8 @@ class CaseRefExtractorMixin:
                 continue
 
             # Skip if this span is already covered by a reporter match
-            if any(r.start <= match.start(0) < r.end for r in refs):
+            ms = match.start(0)
+            if any(rs <= ms < re_ for rs, re_ in reporter_spans):
                 continue
 
             court = self.infer_court(file_number, match, content) or self.search_court(match, content) or ""
