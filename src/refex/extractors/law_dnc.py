@@ -107,6 +107,9 @@ class DivideAndConquerLawRefExtractorMixin:
         """Pre-compile all regex patterns that use the book OR-list.
 
         This avoids re-compiling the ~20KB book pattern on every extraction call.
+        All patterns use the plain-text section sign (``§``); the HTML path
+        builds its own patterns inline because ``section_sign`` changes to
+        ``&#167;``.
         """
         section_sign = "§"
         sect_space = r"\s"
@@ -115,6 +118,9 @@ class DivideAndConquerLawRefExtractorMixin:
         bla = "(?=" + wd + ")"
         ac = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"
         sp = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
+        art_sign = r"Art(?:ikel|\.?)"
+        art_sect_space = r"\s"
+        full_name_suffixes = r"(?:gesetzes|gesetzbuches|gesetzbuch|gesetz|ordnung|verordnung|verfassung)"
 
         return {
             # Two-phase multi-ref: first match a bounded span of legal-ref
@@ -138,6 +144,38 @@ class DivideAndConquerLawRefExtractorMixin:
                 + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
                 + ac
                 + r" (?P<next_book>(i\.V\.m\.|iVm))"
+                + bla
+            ),
+            # Full law name: "§ 40 des Verwaltungsverfahrensgesetzes"
+            "full_name": re.compile(
+                section_sign
+                + sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?)).{0,80}?\s(?:des|der)\s(?:[a-zäüö][a-zäüöß]+\s)*"
+                + r"(?P<book>[A-ZÄÜÖ][A-Za-zÄÜÖäüöß]+?"
+                + full_name_suffixes
+                + r")"
+                + bla
+            ),
+            # Artikel multi-ref: "Art. 1, 2, 3 GG"
+            "art_multi": re.compile(
+                art_sign
+                + art_sect_space
+                + r"(?P<body>[0-9]+(?:\s?[a-z]?)"
+                + r"(?:\s*(?:,|;|und|bis)\s+[0-9]+(?:\s?[a-z]?))+)"
+                + r"\s+(?P<book>"
+                + bp
+                + r")"
+                + bla
+            ),
+            # Artikel single ref: "Art. 12 Abs. 1 GG"
+            "art_single": re.compile(
+                art_sign
+                + art_sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?))"
+                + ac
+                + r"\s+(?P<book>"
+                + bp
+                + r")"
                 + bla
             ),
         }
@@ -339,16 +377,19 @@ class DivideAndConquerLawRefExtractorMixin:
             logger.warning("Marker could not be assign to book: %s", markers_waiting_for_book)
 
         # Full law name references: § 40 des Verwaltungsverfahrensgesetzes
-        full_name_suffixes = r"(?:gesetzes|gesetzbuches|gesetzbuch|gesetz|ordnung|verordnung|verfassung)"
-        full_name_pattern = re.compile(
-            section_sign
-            + sect_space
-            + r"(?P<sect>[0-9]+(?:\s?[a-z]?)).{0,80}?\s(?:des|der)\s(?:[a-zäüö][a-zäüöß]+\s)*"
-            + r"(?P<book>[A-ZÄÜÖ][A-Za-zÄÜÖäüöß]+?"
-            + full_name_suffixes
-            + r")"
-            + book_look_ahead
-        )
+        if not is_html:
+            full_name_pattern = self._compiled_patterns["full_name"]
+        else:
+            full_name_suffixes = r"(?:gesetzes|gesetzbuches|gesetzbuch|gesetz|ordnung|verordnung|verfassung)"
+            full_name_pattern = re.compile(
+                section_sign
+                + sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?)).{0,80}?\s(?:des|der)\s(?:[a-zäüö][a-zäüöß]+\s)*"
+                + r"(?P<book>[A-ZÄÜÖ][A-Za-zÄÜÖäüöß]+?"
+                + full_name_suffixes
+                + r")"
+                + book_look_ahead
+            )
 
         for marker_match in full_name_pattern.finditer(content):
             marker_text = marker_match.group(0)
@@ -370,21 +411,23 @@ class DivideAndConquerLawRefExtractorMixin:
 
         # --- Artikel references (E1): Art. 12 GG, Art 1, 2, 3 GG ---
 
-        art_sign = r"Art(?:ikel|\.?)"
-        art_sect_space = r"\s"
-
         # Multi Art refs: "Art. 1, 2, 3 GG" — list of bare numbers separated by , ; und bis
         # Must contain at least one comma/und/bis separator to qualify as multi
-        art_multi_pattern = re.compile(
-            art_sign
-            + art_sect_space
-            + r"(?P<body>[0-9]+(?:\s?[a-z]?)"
-            + r"(?:\s*(?:,|;|und|bis)\s+[0-9]+(?:\s?[a-z]?))+)"
-            + r"\s+(?P<book>"
-            + book_pattern
-            + r")"
-            + book_look_ahead
-        )
+        if not is_html:
+            art_multi_pattern = self._compiled_patterns["art_multi"]
+        else:
+            art_sign = r"Art(?:ikel|\.?)"
+            art_sect_space = r"\s"
+            art_multi_pattern = re.compile(
+                art_sign
+                + art_sect_space
+                + r"(?P<body>[0-9]+(?:\s?[a-z]?)"
+                + r"(?:\s*(?:,|;|und|bis)\s+[0-9]+(?:\s?[a-z]?))+)"
+                + r"\s+(?P<book>"
+                + book_pattern
+                + r")"
+                + book_look_ahead
+            )
 
         for marker_match in art_multi_pattern.finditer(content):
             marker_text = marker_match.group(0)
@@ -405,16 +448,19 @@ class DivideAndConquerLawRefExtractorMixin:
                 content = marker.replace_content_with_mask(content)
 
         # Single Art ref: "Art. 12 Abs. 1 GG" or "Art 12 GG"
-        art_single_pattern = re.compile(
-            art_sign
-            + art_sect_space
-            + r"(?P<sect>[0-9]+(?:\s?[a-z]?))"
-            + any_content
-            + r"\s+(?P<book>"
-            + book_pattern
-            + r")"
-            + book_look_ahead
-        )
+        if not is_html:
+            art_single_pattern = self._compiled_patterns["art_single"]
+        else:
+            art_single_pattern = re.compile(
+                art_sign
+                + art_sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?))"
+                + any_content
+                + r"\s+(?P<book>"
+                + book_pattern
+                + r")"
+                + book_look_ahead
+            )
 
         for marker_match in art_single_pattern.finditer(content):
             marker_text = marker_match.group(0)
