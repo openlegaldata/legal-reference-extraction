@@ -512,7 +512,7 @@ for future passes.
 |---|------|--------|--------------|
 | 1 | **A2c** — `structure` dict key-level accuracy metric | Stream A | Extractor doesn't emit `structure` yet; add when LawCitation populates structure. |
 | 2 | **A2d** — Relation-edge F1 metric | Stream A | Extractor doesn't emit full relations graph yet. |
-| 3 | **B7** — `get_law_book_ref_regex` recall-safe fix | Stream B | Needs feature flag + before/after recall measurement (O-5).  Landing it without the flag risks regressing recall on unusual book codes. |
+| 3 | ~~**B7** — `get_law_book_ref_regex` recall-safe fix~~ | Stream B | **Closed 2026-04-21.**  Flag wired (`use_precise_book_regex`, env `REFEX_PRECISE_BOOK_REGEX`). Measurement in `optimization_log.md` §"B7 — precise vs generic": precise=ON gives +2.5 pp exact-F1, precise=OFF gives +2.7 pp overlap-F1.  Keeping `True` as default (aligns with the exact-F1 optimization metric). Flag stays as a permanent knob. |
 | 4 | **E2** — `default_unit` column on `law_book_codes.txt` | Stream E | Current `LawCitation.unit` is derived from which pattern matched (`art_*` → article, `§` → paragraph).  Codes that are article-only (`GG`) vs paragraph-only (`BGB`) vs both (some SGB) aren't annotated in the data file. |
 | 5 | **G (transformer) Hub push** | Stream G | Trained `models/refex-eurobert-210m/` stays local this iteration.  Push to `openlegaldata/refex-eurobert-210m-de` once metrics are sign-off'd. |
 | 6 | **H3** — full `Ref` / `RefMarker` deletion | Stream H | Still used internally by the regex extractors (`law.py`, `case.py`).  Deletes when those extractors emit `Citation` objects natively. |

@@ -1,5 +1,6 @@
 import importlib.resources
 import logging
+import os
 import re
 
 from refex.errors import RefExError
@@ -59,10 +60,16 @@ class DivideAndConquerLawRefExtractorMixin:
     # All text non-word symbols
     _default_word_delimiter = r"\s|\.|,|;|:|!|\?|\(|\)|\[|\]|\"|'|<|>|&"
 
-    # B7: feature flag — use precise code list (True) or generic pattern (False)
+    # B7: feature flag — use precise code list (True) or generic pattern (False).
+    # Can be overridden per-instance, or via env var REFEX_PRECISE_BOOK_REGEX=0 for
+    # A/B measurement against the generic pattern.
     use_precise_book_regex: bool = True
 
     def __init__(self):
+        env_flag = os.environ.get("REFEX_PRECISE_BOOK_REGEX")
+        if env_flag is not None:
+            self.use_precise_book_regex = env_flag not in ("0", "false", "False", "")
+
         # B6: instance-level copy, not shared class state
         self._law_book_codes: list[str] = list(self.default_law_book_codes)
 

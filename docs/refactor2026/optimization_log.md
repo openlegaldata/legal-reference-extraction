@@ -219,6 +219,41 @@ Corasick index over court names — which is outside the scope of
 done on 2026-04-21; the profile table above still references the
 old name for historical accuracy.)
 
+## B7 — precise vs generic book regex (2026-04-21)
+
+Closing the O-5 follow-up: measured `use_precise_book_regex=True`
+(current default) vs `=False` on the 821-doc validation split via
+the new `REFEX_PRECISE_BOOK_REGEX` env-var toggle.
+
+| metric | precise=ON | precise=OFF | delta |
+|---|---:|---:|---:|
+| total predictions | 21 517 | 19 335 | −2 182 |
+| **span F1 (exact)** | **0.7338** | 0.7170 | −0.0168 |
+| span F1 (overlap) | 0.8151 | **0.8420** | +0.0269 |
+| span P (exact) | 0.7298 | 0.7203 | −0.0095 |
+| span R (exact) | 0.7378 | 0.7136 | −0.0242 |
+| law F1 (exact) | **0.7969** | 0.7719 | −0.0250 |
+| law P (overlap) | 0.7476 | **0.8491** | +0.1014 |
+| law R (overlap) | 0.8699 | 0.8406 | −0.0293 |
+| book accuracy | 0.9569 | **0.9668** | +0.0099 |
+| case F1 (exact) | 0.6132 | 0.6132 | ±0.0000 |
+
+Logs: `logs/bench-b7-precise-on.json`,
+`logs/bench-b7-precise-off.json`.
+
+Conclusion: `precise=ON` (the shipped default) is **correct for
+exact-match F1** — the metric used throughout this refactor.  It
+pays ≈1 pp in overlap precision (wider generic-pattern matches
+align better with gold when scored by overlap) in exchange for
++2.4 pp exact-F1 and +2.5 pp exact-recall on law citations, with
+case F1 unchanged.  Book-field accuracy flips the other way
+(+1 pp for OFF, because the generic regex emits less precise book
+codes that the field-metric ignores).
+
+Keeping the flag as a permanent feature knob (env var
+`REFEX_PRECISE_BOOK_REGEX=0` to flip) so downstream users with
+overlap-biased evaluation can opt in.  No further action on B7.
+
 ## E0 — profile-first diagnostic
 
 Profile captured on 100 validation docs (`--profile -n 100`) and
