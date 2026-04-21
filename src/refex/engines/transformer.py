@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # --- Default model & label mapping ---
 
-DEFAULT_MODEL = "PaDaS-Lab/gbert-legal-ner"
+DEFAULT_MODEL = "openlegaldata/legal-reference-extraction-base-de"
 
 # The model may use different label names than refex's canonical scheme.
 # This mapping normalises common variants to our internal vocabulary.
