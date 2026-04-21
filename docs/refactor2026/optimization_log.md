@@ -20,7 +20,16 @@ improvement → stop and document the plateau.
 | E3 | Pre-compile `_book_pattern_re` in `__init__`; add `multi_ref_sections` to the precompiled dict; multi-ref inner loop no longer recompiles the book alternation or the section splitter per marker | ✅ | 0.7338 | 0.8151 | 466.0 | 1.1 | 7.2 | `21e8ebc` |
 | E4a | Single-pass ±500 court scan + distance-bucket classifier | ✅ | 0.7339 | 0.8151 | 435.9 | 1.2 | 7.8 | **reverted** |
 | E4b | Replace `content[start:end]` substring with `finditer(content, pos, endpos)`; keep 3-pass early-exit | ✅ | 0.7338 | 0.8151 | 462.2 | 1.1 | 7.2 | **reverted (within noise)** |
-| **final** | after revert of E4a/E4b; state matches `21e8ebc` (E3) | ✅ | **0.7338** | **0.8151** | **464.2** | 1.1 | 7.2 | `21e8ebc` |
+| E5 | Anchor pre-filter on ±500 window before full court regex | ✅ | 0.7338 | 0.8151 | 447.9 | 1.2 | 7.3 | **reverted** |
+| E6 | Hoist `court_re` attr lookup to local + swap `OrderedDict` for `dict` in `search_court` | ✅ | 0.7338 | 0.8151 | 466.3 | 1.1 | 7.2 | `a023ee7` |
+| E7 | Hoist `_FP_CODES` to class-level `frozenset` | ✅ | 0.7338 | 0.8151 | 463.6 | 1.1 | 7.1 | `375853a` |
+| E8 | Flatten reporter spans to `(start, end)` tuples for the per-file-number overlap check | ✅ | 0.7338 | 0.8151 | 466.7 | 1.1 | 7.2 | `12bac99` |
+| E9 | Lazy `set_uuid` (remove from extract path) | — | — | — | — | — | — | **skipped** (semantics change) |
+| E10 | Replace hot list-append loops | — | — | — | — | — | — | **skipped** (profile shows appends are `re` internals) |
+| E11 | Char class `[\s.;,:)]` instead of alternation in the court regex trailer; drop unused capture group | ✅ | 0.7338 | 0.8151 | 466.0 | 1.2 | 7.1 | `1ccfdfe` |
+| E12 | `replace_content_with_mask` → interval tracking | — | — | — | — | — | — | **skipped** (<1% of extract time per profile) |
+| E13 | Cache UUID or switch to stable id | — | — | — | — | — | — | **skipped** (same surface as E9) |
+| **final** | all landed commits applied (E0–E11 minus reverted) | ✅ | **0.7338** | **0.8151** | **469.3** | 1.1 | 7.1 | `1ccfdfe` |
 
 ## E1 — pre-compile remaining law patterns
 
@@ -113,44 +122,102 @@ and E4b (−0.8 %) both fell below the bar, with E3 (+1.2 %) in
 between.  E4a was a clear regression.  Total gain landed in **E0
 diagnostic + E1 + E3**.
 
-## Summary — validation split (821 docs)
+## E5–E11 — secondary experiments after the initial plateau
 
-| | baseline | optimized | Δ |
-|-|---------:|----------:|--:|
-| F1 exact     | 0.7338 | 0.7338 | 0.0000 |
-| F1 overlap   | 0.8151 | 0.8151 | 0.0000 |
-| Throughput   | 389.7  | **464.2** | **+19.1 %** |
-| Median ms    | 1.3    | 1.1    | −15.4 % |
-| P95 ms       | 8.3    | 7.2    | −13.3 % |
-| Max ms       | 58.5   | 40.2   | −31.3 % |
+A second pass of ten candidate optimizations (E5–E13) targeting
+`search_court` and other post-E3 hotspots.  Most landed as small
+code-quality cleanups with negligible speed impact; three were
+reverted or skipped.
+
+**Landed (small wins + cleanups, ~+1 % cumulative):**
+
+- **E6** — hoist `self._get_compiled_court_re()` to a local in
+  `search_court`, cache `match.start/end` + `len(content)` to
+  locals, swap `collections.OrderedDict` for `dict` (3.7+
+  insertion order).  +0.45 %.
+- **E7** — hoist the per-call `_FP_CODES` set literal to a
+  class-level `frozenset` (`_FILE_NUMBER_FALSE_POSITIVE_CODES`).
+  Within noise.
+- **E8** — flatten reporter-marker spans into `(start, end)` tuples
+  once per extract for the overlap check, avoiding attribute
+  lookups in the inner `any()`.  +0.67 %.
+- **E11** — replace the court regex trailer
+  `(\s|\.|;|,|:|\))` with `[\s.;,:)]`.  Same semantics, one fewer
+  capture group, cheaper dispatch in principle.  Within noise.
+
+**Reverted:**
+
+- **E5** — court-anchor pre-filter before the full court regex.
+  The pre-filter scan costs ~1 000 chars on every file-number hit,
+  but on the common case (court IS present) we still run the full
+  regex; net **−3.5 %** throughput. Reverted.
+
+**Skipped (judgement calls):**
+
+- **E9** — remove `set_uuid()` from extract path.  The `uuid`
+  attribute is part of `RefMarker`'s observable state; dropping
+  it would break any downstream code that reads it and
+  legitimately silently breaks `to_ref_marker_string` if callers
+  forget to `set_uuid` themselves.  Not worth it for ~5 ms gain.
+- **E10** — list-append optimization.  Profile showed the hot
+  `list.append` calls were inside CPython's `re._compiler`, not
+  user code.  Nothing to change in refex.
+- **E12** — swap `replace_content_with_mask` for interval
+  tracking.  Post-E3 profile shows it at **0.75 %** of extract
+  time; structural refactor doesn't pay off.
+- **E13** — same semantic surface as E9.
+
+## Summary — validation split (821 docs), all landed commits
+
+| | baseline | after E3 | **final (E11)** | Δ final vs baseline |
+|-|---------:|---------:|---------------:|--:|
+| F1 exact     | 0.7338 | 0.7338 | **0.7338** | 0.0000 |
+| F1 overlap   | 0.8151 | 0.8151 | **0.8151** | 0.0000 |
+| Throughput   | 389.7  | 464.2  | **469.3**  | **+20.4 %** |
+| Median ms    | 1.3    | 1.1    | 1.1        | −15.4 % |
+| P95 ms       | 8.3    | 7.2    | 7.1        | −14.5 % |
+| Max ms       | 58.5   | 40.2   | 40.4       | −30.9 % |
 
 ## Summary — test split (1,009 docs), locked-in
 
-| | baseline | optimized | Δ |
+| | baseline | **final** | Δ |
 |-|---------:|----------:|--:|
-| F1 exact     | 0.7373 | 0.7373 | 0.0000 |
-| F1 overlap   | 0.8600 | 0.8600 | 0.0000 |
-| Throughput   | 455.9  | **487.8** | **+7.0 %** |
-| Median ms    | 1.1    | 1.1    | 0.0 |
-| P95 ms       | 6.9    | 6.5    | −5.8 % |
+| F1 exact     | 0.7373 | **0.7373** | 0.0000 |
+| F1 overlap   | 0.8600 | **0.8600** | 0.0000 |
+| Throughput   | 455.9  | **489.3**  | **+7.3 %** |
+| Median ms    | 1.1    | 1.1        | 0.0 |
+| P95 ms       | 6.9    | 6.6        | −4.4 % |
 
-F1 is bit-identical to 4 decimal places on both splits.  Net
-throughput gain is **+19.1 %** on validation and **+7.0 %** on
-test (the test-split baseline was already faster, so the same
-optimizations have less headroom).
+F1 is bit-identical to 4 decimal places on both splits across all
+15 experiments.  Net throughput gain is **+20.4 %** on validation
+and **+7.3 %** on test.
 
-Next avenues — intentionally out of scope for this pass, tagged
-here for future reference:
+## Conclusion
 
-- Pre-filter court candidates (e.g. bloom-style or prefix-trie
-  over the 1,947 court names) before the regex pass, then confirm
-  with the full regex.  Would require care to preserve
-  positional semantics.
-- Cache the result of `infer_court`/`search_court` per
-  `(doc_id, fn_span)` when the same file number appears multiple
-  times in a document.
-- Replace the `RefMarker.replace_content_with_mask` string-concat
-  masking with an interval list (no string rebuild per match).
+The pre-compilation wins (E1, E3) captured the bulk of the
+reachable gain.  After that, `case.search_court` dominates the
+runtime (~33 % of extract time on 100 docs post-E3); its cost is
+bounded by the regex-engine's work on the ~1 947-option court
+alternation over the ±100/200/500 windows.  Moving that work
+around (E4a/E4b), pre-filtering it (E5), and micro-optimising its
+surroundings (E6, E7, E8, E11) did not move the needle further
+than a fraction of a percent.  A real next step would require
+changing the extraction algorithm itself — e.g. a compact Aho–
+Corasick index over court names — which is outside the scope of
+"tweaking the regex implementation".
+
+## TODO (follow-ups, out of scope for this pass)
+
+- **Rename `src/refex/extractors/law_dnc.py` → `law.py`.**  The
+  `_dnc` suffix dates back to when both `law.py` (legacy) and
+  `law_dnc.py` (divide-and-conquer) existed; the legacy file was
+  deleted in Stream B9 and the `_dnc` naming is now just noise.
+- Pre-filter court candidates with an Aho–Corasick index (above).
+- Cache `infer_court`/`search_court` per `(doc_id, fn_span)` for
+  docs with many file numbers in the same court context.
+- Replace `RefMarker.replace_content_with_mask` string concat
+  with interval tracking — would pay off on very long docs with
+  many markers (currently <1 % of extract time on the benchmark).
 
 ## E0 — profile-first diagnostic
 
