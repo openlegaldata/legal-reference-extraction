@@ -11,7 +11,7 @@ def test_ref_marker_basics():
     assert marker.text == text
     assert marker.start == 0
     assert marker.end == len(text)
-    assert marker.get_length() == len(text)
+    assert marker.end - marker.start == len(text)
     assert len(marker.get_references()) == 1
     assert marker.get_references()[0].book == "abc"
 

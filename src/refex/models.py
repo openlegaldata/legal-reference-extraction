@@ -1,7 +1,6 @@
 import logging
 import uuid
 from enum import Enum
-from functools import total_ordering
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +63,6 @@ class CaseRefMixin(BaseRef):
     court: str = ""
     date: str = ""
 
-    def get_case_repr(self) -> str:
-        return f"{self.court}/{self.file_number}/{self.date}"
-
 
 class LawRefMixin(BaseRef):
     book: str = ""
@@ -91,11 +87,7 @@ class LawRefMixin(BaseRef):
     def clean_section(sect: str) -> str:
         return sect.replace(" ", "").lower()
 
-    def get_law_repr(self):
-        return f"{self.book}/{self.section}"
 
-
-@total_ordering
 class Ref(LawRefMixin, CaseRefMixin, BaseRef):
     """
     A reference can point to all available types (RefType). Currently either law or case supported.
@@ -103,6 +95,8 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
     """
 
     def __lt__(self, other):
+        # Used by tests and internal sort calls in assert_refs (conftest.py).
+        # Not @total_ordering — only < is actually needed.
         if not isinstance(other, Ref):
             return NotImplemented
         return (
@@ -136,9 +130,9 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
 
     def __repr__(self):
         if self.ref_type == RefType.LAW:
-            data = self.get_law_repr()
+            data = f"{self.book}/{self.section}"
         elif self.ref_type == RefType.CASE:
-            data = self.get_case_repr()
+            data = f"{self.court}/{self.file_number}/{self.date}"
         else:
             raise ValueError(f"Unsupported ref type: {self.ref_type}")
 
@@ -192,8 +186,7 @@ class RefMarker:
         return content, marker_offset
 
     def replace_content_with_mask(self, content):
-        mask = "_" * self.get_length()
-
+        mask = "_" * (self.end - self.start)
         return content[: self.start] + mask + content[self.end :]
 
     def set_uuid(self):
@@ -206,13 +199,9 @@ class RefMarker:
         return self.references
 
     def get_start_position(self):
+        # Kept only for refex.compat.to_ref_marker_string, which sorts markers
+        # by position when rendering the legacy ``[ref=UUID]...[/ref]`` output.
         return self.start
-
-    def get_end_position(self):
-        return self.end
-
-    def get_length(self):
-        return self.end - self.start
 
     def __repr__(self):
         return f"<RefMarker({self.__dict__})>"

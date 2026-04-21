@@ -166,15 +166,13 @@ def test_case_clean_text_abbreviation(case_extractor):
 # --- RefMarker additional coverage ---
 
 
-def test_ref_marker_get_length():
+def test_ref_marker_positions():
     m = RefMarker(text="§ 1 BGB", start=10, end=17)
-    assert m.get_length() == 7
-
-
-def test_ref_marker_get_positions():
-    m = RefMarker(text="§ 1 BGB", start=10, end=17)
+    assert m.start == 10
+    assert m.end == 17
+    assert m.end - m.start == 7
+    # get_start_position is retained for refex.compat usage
     assert m.get_start_position() == 10
-    assert m.get_end_position() == 17
 
 
 def test_ref_marker_replace_content_with_mask():
