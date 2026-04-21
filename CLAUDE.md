@@ -7,7 +7,7 @@
 - `src/refex/citations.py` — typed citation models (`LawCitation`, `CaseCitation`, `Span`)
 - `src/refex/document.py` — `Document` model, HTML/Markdown normalization, offset mapping
 - `src/refex/engines/regex.py` — regex-based extraction engines
-- `src/refex/extractors/` — legacy law (`law_dnc.py`) and case (`case.py`) extractors (internal)
+- `src/refex/extractors/` — legacy law (`law.py`, divide-and-conquer) and case (`case.py`) extractors (internal)
 - `src/refex/serializers.py` — output format adapters (JSONL, BIO, spaCy, etc.)
 - `src/refex/resolver.py` — short-form citation resolution (a.a.O., ebenda, i.V.m.)
 - `src/refex/data/` — bundled data files (`law_book_codes.txt`, `file_number_codes.csv`)

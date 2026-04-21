@@ -276,7 +276,7 @@ EuroBERT-210m checkpoint saved as safetensors under
   `RefExtractor.extract()` no longer inserts `[ref=UUID]` markers into content.
   Legacy marker output preserved in `compat.py` for backward compatibility.
 - [x] H3. `Ref`/`RefType`/`RefMarker` remain in `models.py` as **internal** types
-  used by the regex extractors (`case.py`, `law_dnc.py`).  Not re-exported from
+  used by the regex extractors (`case.py`, `law.py`).  Not re-exported from
   public API.  Public API is `CitationExtractor` in `orchestrator.py`.  Full
   deletion deferred until extractors are rewritten to emit `Citation` objects
   directly (Stream F/G).
@@ -515,9 +515,8 @@ for future passes.
 | 3 | **B7** — `get_law_book_ref_regex` recall-safe fix | Stream B | Needs feature flag + before/after recall measurement (O-5).  Landing it without the flag risks regressing recall on unusual book codes. |
 | 4 | **E2** — `default_unit` column on `law_book_codes.txt` | Stream E | Current `LawCitation.unit` is derived from which pattern matched (`art_*` → article, `§` → paragraph).  Codes that are article-only (`GG`) vs paragraph-only (`BGB`) vs both (some SGB) aren't annotated in the data file. |
 | 5 | **G (transformer) Hub push** | Stream G | Trained `models/refex-eurobert-210m/` stays local this iteration.  Push to `openlegaldata/refex-eurobert-210m-de` once metrics are sign-off'd. |
-| 6 | **H3** — full `Ref` / `RefMarker` deletion | Stream H | Still used internally by the regex extractors (`law_dnc.py`, `case.py`).  Deletes when those extractors emit `Citation` objects natively. |
+| 6 | **H3** — full `Ref` / `RefMarker` deletion | Stream H | Still used internally by the regex extractors (`law.py`, `case.py`).  Deletes when those extractors emit `Citation` objects natively. |
 | 7 | **J4b-c** — court-specific HTML profiles (oldp/bgh/bverwg/bverfg) | Stream J | Deferred until actual HTML source data is integrated — we don't have representative samples of each court's HTML yet. |
-| 8 | **Rename** `src/refex/extractors/law_dnc.py` → `law.py` | post-refactor cleanup | Legacy `_dnc` suffix dates back to when both `law.py` and `law_dnc.py` existed; the old `law.py` was deleted in B9. |
-| 9 | **Aho–Corasick court-name index** | post-regex optimization | Would replace the ~1 947-option court alternation in `case.search_court`, the hard floor after E1–E11.  See `optimization_log.md` section 13. |
-| 10 | **Per-`(doc_id, fn_span)` court cache** | post-regex optimization | When the same file number pattern recurs in a document. |
-| 11 | **Interval-based marker masking** | post-regex optimization | Replace `RefMarker.replace_content_with_mask` string concat with an interval list.  Currently <1 % of extract time so low priority. |
+| 8 | **Aho–Corasick court-name index** | post-regex optimization | Would replace the ~1 947-option court alternation in `case.search_court`, the hard floor after E1–E11.  See `optimization_log.md` section 13. |
+| 9 | **Per-`(doc_id, fn_span)` court cache** | post-regex optimization | When the same file number pattern recurs in a document. |
+| 10 | **Interval-based marker masking** | post-regex optimization | Replace `RefMarker.replace_content_with_mask` string concat with an interval list.  Currently <1 % of extract time so low priority. |

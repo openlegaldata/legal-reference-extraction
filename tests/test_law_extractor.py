@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
+from refex.extractors.law import DivideAndConquerLawRefExtractorMixin
 from refex.models import Ref, RefType
 from tests.conftest import RESOURCE_DIR, assert_refs, get_book_codes_from_file
 

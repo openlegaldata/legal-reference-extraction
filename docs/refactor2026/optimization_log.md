@@ -208,16 +208,16 @@ Corasick index over court names — which is outside the scope of
 
 ## TODO (follow-ups, out of scope for this pass)
 
-- **Rename `src/refex/extractors/law_dnc.py` → `law.py`.**  The
-  `_dnc` suffix dates back to when both `law.py` (legacy) and
-  `law_dnc.py` (divide-and-conquer) existed; the legacy file was
-  deleted in Stream B9 and the `_dnc` naming is now just noise.
 - Pre-filter court candidates with an Aho–Corasick index (above).
 - Cache `infer_court`/`search_court` per `(doc_id, fn_span)` for
   docs with many file numbers in the same court context.
 - Replace `RefMarker.replace_content_with_mask` string concat
   with interval tracking — would pay off on very long docs with
   many markers (currently <1 % of extract time on the benchmark).
+
+(The `law_dnc.py` → `law.py` rename listed here previously was
+done on 2026-04-21; the profile table above still references the
+old name for historical accuracy.)
 
 ## E0 — profile-first diagnostic
 

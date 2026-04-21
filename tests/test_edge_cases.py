@@ -3,7 +3,7 @@
 import pytest
 
 from refex.errors import RefExError
-from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
+from refex.extractors.law import DivideAndConquerLawRefExtractorMixin
 from refex.models import BaseRef, Ref, RefMarker, RefType
 
 # --- models.py: line 25 (__hash__) ---
@@ -45,41 +45,41 @@ def test_ref_marker_mask_non_overlapping():
     assert content == "_______ foo _______ rest"
 
 
-# --- law_dnc.py: line 272 (law_book_codes is None) ---
+# --- law.py: line 272 (law_book_codes is None) ---
 
 
-def test_law_dnc_get_law_book_codes_none():
+def test_law_get_law_book_codes_none():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_codes = None
     codes = ext.get_law_book_codes()
     assert len(codes) > 0
 
 
-# --- law_dnc.py: lines 300, 303, 306 (get_law_book_ref_regex error paths) ---
+# --- law.py: lines 300, 303, 306 (get_law_book_ref_regex error paths) ---
 
 
-def test_law_dnc_get_law_book_ref_regex_empty():
+def test_law_get_law_book_ref_regex_empty():
     ext = DivideAndConquerLawRefExtractorMixin()
     with pytest.raises(RefExError, match="Cannot generate regex"):
         ext.get_law_book_ref_regex([])
 
 
-def test_law_dnc_get_law_book_ref_regex_optional():
+def test_law_get_law_book_ref_regex_optional():
     ext = DivideAndConquerLawRefExtractorMixin()
     with pytest.raises(ValueError, match="optional=True"):
         ext.get_law_book_ref_regex(["BGB"], optional=True)
 
 
-def test_law_dnc_get_law_book_ref_regex_group_name():
+def test_law_get_law_book_ref_regex_group_name():
     ext = DivideAndConquerLawRefExtractorMixin()
     with pytest.raises(ValueError, match="group_name=True"):
         ext.get_law_book_ref_regex(["BGB"], group_name=True)
 
 
-# --- law_dnc.py: lines 334-346 (context mode with §§ bis/und) ---
+# --- law.py: lines 334-346 (context mode with §§ bis/und) ---
 
 
-def test_law_dnc_context_bis():
+def test_law_context_bis():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_context = "bgb"
 
@@ -95,7 +95,7 @@ def test_law_dnc_context_bis():
     assert "670" in sections
 
 
-def test_law_dnc_context_und():
+def test_law_context_und():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_context = "bgb"
 
@@ -110,10 +110,10 @@ def test_law_dnc_context_und():
     assert "20" in sections
 
 
-# --- law_dnc.py: lines 384-385 (Anlage pattern in context mode) ---
+# --- law.py: lines 384-385 (Anlage pattern in context mode) ---
 
 
-def test_law_dnc_context_anlage():
+def test_law_context_anlage():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_context = "sgb"
 
@@ -123,10 +123,10 @@ def test_law_dnc_context_anlage():
     assert markers[0].references[0].section == "anlage-3"
 
 
-# --- law_dnc.py: line 187 (no refs found in marker) ---
+# --- law.py: line 187 (no refs found in marker) ---
 
 
-def test_law_dnc_multi_marker_no_refs(law_extractor):
+def test_law_multi_marker_no_refs(law_extractor):
     """A multi-marker pattern that matches but yields no individual section refs."""
     # This is hard to trigger since the regex is quite specific; we test the warning path
     # by checking that markers without refs are not appended
@@ -137,10 +137,10 @@ def test_law_dnc_multi_marker_no_refs(law_extractor):
     assert len(law_markers) == 0
 
 
-# --- law_dnc.py: lines 248-260 (waiting_for_book / next_book pattern) ---
+# --- law.py: lines 248-260 (waiting_for_book / next_book pattern) ---
 
 
-def test_law_dnc_ivm_pattern(law_extractor):
+def test_law_ivm_pattern(law_extractor):
     """Test i.V.m. pattern that creates markers waiting for a book."""
     content = "Nach § 167 VwGO i.V.m. §§ 708 Nr. 11, 711 ZPO ist dies gültig."
     new_content, markers = law_extractor.extract(content)

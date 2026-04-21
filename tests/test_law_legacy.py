@@ -5,7 +5,7 @@ the DivideAndConquerLawRefExtractorMixin covers all the context-based
 extraction behaviour that the legacy extractor provided.
 """
 
-from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
+from refex.extractors.law import DivideAndConquerLawRefExtractorMixin
 
 
 class ContextLawExtractor(DivideAndConquerLawRefExtractorMixin):

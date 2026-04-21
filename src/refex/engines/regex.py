@@ -15,7 +15,7 @@ from refex.citations import (
     make_citation_id,
 )
 from refex.extractors.case import CaseRefExtractorMixin
-from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
+from refex.extractors.law import DivideAndConquerLawRefExtractorMixin
 from refex.models import RefMarker, RefType
 
 

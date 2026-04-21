@@ -174,21 +174,17 @@ class DivideAndConquerLawRefExtractorMixin:
             ),
             # Artikel single ref: "Art. 12 Abs. 1 GG"
             "art_single": re.compile(
-                art_sign
-                + art_sect_space
-                + r"(?P<sect>[0-9]+(?:\s?[a-z]?))"
-                + ac
-                + r"\s+(?P<book>"
-                + bp
-                + r")"
-                + bla
+                art_sign + art_sect_space + r"(?P<sect>[0-9]+(?:\s?[a-z]?))" + ac + r"\s+(?P<book>" + bp + r")" + bla
             ),
             # Per-marker section splitter for multi-refs: "§§ 1, 2, 3 BGB" →
             # finds each section number and the separator before it.  Was
             # recompiled once per matched multi-marker — now once per
             # extractor instance.
             "multi_ref_sections": re.compile(
-                "(?P<sep>" + section_sign + section_sign + r"|,|;|und|bis)"
+                "(?P<sep>"
+                + section_sign
+                + section_sign
+                + r"|,|;|und|bis)"
                 + r"\s?(?P<sect>(([0-9]+)\s(?=bis|und)|([0-9]+)\s?[a-z]|([0-9]+)))"
             ),
         }
@@ -257,7 +253,10 @@ class DivideAndConquerLawRefExtractorMixin:
         else:
             book_pattern_re = re.compile(book_pattern)
             ref_pattern = re.compile(
-                "(?P<sep>" + section_sign + section_sign + r"|,|;|und|bis)"
+                "(?P<sep>"
+                + section_sign
+                + section_sign
+                + r"|,|;|und|bis)"
                 + r"\s?(?P<sect>(([0-9]+)\s(?=bis|und)|([0-9]+)\s?[a-z]|([0-9]+)))"
             )
 
