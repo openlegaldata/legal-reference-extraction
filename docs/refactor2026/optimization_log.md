@@ -15,7 +15,8 @@ improvement → stop and document the plateau.
 |---|--------|:-----:|---------:|-----------:|-------:|----------:|-------:|--------|
 | baseline | regex extractor as of 2026-04-20 | ✅ | 0.7338 | 0.8151 | 389.7 | 1.3 | 8.3 | before `7d22180` |
 | E0 | Add `--profile` / `--profile-output` to `benchmarks/run.py` (no hot-path change) | ✅ | 0.7338 | 0.8151 | 389.7 | 1.3 | 8.3 | `0fe847c` |
-| **E1** | Pre-compile `full_name`, `art_multi`, `art_single` patterns in `law_dnc._precompile_patterns`; plain-text callsites read from the cache, HTML path still builds inline | ✅ | **0.7338** | **0.8151** | **462.3** | 1.1 | 7.1 | _this commit_ |
+| **E1** | Pre-compile `full_name`, `art_multi`, `art_single` patterns in `law_dnc._precompile_patterns`; plain-text callsites read from the cache, HTML path still builds inline | ✅ | **0.7338** | **0.8151** | **462.3** | 1.1 | 7.1 | `4642ac5` |
+| E2 | Cache reporter-pattern in `case._get_compiled_reporter_re` (code-consistency only; no measurable speed gain — Python's `re._compile` LRU already handled it) | ✅ | 0.7338 | 0.8151 | 460.6 | 1.2 | 7.1 | _this commit_ |
 
 ## E1 — pre-compile remaining law patterns
 
@@ -29,6 +30,26 @@ HTML-aware `word_delimiter`).
 **Δ throughput: +18.6 % (389.7 → 462.3 docs/s)**,
 Δ median: 1.3 → 1.1 ms, Δ p95: 8.3 → 7.1 ms,
 F1 unchanged to 4 decimal places.
+
+## E2 — pre-compile reporter pattern
+
+`src/refex/extractors/case.py` — mirrored the existing
+`_get_compiled_court_re` / `_get_compiled_file_number_re` /
+`_get_compiled_sg_re` lazy-init pattern to add
+`_get_compiled_reporter_re()`.  Replaced the per-extract
+`re.compile(...)` of the 33-term reporter alternation.
+
+| | F1 exact | F1 overlap | docs/s | median ms | p95 ms |
+|-|---------:|-----------:|-------:|----------:|-------:|
+| E1 | 0.7338 | 0.8151 | 462.3 | 1.1 | 7.1 |
+| **E2** | 0.7338 | 0.8151 | **460.6** | 1.2 | 7.1 |
+
+**Δ throughput: −0.4 % (within noise).**  The reporter pattern is
+small enough that Python's internal `re._compile` LRU (size 512)
+was already handling it cheaply.  Kept the change for code
+consistency (all extractor-level patterns now lazy-init through
+`_get_compiled_*`) but this doesn't count toward the speedup
+budget.
 
 ## E0 — profile-first diagnostic
 

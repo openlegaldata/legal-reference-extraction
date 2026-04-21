@@ -13,6 +13,7 @@ class CaseRefExtractorMixin:
     _compiled_court_re: re.Pattern | None = None
     _compiled_file_number_re: re.Pattern | None = None
     _compiled_sg_re: re.Pattern | None = None
+    _compiled_reporter_re: re.Pattern | None = None
 
     def clean_text_for_tokenizer(self, text):
         """
@@ -233,6 +234,28 @@ class CaseRefExtractorMixin:
             self._compiled_sg_re = re.compile(self.get_sozialgerichtsbarkeit_regex())
         return self._compiled_sg_re
 
+    def _get_compiled_reporter_re(self) -> re.Pattern:
+        """Return the pre-compiled reporter-citation regex (lazy init, cached)."""
+        if self._compiled_reporter_re is None:
+            self._compiled_reporter_re = re.compile(
+                r"(?P<reporter>"
+                r"BGHZ|BGHSt|BGHR|BVerfGE|BVerwGE|BAGE|BSGE|BFHE|BPatGE"
+                r"|RGZ|RGSt"
+                r"|NJW-RR|NJW|NVwZ-RR|NVwZ|MDR|DVBl|DÖV|JZ|BB|DB|JR|RiA|FamRZ|ZfA|ZIP|WM"
+                r"|BFH/NV|BStBl\s?II?|EFG|HFR"
+                r"|StV|NStZ-RR|NStZ|wistra|GA"
+                r"|VersR|VRS|DAR|NZV|NZA-RR|NZA|NZS|NZM|NZG|NZBau|NZWiSt"
+                r"|GrS|BayVBl|NordÖR"
+                r"|ZMR|GRUR-RR|GRUR|ZUM|InfAuslR|AuAS|LKRZ|SozR"
+                r")"
+                r"\s+"
+                r"(?P<volume>[0-9]{1,4})"
+                r",\s*"
+                r"(?P<page>[0-9]+)"
+                r"(?:,\s*(?P<page2>[0-9]+))?"
+            )
+        return self._compiled_reporter_re
+
     def infer_court(self, file_number: str, match: re.Match, content: str) -> str | None:
         """In some cases it is possible to infer the court from the file number.
         This is currently only implemented for Sozialgerichtsbarkeit ("SG").
@@ -418,25 +441,7 @@ class CaseRefExtractorMixin:
         refs = []
 
         # --- Reporter citations: "BGHZ 132, 105" / "NJW 2003, 1234" ---
-        reporter_pattern = re.compile(
-            r"(?P<reporter>"
-            r"BGHZ|BGHSt|BGHR|BVerfGE|BVerwGE|BAGE|BSGE|BFHE|BPatGE"
-            r"|RGZ|RGSt"
-            r"|NJW-RR|NJW|NVwZ-RR|NVwZ|MDR|DVBl|DÖV|JZ|BB|DB|JR|RiA|FamRZ|ZfA|ZIP|WM"
-            r"|BFH/NV|BStBl\s?II?|EFG|HFR"
-            r"|StV|NStZ-RR|NStZ|wistra|GA"
-            r"|VersR|VRS|DAR|NZV|NZA-RR|NZA|NZS|NZM|NZG|NZBau|NZWiSt"
-            r"|GrS|BayVBl|NordÖR"
-            r"|ZMR|GRUR-RR|GRUR|ZUM|InfAuslR|AuAS|LKRZ|SozR"
-            r")"
-            r"\s+"
-            r"(?P<volume>[0-9]{1,4})"
-            r",\s*"
-            r"(?P<page>[0-9]+)"
-            r"(?:,\s*(?P<page2>[0-9]+))?"
-        )
-
-        for match in reporter_pattern.finditer(content):
+        for match in self._get_compiled_reporter_re().finditer(content):
             reporter = match.group("reporter")
             volume = match.group("volume")
             page = match.group("page")
