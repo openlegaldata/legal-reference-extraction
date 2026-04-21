@@ -78,6 +78,9 @@ class DivideAndConquerLawRefExtractorMixin:
 
         # B5: pre-compile the book regex once
         self._book_ref_regex = self._build_law_book_ref_regex(self._law_book_codes)
+        # E3: pre-compile the book-finding alternation used per-marker inside
+        # the multi-ref loop (was a string pattern re.finditer'd per marker).
+        self._book_pattern_re: re.Pattern = re.compile(self._book_ref_regex)
 
     @staticmethod
     def _load_book_codes_from_file() -> list[str]:
@@ -100,6 +103,8 @@ class DivideAndConquerLawRefExtractorMixin:
     def law_book_codes(self, codes: list[str] | None):
         self._law_book_codes = list(codes) if codes else list(self.default_law_book_codes)
         self._book_ref_regex = self._build_law_book_ref_regex(self._law_book_codes)
+        # E3: keep the per-marker book-finding pattern in sync
+        self._book_pattern_re = re.compile(self._book_ref_regex)
         # B5: pre-compile all regex patterns that use the book pattern
         self._compiled_patterns: dict[str, re.Pattern] | None = None
 
@@ -178,6 +183,14 @@ class DivideAndConquerLawRefExtractorMixin:
                 + r")"
                 + bla
             ),
+            # Per-marker section splitter for multi-refs: "§§ 1, 2, 3 BGB" →
+            # finds each section number and the separator before it.  Was
+            # recompiled once per matched multi-marker — now once per
+            # extractor instance.
+            "multi_ref_sections": re.compile(
+                "(?P<sep>" + section_sign + section_sign + r"|,|;|und|bis)"
+                + r"\s?(?P<sect>(([0-9]+)\s(?=bis|und)|([0-9]+)\s?[a-z]|([0-9]+)))"
+            ),
         }
 
     def extract_law_ref_markers(self, content: str, is_html: bool = False) -> list[RefMarker]:
@@ -235,6 +248,19 @@ class DivideAndConquerLawRefExtractorMixin:
                 + book_look_ahead
             )
 
+        # E3: pre-compiled book pattern (plain-text path) + pre-compiled
+        # per-marker splitter. HTML path still builds its splitter inline
+        # because `section_sign` differs.
+        if not is_html:
+            book_pattern_re = self._book_pattern_re
+            ref_pattern = self._compiled_patterns["multi_ref_sections"]
+        else:
+            book_pattern_re = re.compile(book_pattern)
+            ref_pattern = re.compile(
+                "(?P<sep>" + section_sign + section_sign + r"|,|;|und|bis)"
+                + r"\s?(?P<sect>(([0-9]+)\s(?=bis|und)|([0-9]+)\s?[a-z]|([0-9]+)))"
+            )
+
         for marker_match in multi_pattern.finditer(content):
             marker_text = marker_match.group(0)
             refs: list[Ref] = []
@@ -242,19 +268,12 @@ class DivideAndConquerLawRefExtractorMixin:
             logger.debug("Multi Match with: %s", marker_text)
 
             book_positions = {}
-            for book_match in re.finditer(book_pattern, marker_text):
+            for book_match in book_pattern_re.finditer(marker_text):
                 book_positions[book_match.start()] = book_match.group(0)
 
             if len(book_positions) < 0:
                 logger.error("No book found in marker text: %s", marker_text)
                 continue
-
-            a = r"([0-9]+)\s(?=bis|und)"
-            b = r"([0-9]+)\s?[a-z]"
-            c = "([0-9]+)"
-            ref_pattern = re.compile(
-                "(?P<sep>" + section_sign + section_sign + r"|,|;|und|bis)\s?(?P<sect>(" + a + "|" + b + "|" + c + "))"
-            )
 
             for ref_match in ref_pattern.finditer(marker_text):
                 sect = ref_match.group("sect")

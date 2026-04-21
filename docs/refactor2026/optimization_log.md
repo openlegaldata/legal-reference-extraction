@@ -16,7 +16,8 @@ improvement → stop and document the plateau.
 | baseline | regex extractor as of 2026-04-20 | ✅ | 0.7338 | 0.8151 | 389.7 | 1.3 | 8.3 | before `7d22180` |
 | E0 | Add `--profile` / `--profile-output` to `benchmarks/run.py` (no hot-path change) | ✅ | 0.7338 | 0.8151 | 389.7 | 1.3 | 8.3 | `0fe847c` |
 | **E1** | Pre-compile `full_name`, `art_multi`, `art_single` patterns in `law_dnc._precompile_patterns`; plain-text callsites read from the cache, HTML path still builds inline | ✅ | **0.7338** | **0.8151** | **462.3** | 1.1 | 7.1 | `4642ac5` |
-| E2 | Cache reporter-pattern in `case._get_compiled_reporter_re` (code-consistency only; no measurable speed gain — Python's `re._compile` LRU already handled it) | ✅ | 0.7338 | 0.8151 | 460.6 | 1.2 | 7.1 | _this commit_ |
+| E2 | Cache reporter-pattern in `case._get_compiled_reporter_re` (code-consistency only; no measurable speed gain — Python's `re._compile` LRU already handled it) | ✅ | 0.7338 | 0.8151 | 460.6 | 1.2 | 7.1 | `76a1f3f` |
+| E3 | Pre-compile `_book_pattern_re` in `__init__`; add `multi_ref_sections` to the precompiled dict; multi-ref inner loop no longer recompiles the book alternation or the section splitter per marker | ✅ | 0.7338 | 0.8151 | 466.0 | 1.1 | 7.2 | _this commit_ |
 
 ## E1 — pre-compile remaining law patterns
 
@@ -50,6 +51,28 @@ was already handling it cheaply.  Kept the change for code
 consistency (all extractor-level patterns now lazy-init through
 `_get_compiled_*`) but this doesn't count toward the speedup
 budget.
+
+## E3 — cache per-marker patterns in the multi-ref loop
+
+`src/refex/extractors/law_dnc.py` — two changes:
+
+- Added `self._book_pattern_re = re.compile(self._book_ref_regex)` to
+  `__init__` and to the `law_book_codes` setter so the 1,947-term
+  alternation is compiled once per extractor instance.  Replaced the
+  inline `re.finditer(book_pattern, marker_text)` at the former
+  line 207 with `self._book_pattern_re.finditer(marker_text)`.
+- Added `multi_ref_sections` to `_precompile_patterns()` — the
+  section-splitter regex (`(§§|,|;|und|bis) + section number`) that
+  was being recompiled on every multi-ref match.  Plain-text path
+  reads from the cache; HTML path still builds inline.
+
+| | F1 exact | F1 overlap | docs/s | median ms | p95 ms |
+|-|---------:|-----------:|-------:|----------:|-------:|
+| E2 | 0.7338 | 0.8151 | 460.6 | 1.2 | 7.1 |
+| **E3** | 0.7338 | 0.8151 | **466.0** | 1.1 | 7.2 |
+
+**Δ throughput: +1.2 %.**  Modest — confirms `search_court` is
+the bigger target left (E4).
 
 ## E0 — profile-first diagnostic
 
