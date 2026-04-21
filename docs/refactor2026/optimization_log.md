@@ -219,6 +219,52 @@ Corasick index over court names — which is outside the scope of
 done on 2026-04-21; the profile table above still references the
 old name for historical accuracy.)
 
+## §7/#9 — per-document court cache by file-number text (reverted, 2026-04-21)
+
+Attempted the §7 row 9 follow-up: cache `search_court` results keyed on
+the file-number text inside a single `extract_case_ref_markers` call.
+Motivation: measured on 200 validation docs, the same file number
+recurs within a document in **16.9 %** of cases (130/767 fn) — e.g.
+an opinion referencing the same decision multiple times.
+
+**Variant A — aggressive cache (first-seen wins)**:
+
+| metric | baseline | cached | delta |
+|---|---:|---:|---:|
+| span F1 (exact) | 0.7338 | 0.7328 | **−0.0010** |
+| case F1 (exact) | 0.6132 | 0.6103 | **−0.0029** |
+| court accuracy (overlap) | 0.6541 | 0.6554 | +0.0013 |
+| docs/sec | 469.3 | 484.4 | **+3.2 %** |
+
+Span F1 regressed because the benchmark adapter's
+`_expand_case_span` (benchmarks/adapter.py) looks *backward* in the
+document for the literal court text when expanding case spans.  A
+stale cached court (from the first occurrence's context) doesn't
+appear near the second occurrence → span stays narrow → F1 drops.
+
+**Variant B — fallback cache (fresh wins, cache only fills blanks)**:
+
+| metric | baseline | cached | delta |
+|---|---:|---:|---:|
+| span F1 (exact) | 0.7338 | 0.7344 | +0.0006 |
+| case F1 (exact) | 0.6132 | 0.6150 | +0.0018 |
+| court accuracy (overlap) | 0.6541 | 0.6501 | **−0.0040** |
+| docs/sec | 469.3 | 455.7 | **−2.9 %** |
+
+Still runs fresh search on every occurrence → zero throughput win,
+and cached fallback fills in courts that don't match the gold for
+the new span → court-field accuracy drops.
+
+Neither variant is a clean win: A saves time at the cost of F1; B
+improves F1 at the cost of throughput *and* court accuracy.  The
+root problem is that court resolution is **position-dependent** —
+the same file number can legitimately appear in two different
+courts' sentences, and we can't tell without running the search.
+Closing #9 as **"measured and rejected"**.
+
+Log files: `logs/bench-regex-validation-fu9.json` (variant A),
+`logs/bench-regex-validation-fu9b.json` (variant B).
+
 ## §7/#8 — single-pass court scan (reverted, 2026-04-21)
 
 Attempted the "Aho–Corasick court-name index" follow-up from §7 row

@@ -9,6 +9,45 @@ from refex.models import Ref, RefMarker, RefType
 logger = logging.getLogger(__name__)
 
 
+def _apply_mask_intervals(content: str, intervals: list[tuple[int, int]]) -> str:
+    """Apply ``(start, end)`` mask intervals to ``content`` in one pass (§7/#10).
+
+    Replaces each ``content[s:e]`` with ``'_' * (e - s)``.  Overlapping or
+    out-of-order intervals are handled by sorting and merging first.  For N
+    intervals this is O(len(content) + N log N), versus the previous
+    O(N × len(content)) from per-marker ``RefMarker.replace_content_with_mask``
+    calls inside each extraction phase.
+    """
+    if not intervals:
+        return content
+
+    sorted_iv = sorted(intervals)
+    # Merge overlaps so the O(len) walk below is correct even when two
+    # phases would have produced overlapping masks (shouldn't happen with
+    # the current patterns, but defensive).
+    merged: list[tuple[int, int]] = []
+    cur_s, cur_e = sorted_iv[0]
+    for s, e in sorted_iv[1:]:
+        if s <= cur_e:
+            if e > cur_e:
+                cur_e = e
+        else:
+            merged.append((cur_s, cur_e))
+            cur_s, cur_e = s, e
+    merged.append((cur_s, cur_e))
+
+    out: list[str] = []
+    last = 0
+    for s, e in merged:
+        if s > last:
+            out.append(content[last:s])
+        out.append("_" * (e - s))
+        last = e
+    if last < len(content):
+        out.append(content[last:])
+    return "".join(out)
+
+
 class DivideAndConquerLawRefExtractorMixin:
     """
     Extractor for law references (citations of legislation). Each law is identified by a section (§, consisting of
@@ -303,6 +342,7 @@ class DivideAndConquerLawRefExtractorMixin:
                 + r"\s?(?P<sect>(([0-9]+)\s(?=bis|und)|([0-9]+)\s?[a-z]|([0-9]+)))"
             )
 
+        multi_mask_iv: list[tuple[int, int]] = []
         for marker_match in multi_pattern.finditer(content):
             marker_text = marker_match.group(0)
             refs: list[Ref] = []
@@ -352,9 +392,10 @@ class DivideAndConquerLawRefExtractorMixin:
 
             if len(refs) > 0:
                 markers.append(marker)
-                content = marker.replace_content_with_mask(content)
+                multi_mask_iv.append((marker.start, marker.end))
             else:
                 logger.warning("No references found in marker: %s ", marker_text)
+        content = _apply_mask_intervals(content, multi_mask_iv)
 
         # Single refs — use pre-compiled patterns for plain text
         if not is_html:
@@ -402,6 +443,7 @@ class DivideAndConquerLawRefExtractorMixin:
         markers_waiting_for_book: list[RefMarker] = []
 
         for pattern in single_patterns:
+            single_mask_iv: list[tuple[int, int]] = []
             for marker_match in pattern.finditer(content):
                 marker_text = marker_match.group(0)
                 if "book" in marker_match.groupdict():
@@ -418,13 +460,13 @@ class DivideAndConquerLawRefExtractorMixin:
                     ref.book = book
                     marker.set_references([ref])
 
-                    content = marker.replace_content_with_mask(content)
+                    single_mask_iv.append((marker.start, marker.end))
                     markers.append(marker)
 
                     for waiting in markers_waiting_for_book:
                         if len(waiting.references) == 1:
                             waiting.references[0].book = book
-                            content = waiting.replace_content_with_mask(content)
+                            single_mask_iv.append((waiting.start, waiting.end))
                             markers.append(waiting)
                     markers_waiting_for_book = []
                 else:
@@ -433,6 +475,7 @@ class DivideAndConquerLawRefExtractorMixin:
                         markers_waiting_for_book.append(marker)
                     else:
                         raise RefExError("next_book and book are None")
+            content = _apply_mask_intervals(content, single_mask_iv)
 
         if len(markers_waiting_for_book) > 0:
             logger.warning("Marker could not be assign to book: %s", markers_waiting_for_book)
@@ -452,6 +495,7 @@ class DivideAndConquerLawRefExtractorMixin:
                 + book_look_ahead
             )
 
+        full_name_mask_iv: list[tuple[int, int]] = []
         for marker_match in full_name_pattern.finditer(content):
             marker_text = marker_match.group(0)
             book = marker_match.group("book").strip().lower()
@@ -468,7 +512,8 @@ class DivideAndConquerLawRefExtractorMixin:
             marker.set_references([ref])
 
             markers.append(marker)
-            content = marker.replace_content_with_mask(content)
+            full_name_mask_iv.append((marker.start, marker.end))
+        content = _apply_mask_intervals(content, full_name_mask_iv)
 
         # --- Artikel references (E1): Art. 12 GG, Art 1, 2, 3 GG ---
 
@@ -490,6 +535,7 @@ class DivideAndConquerLawRefExtractorMixin:
                 + book_look_ahead
             )
 
+        art_multi_mask_iv: list[tuple[int, int]] = []
         for marker_match in art_multi_pattern.finditer(content):
             marker_text = marker_match.group(0)
             book = Ref.clean_book(marker_match.group("book"))
@@ -506,7 +552,8 @@ class DivideAndConquerLawRefExtractorMixin:
                 marker.set_uuid()
                 marker.set_references(refs)
                 markers.append(marker)
-                content = marker.replace_content_with_mask(content)
+                art_multi_mask_iv.append((marker.start, marker.end))
+        content = _apply_mask_intervals(content, art_multi_mask_iv)
 
         # Single Art ref: "Art. 12 Abs. 1 GG" or "Art 12 GG"
         if not is_html:
@@ -523,6 +570,7 @@ class DivideAndConquerLawRefExtractorMixin:
                 + book_look_ahead
             )
 
+        art_single_mask_iv: list[tuple[int, int]] = []
         for marker_match in art_single_pattern.finditer(content):
             marker_text = marker_match.group(0)
             book = Ref.clean_book(marker_match.group("book"))
@@ -533,7 +581,11 @@ class DivideAndConquerLawRefExtractorMixin:
             marker.set_uuid()
             marker.set_references([ref])
             markers.append(marker)
-            content = marker.replace_content_with_mask(content)
+            art_single_mask_iv.append((marker.start, marker.end))
+        # The art_single_mask_iv isn't consumed further in this method, but the
+        # batched apply is kept for consistency with the earlier phases — and
+        # cheap when no masks were queued.
+        content = _apply_mask_intervals(content, art_single_mask_iv)
 
         return markers
 
