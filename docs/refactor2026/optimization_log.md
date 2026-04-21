@@ -219,6 +219,53 @@ Corasick index over court names — which is outside the scope of
 done on 2026-04-21; the profile table above still references the
 old name for historical accuracy.)
 
+## §7/#8 — single-pass court scan (reverted, 2026-04-21)
+
+Attempted the "Aho–Corasick court-name index" follow-up from §7 row
+8 as a pure-Python equivalent: run the 1 947-option court regex
+**once** over the whole document, store the hits in a sorted
+position list, and use `bisect` + a short forward scan to find the
+leftmost court in each distance bucket per file number.  Replaces
+the current three nested `finditer` passes on overlapping
+(±100/±200/±500) windows.
+
+Implementation: `_build_court_index(content)` method + threaded
+`court_index` kwarg through `search_court` / `infer_court`; lazy
+build on first surviving file-number match.
+
+Result on the 821-doc validation split:
+
+| metric | baseline | one-pass | delta |
+|---|---:|---:|---:|
+| span F1 (exact) | 0.7338 | 0.7339 | +0.0001 |
+| span F1 (overlap) | 0.8151 | 0.8151 | ±0.0000 |
+| court accuracy | 0.6541 | 0.6545 | +0.0004 |
+| **docs/sec** | **469.3** | **302.3** | **−35.6 %** |
+| median ms | 1.1 | 1.9 | +0.8 |
+| p95 ms | 7.1 | 10.5 | +3.4 |
+
+Accuracy: flat (tiny +0.0001 F1, within noise).
+Throughput: **regressed 35.6 %** — reverted.
+
+Root cause:  Python's C-implemented `re` engine has low per-character
+cost even on the 1 947-option alternation, and the three nested
+window scans touch far fewer unique characters than one full-doc
+scan on typical benchmark docs.  For a 13 kchar doc with 5 file
+numbers, old ≈ 8 kchars of (overlapping) small-window scans,
+new ≈ 13 kchars of one full-doc scan — net more work, not less.
+The per-`finditer` setup overhead the new code saves is smaller
+than the extra characters scanned.
+
+A genuine Aho–Corasick win would require either the C-backed
+`pyahocorasick` package (runtime dep — banned) or a pure-Python AC
+fast enough to beat Python's C regex on 1 947 patterns (highly
+unlikely per `timeit` micro-bench).  Closing #8 as **"measured and
+rejected"** — the alternation is already near the floor for pure-`re`.
+
+Log files: `logs/bench-regex-validation-fu8.json` (always-on scan,
+−41 %), `logs/bench-regex-validation-fu8b.json` (lazy build,
+−35.6 %).
+
 ## B7 — precise vs generic book regex (2026-04-21)
 
 Closing the O-5 follow-up: measured `use_precise_book_regex=True`
