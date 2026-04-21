@@ -221,7 +221,10 @@ class CaseRefExtractorMixin:
                 options.append(s + " " + c)
         # logger.debug('Court regex: %s' % pattern)
 
-        return r"(?P<court>" + ("|".join(options)) + r")(\s|\.|;|,|:|\))"
+        # E11: char-class `[\s.;,:)]` is equivalent to but cheaper than the
+        # `(\s|\.|;|,|:|\))` alternation + capture group the original used —
+        # regex engines can test a single char class in one step.
+        return r"(?P<court>" + ("|".join(options)) + r")[\s.;,:)]"
 
     def _get_compiled_court_re(self) -> re.Pattern:
         """Return the pre-compiled court name regex (lazy init, cached)."""
