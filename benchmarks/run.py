@@ -26,8 +26,9 @@ from pathlib import Path
 
 from benchmarks.adapter import refmarkers_to_citations
 from benchmarks.datasets import Citation as BenchmarkCitation
+from benchmarks.datasets import Relation as BenchmarkRelation
 from benchmarks.datasets import get_data_dir, load_dataset
-from benchmarks.metrics import BenchmarkResult, score_document
+from benchmarks.metrics import BenchmarkResult, score_document, score_relations
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -243,10 +244,11 @@ def run_benchmark(
 
         # Filter gold to law + case only (refex doesn't extract literature)
         gold_citations = [c for c in gold_ann.citations if c.type in ("law", "case")]
+        gold_relations: list[BenchmarkRelation] = list(gold_ann.relations)
 
         try:
             t_doc_start = time.perf_counter()
-            pred_citations = extract_fn(doc.text)
+            pred = extract_fn(doc.text)
             t_doc = time.perf_counter() - t_doc_start
             doc_times.append(t_doc)
             doc_chars.append(len(doc.text))
@@ -255,7 +257,17 @@ def run_benchmark(
             errors += 1
             continue
 
+        # A2d — extract_fn may return either a plain ``list[Citation]``
+        # (legacy) or a ``(citations, relations)`` tuple (for engines that
+        # emit relations).  Normalise here so the scorer sees both.
+        if isinstance(pred, tuple):
+            pred_citations, pred_relations = pred
+        else:
+            pred_citations = pred
+            pred_relations = []
+
         score_document(gold_citations, pred_citations, result)
+        score_relations(gold_citations, gold_relations, pred_citations, pred_relations, result)
         processed += 1
 
         # Progress logging

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from benchmarks.datasets import Citation
+from benchmarks.datasets import Citation, Relation
 
 
 @dataclass
@@ -67,9 +67,18 @@ class BenchmarkResult:
     # Field accuracy (on matched pairs only)
     field_accuracy: dict[str, FieldAccuracy] = field(default_factory=dict)
 
+    # A2d — relation-edge F1.  Compared as (src_span, tgt_span, relation)
+    # triples.  Stays empty for engines that don't emit relations (current
+    # regex/CRF/transformer): both tp and fn will be accumulated on gold-
+    # relation-heavy docs, pushing F1 toward 0 — which is the expected
+    # baseline until an engine starts emitting resolves_to / i.V.m. links.
+    relation_exact: PRF = field(default_factory=PRF)
+
     # Counts
     total_gold: int = 0
     total_pred: int = 0
+    total_gold_relations: int = 0
+    total_pred_relations: int = 0
     total_docs: int = 0
 
     def summary(self) -> str:
@@ -105,6 +114,20 @@ class BenchmarkResult:
                 if fa.total > 0:
                     lines.append(f"  {fname:15s}  {fa.accuracy:.3f}  ({fa.correct}/{fa.total})")
 
+        # A2d — relation-edge F1.  Only print when we actually scored at
+        # least one gold or pred relation; a silent block would be noise on
+        # the regex / CRF runs (which don't emit relations yet).
+        if self.total_gold_relations > 0 or self.total_pred_relations > 0:
+            lines.append("")
+            lines.append("--- Relation Edges (exact span+type match) ---")
+            lines.append(f"  Precision: {self.relation_exact.precision:.3f}")
+            lines.append(f"  Recall:    {self.relation_exact.recall:.3f}")
+            lines.append(f"  F1:        {self.relation_exact.f1:.3f}")
+            lines.append(
+                f"  (TP={self.relation_exact.tp}, FP={self.relation_exact.fp}, FN={self.relation_exact.fn}, "
+                f"gold={self.total_gold_relations}, pred={self.total_pred_relations})"
+            )
+
         return "\n".join(lines)
 
     def to_dict(self) -> dict:
@@ -125,6 +148,16 @@ class BenchmarkResult:
             "field_accuracy": {
                 f: {"accuracy": fa.accuracy, "correct": fa.correct, "total": fa.total}
                 for f, fa in self.field_accuracy.items()
+            },
+            "relation_exact": {
+                "p": self.relation_exact.precision,
+                "r": self.relation_exact.recall,
+                "f1": self.relation_exact.f1,
+                "tp": self.relation_exact.tp,
+                "fp": self.relation_exact.fp,
+                "fn": self.relation_exact.fn,
+                "gold": self.total_gold_relations,
+                "pred": self.total_pred_relations,
             },
         }
 
@@ -242,9 +275,41 @@ def _score_fields(
         if gold.type == "law":
             for fname in law_fields:
                 _score_field(fname, getattr(gold, fname), getattr(pred, fname), result)
+            # A2c — structure dict key-level accuracy (e.g. {"absatz": "1",
+            # "satz": "2"}).  Each gold key is one unit of measurement: correct
+            # if pred has the same value, incorrect if it has a different
+            # value, missing_pred otherwise.  Pred-only keys count as
+            # missing_gold so we can see over-emission later.
+            _score_structure(gold.structure or {}, pred.structure or {}, result)
         elif gold.type == "case":
             for fname in case_fields:
                 _score_field(fname, getattr(gold, fname), getattr(pred, fname), result)
+
+
+def _score_structure(
+    gold: dict[str, str],
+    pred: dict[str, str],
+    result: BenchmarkResult,
+) -> None:
+    """A2c — structure dict key-level accuracy on matched law citation pairs."""
+    if "structure" not in result.field_accuracy:
+        result.field_accuracy["structure"] = FieldAccuracy()
+    fa = result.field_accuracy["structure"]
+
+    # Score every gold key
+    for k, gv in gold.items():
+        pv = pred.get(k)
+        if pv is None:
+            fa.missing_pred += 1
+        elif str(pv).strip().lower() == str(gv).strip().lower():
+            fa.correct += 1
+        else:
+            fa.incorrect += 1
+
+    # Score pred-only keys (over-emission)
+    for k in pred:
+        if k not in gold:
+            fa.missing_gold += 1
 
 
 def _score_fields_overlap(
@@ -310,6 +375,46 @@ def _score_field(
     elif pv and not gv:
         fa.missing_gold += 1
     # Both None: skip (nothing to measure)
+
+
+def score_relations(
+    gold_citations: list[Citation],
+    gold_relations: list[Relation],
+    pred_citations: list[Citation],
+    pred_relations: list[Relation],
+    result: BenchmarkResult,
+) -> None:
+    """A2d — relation-edge F1 on ``(source_span, target_span, relation)`` triples.
+
+    Gold relations reference citations by id (e.g. ``c_003 → c_004``).  We
+    resolve those to span tuples so the comparison is engine-independent.
+    Predicted relations can use any id scheme — the scorer looks up each
+    source/target id in the predicted citation list to get spans.
+    """
+    result.total_gold_relations += len(gold_relations)
+    result.total_pred_relations += len(pred_relations)
+
+    gold_id_to_span = {c.id: (c.span.start, c.span.end) for c in gold_citations}
+    pred_id_to_span = {c.id: (c.span.start, c.span.end) for c in pred_citations}
+
+    gold_triples: set[tuple[tuple[int, int], tuple[int, int], str]] = set()
+    for r in gold_relations:
+        s = gold_id_to_span.get(r.source_id)
+        t = gold_id_to_span.get(r.target_id)
+        if s and t:
+            gold_triples.add((s, t, r.relation))
+
+    pred_triples: set[tuple[tuple[int, int], tuple[int, int], str]] = set()
+    for r in pred_relations:
+        s = pred_id_to_span.get(r.source_id)
+        t = pred_id_to_span.get(r.target_id)
+        if s and t:
+            pred_triples.add((s, t, r.relation))
+
+    tp = len(gold_triples & pred_triples)
+    result.relation_exact.tp += tp
+    result.relation_exact.fp += len(pred_triples) - tp
+    result.relation_exact.fn += len(gold_triples) - tp
 
 
 _COURT_SENATE_RE = __import__("re").compile(

@@ -510,8 +510,8 @@ for future passes.
 
 | # | Item | Source | Why deferred |
 |---|------|--------|--------------|
-| 1 | **A2c** — `structure` dict key-level accuracy metric | Stream A | Extractor doesn't emit `structure` yet; add when LawCitation populates structure. |
-| 2 | **A2d** — Relation-edge F1 metric | Stream A | Extractor doesn't emit full relations graph yet. |
+| 1 | ~~**A2c** — `structure` dict key-level accuracy metric~~ | Stream A | **Landed 2026-04-21.**  `field_accuracy['structure']` in `BenchmarkResult`: key-level `correct` / `incorrect` / `missing_pred` / `missing_gold` on exact-matched law pairs.  Regex engine baseline: 0/9 919 (all missing_pred, since extractor emits `structure={}`) — the metric now tracks the gap for future structure-parsing work. |
+| 2 | ~~**A2d** — Relation-edge F1 metric~~ | Stream A | **Landed 2026-04-21.**  `relation_exact: PRF` in `BenchmarkResult`, scored as `(source_span, target_span, relation)` triples via `score_relations`.  Runner accepts `extract_fn` returning either `list[Citation]` (legacy) or `(citations, relations)` (new). Regex baseline on validation split: F1 0.000 (2 941 gold triples, 0 pred) — baseline established for future engine work on `i.V.m.` / `a.a.O.` linking. |
 | 3 | ~~**B7** — `get_law_book_ref_regex` recall-safe fix~~ | Stream B | **Closed 2026-04-21.**  Flag wired (`use_precise_book_regex`, env `REFEX_PRECISE_BOOK_REGEX`). Measurement in `optimization_log.md` §"B7 — precise vs generic": precise=ON gives +2.5 pp exact-F1, precise=OFF gives +2.7 pp overlap-F1.  Keeping `True` as default (aligns with the exact-F1 optimization metric). Flag stays as a permanent knob. |
 | 4 | **E2** — `default_unit` column on `law_book_codes.txt` | Stream E | Current `LawCitation.unit` is derived from which pattern matched (`art_*` → article, `§` → paragraph).  Codes that are article-only (`GG`) vs paragraph-only (`BGB`) vs both (some SGB) aren't annotated in the data file. |
 | 5 | **G (transformer) Hub push** | Stream G | Trained `models/refex-eurobert-210m/` stays local this iteration.  Push to `openlegaldata/refex-eurobert-210m-de` once metrics are sign-off'd. |
