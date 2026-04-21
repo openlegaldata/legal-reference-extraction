@@ -171,8 +171,6 @@ def test_ref_marker_positions():
     assert m.start == 10
     assert m.end == 17
     assert m.end - m.start == 7
-    # get_start_position is retained for refex.compat usage
-    assert m.get_start_position() == 10
 
 
 def test_ref_marker_replace_content_with_mask():

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- **Removed `refex.compat.to_ref_marker_string`.** Deprecated in 0.6.0
+  with a ``DeprecationWarning``; it emitted the legacy
+  ``[ref=UUID]…[/ref]`` inline-marker string.  Use
+  ``ExtractionResult.citations`` directly and a serializer from
+  ``refex.serializers`` (e.g. ``to_jsonl``, ``to_web_annotation``) for
+  persistence / round-tripping.
+- **Removed `RefMarker.replace_content`** and the
+  ``_MARKER_OPEN_FORMAT`` / ``_MARKER_CLOSE_FORMAT`` constants — only
+  ``to_ref_marker_string`` called them.  ``RefMarker.set_uuid`` is
+  still present for ``citations_to_ref_markers``.
+
+### Cleanup
+
+- Removed dead ``BaseRef.sentence`` attribute — never set or read
+  externally; it was part of the hash/eq tuple but otherwise inert.
+
 ## 0.6.0 (2026-04-19) — Refactor 2026
 
 Major refactoring of the extraction pipeline. The regex extraction logic is

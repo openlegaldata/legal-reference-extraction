@@ -4,11 +4,6 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-# Legacy marker format constants — kept for compat.py backward compatibility.
-# Not part of public API; use CitationExtractor for new code.
-_MARKER_OPEN_FORMAT = "[ref=%(uuid)s]"
-_MARKER_CLOSE_FORMAT = "[/ref]"
-
 
 class RefType(Enum):
     """Type of referenced document"""
@@ -25,7 +20,6 @@ class BaseRef:
         ref_type: RefType | None = None,
         book: str = "",
         section: str = "",
-        sentence: str = "",
         file_number: str = "",
         ecli: str = "",
         court: str = "",
@@ -35,7 +29,6 @@ class BaseRef:
         self.ref_type = ref_type
         self.book = book
         self.section = section
-        self.sentence = sentence
         self.file_number = file_number
         self.ecli = ecli
         self.court = court
@@ -48,7 +41,6 @@ class BaseRef:
                 self.ref_type,
                 self.book,
                 self.section,
-                self.sentence,
                 self.file_number,
                 self.ecli,
                 self.court,
@@ -67,7 +59,6 @@ class CaseRefMixin(BaseRef):
 class LawRefMixin(BaseRef):
     book: str = ""
     section: str = ""
-    sentence: str = ""
 
     @staticmethod
     def init_law(book, section):
@@ -121,7 +112,6 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
             self.ref_type == other.ref_type
             and self.book == other.book
             and self.section == other.section
-            and self.sentence == other.sentence
             and self.file_number == other.file_number
             and self.ecli == other.ecli
             and self.court == other.court
@@ -167,24 +157,6 @@ class RefMarker:
         # B1: instance-level list instead of mutable class default
         self.references: list[Ref] = []
 
-    def replace_content(self, content, marker_offset) -> tuple[str, int]:
-        """Insert ``[ref=UUID]...[/ref]`` markers into content.
-
-        .. deprecated:: 0.7.0
-           Use ``CitationExtractor`` instead. This method will be removed.
-        """
-        start = self.start + marker_offset
-        end = self.end + marker_offset
-
-        marker_open = _MARKER_OPEN_FORMAT % self.__dict__
-        marker_close = _MARKER_CLOSE_FORMAT % self.__dict__
-
-        marker_offset += len(marker_open) + len(marker_close)
-
-        content = content[:start] + marker_open + self.text + marker_close + content[end:]
-
-        return content, marker_offset
-
     def replace_content_with_mask(self, content):
         mask = "_" * (self.end - self.start)
         return content[: self.start] + mask + content[self.end :]
@@ -197,11 +169,6 @@ class RefMarker:
 
     def get_references(self) -> list[Ref]:
         return self.references
-
-    def get_start_position(self):
-        # Kept only for refex.compat.to_ref_marker_string, which sorts markers
-        # by position when rendering the legacy ``[ref=UUID]...[/ref]`` output.
-        return self.start
 
     def __repr__(self):
         return f"<RefMarker({self.__dict__})>"

@@ -1,7 +1,7 @@
 """Tests for the CitationExtractor orchestrator and regex engines (Stream C)."""
 
 from refex.citations import CaseCitation, ExtractionResult, LawCitation, Span
-from refex.compat import citations_to_ref_markers, to_ref_marker_string
+from refex.compat import citations_to_ref_markers
 from refex.engines.regex import RegexCaseExtractor, RegexLawExtractor
 from refex.models import RefType
 from refex.orchestrator import CitationExtractor, _resolve_overlaps
@@ -166,22 +166,6 @@ class TestCompat:
         assert markers[0].references[0].ref_type == RefType.LAW
         assert markers[0].references[0].book == "bgb"
         assert markers[1].references[0].ref_type == RefType.CASE
-
-    def test_to_ref_marker_string(self):
-        result = ExtractionResult(
-            citations=[
-                LawCitation(span=Span(6, 15, "§ 433 BGB"), book="bgb", number="433"),
-            ]
-        )
-        content = "Laut § 433 BGB ist dies so."
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            output = to_ref_marker_string(result, content)
-        assert "[ref=" in output
-        assert "[/ref]" in output
-        assert "§ 433 BGB" in output
 
     def test_round_trip_law(self):
         """New API → legacy markers → check fields preserved."""
