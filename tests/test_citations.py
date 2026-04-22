@@ -9,8 +9,6 @@ from refex.citations import (
     make_citation_id,
 )
 
-# --- Span ---
-
 
 def test_span_frozen():
     s = Span(start=0, end=5, text="hello")
@@ -34,9 +32,6 @@ def test_span_inequality():
     a = Span(0, 5, "hello")
     b = Span(0, 6, "hello!")
     assert a != b
-
-
-# --- LawCitation ---
 
 
 def test_law_citation_type():
@@ -79,9 +74,6 @@ def test_law_citation_defaults():
     assert c.resolves_to is None
 
 
-# --- CaseCitation ---
-
-
 def test_case_citation_type():
     c = CaseCitation(span=Span(0, 15, "1 BvR 1554/89"), court="BVerfG")
     assert c.type == "case"
@@ -97,9 +89,6 @@ def test_case_citation_fields():
     assert c.court == "BGH"
     assert c.file_number == "VIII ZR 295/01"
     assert c.date == "2003-03-19"
-
-
-# --- CitationRelation ---
 
 
 def test_relation():
@@ -118,16 +107,10 @@ def test_relation_without_span():
     assert r.span is None
 
 
-# --- ExtractionResult ---
-
-
 def test_extraction_result_empty():
     r = ExtractionResult()
     assert r.citations == []
     assert r.relations == []
-
-
-# --- make_citation_id ---
 
 
 def test_citation_id_deterministic():

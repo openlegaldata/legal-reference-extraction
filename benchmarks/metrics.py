@@ -162,9 +162,6 @@ class BenchmarkResult:
         }
 
 
-# --- Scoring functions ---
-
-
 def score_document(
     gold_citations: list[Citation],
     pred_citations: list[Citation],
@@ -178,7 +175,6 @@ def score_document(
     gold_spans = {(c.span.start, c.span.end): c for c in gold_citations}
     pred_spans = {(c.span.start, c.span.end): c for c in pred_citations}
 
-    # --- Exact span matching ---
     matched_gold: set[tuple[int, int]] = set()
     matched_pred: set[tuple[int, int]] = set()
 
@@ -191,7 +187,6 @@ def score_document(
     result.span_exact.fp += len(pred_spans) - len(matched_pred)
     result.span_exact.fn += len(gold_spans) - len(matched_gold)
 
-    # --- Overlap span matching ---
     gold_list = sorted(gold_citations, key=lambda c: c.span.start)
     pred_list = sorted(pred_citations, key=lambda c: c.span.start)
 
@@ -211,7 +206,6 @@ def score_document(
     result.span_overlap.fp += len(pred_list) - len(overlap_matched_pred)
     result.span_overlap.fn += len(gold_list) - len(overlap_matched_gold)
 
-    # --- Per-type exact span matching ---
     for ctype in ("law", "case"):
         if ctype not in result.span_by_type:
             result.span_by_type[ctype] = PRF()
@@ -223,7 +217,6 @@ def score_document(
         prf.fp += len(pred_t) - tp
         prf.fn += len(gold_t) - tp
 
-    # --- Per-type overlap span matching ---
     for ctype in ("law", "case"):
         key = f"{ctype}_overlap"
         if key not in result.span_by_type:
@@ -247,10 +240,8 @@ def score_document(
         prf.fp += len(pred_t) - len(omp)
         prf.fn += len(gold_t) - len(omg)
 
-    # --- Field accuracy on exact-matched pairs ---
     _score_fields(gold_spans, pred_spans, matched_gold, result)
 
-    # --- Field accuracy on overlap-matched pairs ---
     _score_fields_overlap(gold_citations, pred_citations, result)
 
 

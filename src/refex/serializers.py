@@ -107,9 +107,6 @@ def to_json(result: ExtractionResult, doc_id: str = "", indent: int = 2) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=indent)
 
 
-# --- D3: spaCy adapter ---
-
-
 def to_spacy_doc(
     result: ExtractionResult,
     text: str,
@@ -178,9 +175,6 @@ def _whitespace_tokenize(text: str) -> tuple[list[dict], dict[int, int]]:
     return tokens, char_to_token
 
 
-# --- D4: Hugging Face BIO adapter ---
-
-
 def to_hf_bio(
     result: ExtractionResult,
     text: str,
@@ -215,9 +209,6 @@ def to_hf_bio(
     }
 
 
-# --- D5: GLiNER adapter ---
-
-
 def to_gliner(result: ExtractionResult) -> list[dict]:
     """Convert citations to GLiNER span format (D5).
 
@@ -236,9 +227,6 @@ def to_gliner(result: ExtractionResult) -> list[dict]:
             }
         )
     return spans
-
-
-# --- D6: W3C Web Annotation adapter ---
 
 
 def to_web_annotation(
@@ -280,9 +268,6 @@ def to_web_annotation(
         annotations.append(annotation)
 
     return annotations
-
-
-# --- D7: Akoma Ntoso / LegalDocML.de adapter ---
 
 
 def to_akn_ref(

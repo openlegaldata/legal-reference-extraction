@@ -20,8 +20,6 @@ from pathlib import Path
 
 from benchmarks.datasets import BenchmarkDataset, get_data_dir, load_dataset
 
-# --- Controlled vocabularies ---
-
 VALID_CITATION_TYPES = {"law", "case"}
 VALID_CITATION_KINDS = {"full", "short", "id", "ibid", "supra", "aao", "ebenda"}
 VALID_RELATION_TYPES = {"ivm", "vgl", "aao", "ebenda", "siehe", "resolves_to", "parallel"}

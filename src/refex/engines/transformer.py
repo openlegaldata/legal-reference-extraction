@@ -42,8 +42,6 @@ from refex.engines.crf import _parse_case_fields, _parse_law_fields
 logger = logging.getLogger(__name__)
 
 
-# --- Default model & label mapping ---
-
 DEFAULT_MODEL = "openlegaldata/legal-reference-extraction-base-de"
 
 # The model may use different label names than refex's canonical scheme.
@@ -70,9 +68,6 @@ DEFAULT_LABEL_MAP: dict[str, str] = {
     "I-CASE_REF": "I-CASE_REF",
     "O": "O",
 }
-
-
-# --- Extractor engine ---
 
 
 class TransformerExtractor:
@@ -139,8 +134,6 @@ class TransformerExtractor:
         self._device = None
         self._id2label: dict[int, str] = {}
 
-    # --- Loading ---
-
     def _load(self) -> None:
         """Lazy-load tokenizer and model on first use."""
         if self._model is not None:
@@ -180,8 +173,6 @@ class TransformerExtractor:
             sorted(set(self._id2label.values())),
         )
 
-    # --- Public API (Extractor protocol) ---
-
     def extract(self, text: str) -> tuple[list[Citation], list[CitationRelation]]:
         """Extract citations from a single document."""
         citations = self._extract_single(text)
@@ -207,8 +198,6 @@ class TransformerExtractor:
             results.extend(batch_results)
 
         return results
-
-    # --- Inference ---
 
     def _extract_single(self, text: str) -> list[Citation]:
         """Run inference on one document and return citations."""
@@ -286,9 +275,6 @@ class TransformerExtractor:
 
         # Fill any gaps (shouldn't happen with correct windowing)
         return [lbl if lbl is not None else "O" for lbl in word_labels]
-
-
-# --- Helpers ---
 
 
 def _whitespace_tokenize(text: str) -> list[tuple[int, int, str]]:

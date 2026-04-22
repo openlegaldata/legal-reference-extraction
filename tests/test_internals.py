@@ -12,8 +12,6 @@ import pytest
 from refex.engines.transformer import DEFAULT_MODEL
 from refex.extractors.law import DivideAndConquerLawRefExtractorMixin, _apply_mask_intervals
 
-# --- _apply_mask_intervals (§7/#10 interval-based marker masking) ---------
-
 
 def test_mask_empty_intervals_is_identity():
     assert _apply_mask_intervals("hello world", []) == "hello world"
@@ -57,9 +55,6 @@ def test_mask_preserves_length():
     assert out[19:] == " jumps over the lazy dog"
 
 
-# --- REFEX_PRECISE_BOOK_REGEX env var (§7/#3) -----------------------------
-
-
 def test_precise_regex_env_default_is_true(monkeypatch):
     monkeypatch.delenv("REFEX_PRECISE_BOOK_REGEX", raising=False)
     ext = DivideAndConquerLawRefExtractorMixin()
@@ -78,9 +73,6 @@ def test_precise_regex_env_truthy_enables(monkeypatch, truthy):
     monkeypatch.setenv("REFEX_PRECISE_BOOK_REGEX", truthy)
     ext = DivideAndConquerLawRefExtractorMixin()
     assert ext.use_precise_book_regex is True
-
-
-# --- DEFAULT_MODEL constant (§7/#5) --------------------------------------
 
 
 def test_default_transformer_model_points_at_openlegaldata_repo():

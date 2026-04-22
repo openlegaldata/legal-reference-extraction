@@ -30,7 +30,6 @@ from refex.citations import (
 
 logger = logging.getLogger(__name__)
 
-# --- Feature extraction ---
 
 # Known court register codes (from file_number_codes.csv)
 _REGISTER_CODES: set[str] | None = None
@@ -143,9 +142,6 @@ def text_to_features(text: str) -> tuple[list[dict], list[tuple[int, int, str]]]
     return features, token_spans
 
 
-# --- BIO → Citation conversion ---
-
-
 def bio_to_spans(
     labels: list[str],
     token_spans: list[tuple[int, int, str]],
@@ -250,9 +246,6 @@ def _parse_case_fields(text: str) -> tuple[str | None, str | None]:
         court = court_match.group(1).strip()
 
     return court, file_number
-
-
-# --- Training ---
 
 
 def build_training_data(
@@ -468,9 +461,6 @@ def _dict_to_crfsuite_features(d: dict) -> list[str]:
     return out
 
 
-# --- Extractor engine ---
-
-
 class CRFExtractor:
     """CRF-based citation extractor implementing the ``Extractor`` protocol.
 
@@ -540,9 +530,6 @@ class CRFExtractor:
         citations = spans_to_citations(spans)
 
         return citations, []
-
-
-# --- CLI for training ---
 
 
 def _setup_logging(log_file: Path | None = None) -> None:

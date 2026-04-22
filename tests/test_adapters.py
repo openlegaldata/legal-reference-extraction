@@ -18,8 +18,6 @@ from refex.serializers import (
     to_web_annotation,
 )
 
-# --- Shared fixtures ---
-
 TEXT = "Gemäß § 433 BGB und BVerwG 10 C 23.12 ist das klar."
 
 RESULT = ExtractionResult(
@@ -30,9 +28,6 @@ RESULT = ExtractionResult(
         CaseCitation(span=Span(20, 37, "BVerwG 10 C 23.12"), id="case1", court="BVerwG", file_number="10 C 23.12"),
     ]
 )
-
-
-# --- D3: spaCy ---
 
 
 class TestSpacyDoc:
@@ -78,9 +73,6 @@ class TestSpacyDoc:
         json.dumps(doc)  # Should not raise
 
 
-# --- D4: HF BIO ---
-
-
 class TestHfBio:
     def test_basic_structure(self):
         bio = to_hf_bio(RESULT, TEXT)
@@ -124,9 +116,6 @@ class TestHfBio:
         assert any(t.startswith("B-") for t in bio["ner_tags"])
 
 
-# --- D5: GLiNER ---
-
-
 class TestGliner:
     def test_basic(self):
         spans = to_gliner(RESULT)
@@ -158,9 +147,6 @@ class TestGliner:
         spans = to_gliner(RESULT)
         for s in spans:
             assert TEXT[s["start"] : s["end"]] == s["text"]
-
-
-# --- D6: Web Annotation ---
 
 
 class TestWebAnnotation:
@@ -201,9 +187,6 @@ class TestWebAnnotation:
         json.dumps(annos)  # Should not raise
 
 
-# --- D7: Akoma Ntoso ---
-
-
 class TestAknRef:
     def test_basic(self):
         xml = to_akn_ref(RESULT, TEXT)
@@ -241,9 +224,6 @@ class TestAknRef:
         xml = to_akn_ref(result, "§ <1> test")
         assert "&lt;" in xml
         assert "&amp;" in xml
-
-
-# --- D8: Structure keys ---
 
 
 class TestStructureKeys:

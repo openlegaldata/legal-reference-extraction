@@ -4,8 +4,6 @@ from refex.citations import LawCitation
 from refex.engines.regex import RegexLawExtractor
 from refex.extractor import RefExtractor
 
-# --- Regex extraction (legacy API) ---
-
 
 def test_art_single_ref():
     e = RefExtractor()
@@ -56,9 +54,6 @@ def test_art_with_abs_and_satz():
     _, markers = e.extract("Art. 3 Abs. 1 Satz 2 GG verbietet Diskriminierung.")
     refs = [r for m in markers for r in m.get_references()]
     assert any(r.book == "gg" and r.section == "3" for r in refs)
-
-
-# --- New typed API ---
 
 
 def test_typed_art_citation():

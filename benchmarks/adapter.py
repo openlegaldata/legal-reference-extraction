@@ -78,11 +78,6 @@ def refmarkers_to_citations(
     return citations
 
 
-# ---------------------------------------------------------------------------
-# Law multi-ref span splitting
-# ---------------------------------------------------------------------------
-
-
 def _split_law_multi_ref_spans(marker: RefMarker, refs: list[Ref]) -> list[Span] | None:
     """Split a multi-ref marker's text into per-section sub-spans.
 
@@ -156,10 +151,6 @@ def _split_law_multi_ref_spans(marker: RefMarker, refs: list[Ref]) -> list[Span]
     return spans
 
 
-# ---------------------------------------------------------------------------
-# Case citation span expansion
-# ---------------------------------------------------------------------------
-
 # Patterns that indicate citation context between a court name and file number
 _CITATION_CONTEXT_RE = re.compile(
     r"(?:"
@@ -232,11 +223,6 @@ def _expand_case_span(marker: RefMarker, ref: Ref, content: str) -> Span:
 
     new_text = content[new_start : marker.end]
     return Span(start=new_start, end=marker.end, text=new_text)
-
-
-# ---------------------------------------------------------------------------
-# Ref → Citation conversion
-# ---------------------------------------------------------------------------
 
 
 def _ref_to_citation(ref: Ref, span: Span, idx: int) -> Citation:

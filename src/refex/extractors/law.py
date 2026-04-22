@@ -515,8 +515,6 @@ class DivideAndConquerLawRefExtractorMixin:
             full_name_mask_iv.append((marker.start, marker.end))
         content = _apply_mask_intervals(content, full_name_mask_iv)
 
-        # --- Artikel references (E1): Art. 12 GG, Art 1, 2, 3 GG ---
-
         # Multi Art refs: "Art. 1, 2, 3 GG" — list of bare numbers separated by , ; und bis
         # Must contain at least one comma/und/bis separator to qualify as multi
         if not is_html:

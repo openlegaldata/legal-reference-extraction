@@ -146,8 +146,6 @@ def _resolve_case_short_forms(citations: list[Citation]) -> list[Citation]:
     return result
 
 
-# --- Relation detection (I2) ---
-
 _RELATION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("ivm", re.compile(r"i\.?\s*V\.?\s*m\.?|in\s+Verbindung\s+mit", re.IGNORECASE)),
     ("vgl", re.compile(r"vgl\.?")),

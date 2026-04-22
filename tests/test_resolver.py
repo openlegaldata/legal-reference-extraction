@@ -9,8 +9,6 @@ from refex.resolver import (
     resolve_short_forms,
 )
 
-# --- Short-form law resolution (I3) ---
-
 
 class TestResolveLawShortForms:
     def test_bare_section_inherits_book(self):
@@ -85,9 +83,6 @@ class TestResolveLawShortForms:
         assert result[1].number == "434a"
 
 
-# --- Relation detection (I2) ---
-
-
 class TestDetectRelations:
     def test_ivm_detected(self):
         cits = [
@@ -151,9 +146,6 @@ class TestDetectRelations:
         assert rels[0].relation == "aao"
 
 
-# --- Full resolve_short_forms ---
-
-
 class TestResolveShortForms:
     def test_combines_resolution_and_relations(self):
         cits = [
@@ -165,9 +157,6 @@ class TestResolveShortForms:
         assert resolved[1].book == "bgb"  # Resolved
         assert len(rels) == 1  # i.V.m. detected
         assert rels[0].relation == "ivm"
-
-
-# --- Integration with orchestrator ---
 
 
 class TestOrchestratorWithResolver:
@@ -207,9 +196,6 @@ class TestOrchestratorWithResolver:
             if r.span:
                 actual = text[r.span.start : r.span.end]
                 assert actual == r.span.text, f"Relation span mismatch: {actual!r} != {r.span.text!r}"
-
-
-# --- Case short-form resolution (I4) ---
 
 
 class TestResolveCaseShortForms:
@@ -270,9 +256,6 @@ class TestResolveCaseShortForms:
         assert result[0].type == "law"  # Preserved
         assert result[2].kind == "short"
         assert result[2].court == "BGH"
-
-
-# --- I6: Test fixtures with German legal text per short-form kind ---
 
 
 class TestShortFormFixtures:

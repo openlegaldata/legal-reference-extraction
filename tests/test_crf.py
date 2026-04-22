@@ -21,8 +21,6 @@ from refex.engines.crf import (
     tokenize,
 )
 
-# --- Feature extraction ---
-
 
 class TestWordShape:
     def test_digits(self):
@@ -112,9 +110,6 @@ class TestTextToFeatures:
         assert token_spans == []
 
 
-# --- BIO → spans conversion ---
-
-
 class TestBioToSpans:
     def test_simple_span(self):
         text = "Gemäß § 433 BGB gilt."
@@ -151,9 +146,6 @@ class TestBioToSpans:
         assert len(spans) == 1
 
 
-# --- Field parsing ---
-
-
 class TestParseLawFields:
     def test_simple_law(self):
         book, number = _parse_law_fields("§ 433 BGB")
@@ -181,9 +173,6 @@ class TestParseCaseFields:
         assert court is not None
         assert "BGH" in court
         assert fn == "VIII ZR 295/01"
-
-
-# --- CRFExtractor (smoke test, requires trained model) ---
 
 
 class TestCRFExtractor:

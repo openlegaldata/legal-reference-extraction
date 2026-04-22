@@ -46,9 +46,6 @@ def extractor():
     return CitationExtractor()
 
 
-# --- HTML extraction tests ---
-
-
 class TestHtmlFixtures:
     def test_all_html_docs_load(self, html_docs):
         assert len(html_docs) == 5
@@ -107,9 +104,6 @@ class TestHtmlFixtures:
         assert len(courts) >= 4
 
 
-# --- Markdown extraction tests ---
-
-
 class TestMarkdownFixtures:
     def test_all_md_docs_load(self, md_docs):
         assert len(md_docs) == 5
@@ -161,9 +155,6 @@ class TestMarkdownFixtures:
                 raw_span = map_span_to_raw(cit.span, doc)
                 assert raw_span.start < raw_span.end
                 assert raw_span.end <= len(doc.raw)
-
-
-# --- Cross-format consistency tests ---
 
 
 class TestCrossFormatConsistency:

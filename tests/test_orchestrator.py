@@ -6,8 +6,6 @@ from refex.engines.regex import RegexCaseExtractor, RegexLawExtractor
 from refex.models import RefType
 from refex.orchestrator import CitationExtractor, _resolve_overlaps
 
-# --- RegexLawExtractor ---
-
 
 class TestRegexLawExtractor:
     def test_simple_ref(self):
@@ -54,9 +52,6 @@ class TestRegexLawExtractor:
         assert "verwaltungsverfahrensgesetz" in (law.book or "")
 
 
-# --- RegexCaseExtractor ---
-
-
 class TestRegexCaseExtractor:
     def test_simple_case_ref(self):
         ext = RegexCaseExtractor()
@@ -72,9 +67,6 @@ class TestRegexCaseExtractor:
         cits, _ = ext.extract(text)
         for c in cits:
             assert text[c.span.start : c.span.end] == c.span.text
-
-
-# --- CitationExtractor orchestrator ---
 
 
 class TestCitationExtractor:
@@ -116,9 +108,6 @@ class TestCitationExtractor:
             assert sorted_cits[i].span.end <= sorted_cits[i + 1].span.start
 
 
-# --- Overlap resolution ---
-
-
 class TestResolveOverlaps:
     def test_no_overlaps(self):
         cits = [
@@ -147,9 +136,6 @@ class TestResolveOverlaps:
 
     def test_empty_input(self):
         assert _resolve_overlaps([]) == []
-
-
-# --- Backward compatibility adapter (C5/C6) ---
 
 
 class TestCompat:

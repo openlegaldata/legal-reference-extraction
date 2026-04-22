@@ -37,9 +37,6 @@ def get_data_dir() -> Path:
     return _DEFAULT_DATA_DIR
 
 
-# --- Lightweight data models (no pydantic dep) ---
-
-
 @dataclass
 class Span:
     start: int

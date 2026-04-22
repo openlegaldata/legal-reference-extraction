@@ -448,7 +448,6 @@ class CaseRefExtractorMixin:
 
         refs = []
 
-        # --- Reporter citations: "BGHZ 132, 105" / "NJW 2003, 1234" ---
         for match in self._get_compiled_reporter_re().finditer(content):
             reporter = match.group("reporter")
             volume = match.group("volume")
@@ -461,7 +460,6 @@ class CaseRefExtractorMixin:
             marker.set_references(ref_ids)
             refs.append(marker)
 
-        # --- File number citations: "10 C 23.12" ---
         fp_codes = self._FILE_NUMBER_FALSE_POSITIVE_CODES
         # E8: flatten reporter spans to tuples once so the per-file-number
         # overlap check uses plain tuple indexing instead of RefMarker

@@ -20,8 +20,6 @@ from refex.engines.transformer import (
     _word_labels_to_spans,
 )
 
-# --- Tokenization ---
-
 
 class TestWhitespaceTokenize:
     def test_simple(self):
@@ -39,9 +37,6 @@ class TestWhitespaceTokenize:
         assert len(spans) == 2
 
 
-# --- Label mapping ---
-
-
 class TestDefaultLabelMap:
     def test_canonical_passthrough(self):
         assert DEFAULT_LABEL_MAP["B-LAW_REF"] == "B-LAW_REF"
@@ -54,9 +49,6 @@ class TestDefaultLabelMap:
         assert DEFAULT_LABEL_MAP["B-GS"] == "B-LAW_REF"
         assert DEFAULT_LABEL_MAP["B-AZ"] == "B-CASE_REF"
         assert DEFAULT_LABEL_MAP["I-RS"] == "I-CASE_REF"
-
-
-# --- Word labels → spans ---
 
 
 class TestWordLabelsToSpans:
@@ -106,9 +98,6 @@ class TestWordLabelsToSpans:
         assert spans[0][3] == "LAW_REF"
 
 
-# --- Spans → Citations ---
-
-
 class TestSpansToCitations:
     def test_law_citation(self):
         spans = [(6, 15, "§ 433 BGB", "LAW_REF")]
@@ -144,9 +133,6 @@ class TestSpansToCitations:
         spans = [(0, 9, "§ 433 BGB", "LAW_REF")]
         cits = _spans_to_citations(spans)
         assert cits[0].confidence == 0.85
-
-
-# --- Extractor protocol (requires model — skipped by default) ---
 
 
 @pytest.mark.slow

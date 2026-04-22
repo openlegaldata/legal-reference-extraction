@@ -10,8 +10,6 @@ from refex.document import (
 )
 from refex.orchestrator import CitationExtractor
 
-# --- normalize ---
-
 
 class TestNormalizePlain:
     def test_identity(self):
@@ -77,9 +75,6 @@ class TestNormalizeMarkdown:
         assert "http" not in result
 
 
-# --- detect_format ---
-
-
 class TestDetectFormat:
     def test_html(self):
         assert detect_format("<html><body>text</body></html>") == "html"
@@ -91,9 +86,6 @@ class TestDetectFormat:
 
     def test_plain(self):
         assert detect_format("Gemäß § 433 BGB ist der Käufer verpflichtet.") == "plain"
-
-
-# --- Document ---
 
 
 class TestDocument:
@@ -115,9 +107,6 @@ class TestDocument:
         assert doc.doc_id == "test_123"
 
 
-# --- make_document ---
-
-
 class TestMakeDocument:
     def test_auto_detect_plain(self):
         doc = make_document("Gemäß § 433 BGB ist dies so.")
@@ -136,9 +125,6 @@ class TestMakeDocument:
     def test_with_profile(self):
         doc = make_document("<p>text</p>", fmt="html", source_profile="oldp-html")
         assert doc.source_profile == "oldp-html"
-
-
-# --- Integration: CitationExtractor with Document ---
 
 
 class TestExtractorWithDocument:
@@ -175,9 +161,6 @@ class TestExtractorWithDocument:
         for c in result.citations:
             actual = doc.text[c.span.start : c.span.end]
             assert actual == c.span.text, f"Span into text: {actual!r} != {c.span.text!r}"
-
-
-# --- J8: Offset-map round-trip tests (J10a) ---
 
 
 class TestOffsetMap:
@@ -246,9 +229,6 @@ class TestOffsetMap:
             )
 
 
-# --- J10c: Boilerplate-contamination tests ---
-
-
 class TestBoilerplateContamination:
     def test_script_content_not_extracted(self):
         raw = '<p>§ 433 BGB</p><script>var x = "§ 999 StGB";</script>'
@@ -274,9 +254,6 @@ class TestBoilerplateContamination:
         law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
         assert len(law_cits) >= 1
         assert all("154" in c.span.text or "VwGO" in c.span.text for c in law_cits)
-
-
-# --- Real-world HTML extraction integration tests ---
 
 
 class TestHtmlExtractionIntegration:
@@ -360,9 +337,6 @@ class TestHtmlExtractionIntegration:
         assert "bgb" in books
 
 
-# --- Real-world Markdown extraction integration tests ---
-
-
 class TestMarkdownExtractionIntegration:
     """End-to-end tests: Markdown in → citations out → spans round-trip."""
 
@@ -435,9 +409,6 @@ class TestMarkdownExtractionIntegration:
         ext = CitationExtractor()
         result = ext.extract(md, fmt="markdown")
         assert len(result.citations) >= 2  # at least law + case
-
-
-# --- Auto-detection integration tests ---
 
 
 class TestAutoDetectIntegration:

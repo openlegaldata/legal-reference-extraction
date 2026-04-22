@@ -31,9 +31,6 @@ def _cit(
     )
 
 
-# --- A2c: structure key-level accuracy ----------------------------------
-
-
 def test_structure_all_correct():
     gold = [_cit("g1", "law", 0, 10, book="bgb", number="1", structure={"absatz": "1"})]
     pred = [_cit("p1", "law", 0, 10, book="bgb", number="1", structure={"absatz": "1"})]
@@ -84,9 +81,6 @@ def test_structure_skipped_for_case_type():
     r = BenchmarkResult()
     score_document(gold, pred, r)
     assert "structure" not in r.field_accuracy
-
-
-# --- A2d: relation edge F1 ----------------------------------------------
 
 
 def test_relations_perfect_match():

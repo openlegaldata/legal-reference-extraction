@@ -12,8 +12,6 @@ from refex.citations import (
 from refex.orchestrator import CitationExtractor
 from refex.serializers import to_dict, to_json, to_jsonl
 
-# --- to_dict ---
-
 
 class TestToDict:
     def test_law_citation(self):
@@ -76,9 +74,6 @@ class TestToDict:
         json.dumps(d)
 
 
-# --- to_jsonl ---
-
-
 class TestToJsonl:
     def test_basic(self):
         result = ExtractionResult(
@@ -139,9 +134,6 @@ class TestToJsonl:
         assert "\n" not in line
 
 
-# --- to_json ---
-
-
 class TestToJson:
     def test_pretty_printed(self):
         result = ExtractionResult(
@@ -153,9 +145,6 @@ class TestToJson:
         assert "\n" in output  # Multi-line
         parsed = json.loads(output)
         assert parsed["doc_id"] == "doc1"
-
-
-# --- Golden-file snapshot: round-trip through orchestrator + serializer ---
 
 
 class TestGoldenRoundTrip:
