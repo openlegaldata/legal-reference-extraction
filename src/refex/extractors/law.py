@@ -1,4 +1,6 @@
+import importlib.resources
 import logging
+import os
 import re
 
 from refex.errors import RefExError
@@ -7,7 +9,46 @@ from refex.models import Ref, RefMarker, RefType
 logger = logging.getLogger(__name__)
 
 
-class LawRefExtractorMixin:
+def _apply_mask_intervals(content: str, intervals: list[tuple[int, int]]) -> str:
+    """Apply ``(start, end)`` mask intervals to ``content`` in one pass (§7/#10).
+
+    Replaces each ``content[s:e]`` with ``'_' * (e - s)``.  Overlapping or
+    out-of-order intervals are handled by sorting and merging first.  For N
+    intervals this is O(len(content) + N log N), versus the previous
+    O(N × len(content)) from per-marker ``RefMarker.replace_content_with_mask``
+    calls inside each extraction phase.
+    """
+    if not intervals:
+        return content
+
+    sorted_iv = sorted(intervals)
+    # Merge overlaps so the O(len) walk below is correct even when two
+    # phases would have produced overlapping masks (shouldn't happen with
+    # the current patterns, but defensive).
+    merged: list[tuple[int, int]] = []
+    cur_s, cur_e = sorted_iv[0]
+    for s, e in sorted_iv[1:]:
+        if s <= cur_e:
+            if e > cur_e:
+                cur_e = e
+        else:
+            merged.append((cur_s, cur_e))
+            cur_s, cur_e = s, e
+    merged.append((cur_s, cur_e))
+
+    out: list[str] = []
+    last = 0
+    for s, e in merged:
+        if s > last:
+            out.append(content[last:s])
+        out.append("_" * (e - s))
+        last = e
+    if last < len(content):
+        out.append(content[last:])
+    return "".join(out)
+
+
+class DivideAndConquerLawRefExtractorMixin:
     """
     Extractor for law references (citations of legislation). Each law is identified by a section (§, consisting of
     numbers and letters) and the corresponding code as abbreviation or full name (BGB, Bürgerliches Gesetzbuch).
@@ -24,12 +65,12 @@ class LawRefExtractorMixin:
 
     """
 
-    # Used when reference has only section but now book
+    # Used when reference has only section but no book
     # (citations within a law book to other sections, § 1 AB -> § 2 AB)
     law_book_context = None
+    _compiled_patterns: dict | None = None
 
-    # Book identifiers (used to generate regular expression)
-    law_book_codes: list[str] = []
+    # B6: default_law_book_codes as class constant (immutable reference list)
     default_law_book_codes = [
         "AsylG",
         "BGB",
@@ -47,277 +88,548 @@ class LawRefExtractorMixin:
         "SbStG",
         "StPO",
         "TKG",
+        "SG",
+        "SGG",
+        "SGB X",
     ]
 
-    def extract_law_ref_markers(self, content: str) -> list[RefMarker]:
-        """
+    # B5: pre-compiled book regex pattern (built once per init)
+    _book_ref_regex: str | None = None
 
-        The main extraction method. Takes input content and returns content with markers
-        and list of extracted references.
+    # All text non-word symbols
+    _default_word_delimiter = r"\s|\.|,|;|:|!|\?|\(|\)|\[|\]|\"|'|<|>|&"
+
+    # B7: feature flag — use precise code list (True) or generic pattern (False).
+    # Can be overridden per-instance, or via env var REFEX_PRECISE_BOOK_REGEX=0 for
+    # A/B measurement against the generic pattern.
+    use_precise_book_regex: bool = True
+
+    def __init__(self):
+        env_flag = os.environ.get("REFEX_PRECISE_BOOK_REGEX")
+        if env_flag is not None:
+            self.use_precise_book_regex = env_flag not in ("0", "false", "False", "")
+
+        # B6: instance-level copy, not shared class state
+        self._law_book_codes: list[str] = list(self.default_law_book_codes)
+        # E2 — per-code default_unit hint ("article", "paragraph", or missing).
+        # Populated from the optional second tab-separated column in
+        # ``law_book_codes.txt``.  Keys are lower-cased to match the canonical
+        # ``Ref.book`` value (``LawRefMixin.clean_book`` lower-cases books).
+        self._book_unit_hints: dict[str, str] = {}
+
+        # B7: load full code list from bundled data file
+        if self.use_precise_book_regex:
+            file_codes, file_hints = self._load_book_codes_from_file()
+            # Merge: file codes + default codes (no duplicates)
+            seen = {c.lower() for c in self._law_book_codes}
+            for code in file_codes:
+                if code.lower() not in seen:
+                    self._law_book_codes.append(code)
+                    seen.add(code.lower())
+            self._book_unit_hints.update(file_hints)
+
+        # B5: pre-compile the book regex once
+        self._book_ref_regex = self._build_law_book_ref_regex(self._law_book_codes)
+        # E3: pre-compile the book-finding alternation used per-marker inside
+        # the multi-ref loop (was a string pattern re.finditer'd per marker).
+        self._book_pattern_re: re.Pattern = re.compile(self._book_ref_regex)
+
+    @staticmethod
+    def _load_book_codes_from_file() -> tuple[list[str], dict[str, str]]:
+        """Load law book codes from the bundled data file.
+
+        Returns ``(codes, unit_hints)``.  Each line is ``<code>`` or
+        ``<code>\\t<unit>`` where ``<unit>`` is ``article`` or ``paragraph``.
+        Lines without a tab are treated as unit-less (hint omitted).
+        """
+        data_files = importlib.resources.files("refex") / "data"
+        code_path = data_files / "law_book_codes.txt"
+        codes: list[str] = []
+        hints: dict[str, str] = {}
+        try:
+            with importlib.resources.as_file(code_path) as path:
+                with open(path) as f:
+                    for raw in f:
+                        line = raw.rstrip("\n")
+                        if not line.strip():
+                            continue
+                        parts = line.split("\t", 1)
+                        code = parts[0].strip()
+                        if not code:
+                            continue
+                        codes.append(code)
+                        if len(parts) == 2:
+                            unit = parts[1].strip().lower()
+                            if unit in ("article", "paragraph"):
+                                hints[code.lower()] = unit
+        except FileNotFoundError:
+            logger.warning("law_book_codes.txt not found, using defaults only")
+        return codes, hints
+
+    def get_unit_hint(self, book_code: str | None) -> str | None:
+        """Return the authoritative default unit for ``book_code`` (E2).
+
+        ``book_code`` comparison is case-insensitive.  Returns ``None`` when
+        the data file has no annotation for this code — callers should fall
+        back to their text-prefix heuristic.
+        """
+        if not book_code:
+            return None
+        return self._book_unit_hints.get(book_code.lower())
+
+    @property
+    def law_book_codes(self) -> list[str]:
+        return self._law_book_codes
+
+    @law_book_codes.setter
+    def law_book_codes(self, codes: list[str] | None):
+        self._law_book_codes = list(codes) if codes else list(self.default_law_book_codes)
+        self._book_ref_regex = self._build_law_book_ref_regex(self._law_book_codes)
+        # E3: keep the per-marker book-finding pattern in sync
+        self._book_pattern_re = re.compile(self._book_ref_regex)
+        # B5: pre-compile all regex patterns that use the book pattern
+        self._compiled_patterns: dict[str, re.Pattern] | None = None
+
+    def _precompile_patterns(self) -> dict[str, re.Pattern]:
+        """Pre-compile all regex patterns that use the book OR-list.
+
+        This avoids re-compiling the ~20KB book pattern on every extraction call.
+        All patterns use the plain-text section sign (``§``); the HTML path
+        builds its own patterns inline because ``section_sign`` changes to
+        ``&#167;``.
+        """
+        section_sign = "§"
+        sect_space = r"\s"
+        bp = self._book_ref_regex
+        wd = self._default_word_delimiter
+        bla = "(?=" + wd + ")"
+        ac = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"
+        sp = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
+        art_sign = r"Art(?:ikel|\.?)"
+        art_sect_space = r"\s"
+        full_name_suffixes = r"(?:gesetzes|gesetzbuches|gesetzbuch|gesetz|ordnung|verordnung|verfassung)"
+
+        return {
+            # Two-phase multi-ref: first match a bounded span of legal-ref
+            # characters after §§, then verify it ends with a book code.
+            # The character class [0-9a-zäöüA-ZÄÖÜ§ ,;./\-] prevents
+            # catastrophic backtracking that occurs with the alternation-based
+            # pattern on long comma-separated section lists.
+            "multi": re.compile(
+                section_sign + section_sign + sect_space + r"[0-9a-zäöüA-ZÄÖÜ§ ,;.\-/]{4,200}\s(" + bp + ")" + bla
+            ),
+            "single_book": re.compile(section_sign + sect_space + sp + " (?P<book>" + bp + ")" + bla),
+            "single_abs_alt": re.compile(
+                section_sign + sect_space + sp + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>" + bp + ")" + bla
+            ),
+            "single_any_book": re.compile(
+                section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) " + ac + " (?P<book>(" + bp + "))" + bla
+            ),
+            "single_ivm": re.compile(
+                section_sign
+                + sect_space
+                + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                + ac
+                + r" (?P<next_book>(i\.V\.m\.|iVm))"
+                + bla
+            ),
+            # Full law name: "§ 40 des Verwaltungsverfahrensgesetzes"
+            "full_name": re.compile(
+                section_sign
+                + sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?)).{0,80}?\s(?:des|der)\s(?:[a-zäüö][a-zäüöß]+\s)*"
+                + r"(?P<book>[A-ZÄÜÖ][A-Za-zÄÜÖäüöß]+?"
+                + full_name_suffixes
+                + r")"
+                + bla
+            ),
+            # Artikel multi-ref: "Art. 1, 2, 3 GG"
+            "art_multi": re.compile(
+                art_sign
+                + art_sect_space
+                + r"(?P<body>[0-9]+(?:\s?[a-z]?)"
+                + r"(?:\s*(?:,|;|und|bis)\s+[0-9]+(?:\s?[a-z]?))+)"
+                + r"\s+(?P<book>"
+                + bp
+                + r")"
+                + bla
+            ),
+            # Artikel single ref: "Art. 12 Abs. 1 GG"
+            "art_single": re.compile(
+                art_sign + art_sect_space + r"(?P<sect>[0-9]+(?:\s?[a-z]?))" + ac + r"\s+(?P<book>" + bp + r")" + bla
+            ),
+            # Per-marker section splitter for multi-refs: "§§ 1, 2, 3 BGB" →
+            # finds each section number and the separator before it.  Was
+            # recompiled once per matched multi-marker — now once per
+            # extractor instance.
+            "multi_ref_sections": re.compile(
+                "(?P<sep>"
+                + section_sign
+                + section_sign
+                + r"|,|;|und|bis)"
+                + r"\s?(?P<sect>(([0-9]+)\s(?=bis|und)|([0-9]+)\s?[a-z]|([0-9]+)))"
+            ),
+        }
+
+    def extract_law_ref_markers(self, content: str, is_html: bool = False) -> list[RefMarker]:
+        """
+        The main extraction method. Takes input content and returns list of extracted reference markers.
+
+        Divide and Conquer:
+        - only simple regex
+        - replace matches with mask to avoid multiple matches
 
         :param content: Plain-text or even HTML
         :return: List of reference markers
         """
 
-        logger.debug(f"Extracting from: {content}")
-
         if self.law_book_context is not None:
-            # Extraction with context available is done in another method
             return self.extract_law_ref_markers_with_context(content)
 
-        # Init
         markers = []
 
-        # Handle each match separately
-        for marker_match in re.finditer(self.get_law_ref_regex(self.get_law_book_codes()), content):
-            marker_text = str(marker_match.group(0)).strip()
-            references: list[Ref] = []
+        if is_html:
+            section_sign = "&#167;"
+            word_delimiter = (
+                r"\s|\.|,|;|:|!|\?|\(|\)|\[|\]"
+                r"|&#8221;|\&#8216;|\&#8217;|&#60;|&#62;|&#38;"
+                r"|&rdquo;|\&lsquo;|\&rsquo;|&lt;|&gt;|&amp;"
+                r"|\"|'|<|>|&"
+            )
+        else:
+            section_sign = "§"
+            word_delimiter = self._default_word_delimiter
 
-            # Handle single and multi refs separately
-            if re.match(r"^(Art(\.{,1})|§)\s", marker_text):
-                references = self.handle_single_law_ref(self.get_law_book_codes(), marker_text, references)
+        # Use \s for the space after § to handle both regular and non-breaking spaces
+        sect_space = r"\s"
 
-            elif re.match(r"^§§\s", marker_text):
-                references = self.handle_multiple_law_refs(self.get_law_book_codes(), marker_text, references)
+        book_look_ahead = "(?=" + word_delimiter + ")"
+        book_pattern = self._book_ref_regex
 
-            else:
-                raise RefExError(f"Unsupported ref beginning: {marker_text}")
+        any_content = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"  # noqa: E501
 
-            marker = RefMarker(
-                text=marker_text,
-                start=marker_match.start(),
-                end=marker_match.end(),
-                line=0,
-            )  # TODO
+        # Lazy-init pre-compiled patterns on first use
+        if self._compiled_patterns is None:
+            self._compiled_patterns = self._precompile_patterns()
+
+        # Use pre-compiled patterns for the plain-text path (HTML path still builds inline)
+        if not is_html:
+            multi_pattern = self._compiled_patterns["multi"]
+        else:
+            multi_pattern = re.compile(
+                section_sign
+                + section_sign
+                + sect_space
+                + r"[0-9a-zäöüA-ZÄÖÜ§ ,;.\-/]{4,200}\s("
+                + book_pattern
+                + ")"
+                + book_look_ahead
+            )
+
+        # E3: pre-compiled book pattern (plain-text path) + pre-compiled
+        # per-marker splitter. HTML path still builds its splitter inline
+        # because `section_sign` differs.
+        if not is_html:
+            book_pattern_re = self._book_pattern_re
+            ref_pattern = self._compiled_patterns["multi_ref_sections"]
+        else:
+            book_pattern_re = re.compile(book_pattern)
+            ref_pattern = re.compile(
+                "(?P<sep>"
+                + section_sign
+                + section_sign
+                + r"|,|;|und|bis)"
+                + r"\s?(?P<sect>(([0-9]+)\s(?=bis|und)|([0-9]+)\s?[a-z]|([0-9]+)))"
+            )
+
+        multi_mask_iv: list[tuple[int, int]] = []
+        for marker_match in multi_pattern.finditer(content):
+            marker_text = marker_match.group(0)
+            refs: list[Ref] = []
+
+            logger.debug("Multi Match with: %s", marker_text)
+
+            book_positions = {}
+            for book_match in book_pattern_re.finditer(marker_text):
+                book_positions[book_match.start()] = book_match.group(0)
+
+            if len(book_positions) < 0:
+                logger.error("No book found in marker text: %s", marker_text)
+                continue
+
+            for ref_match in ref_pattern.finditer(marker_text):
+                sect = ref_match.group("sect")
+
+                logger.debug("Found ref: %s", ref_match.group())
+
+                if len(book_positions) == 1:
+                    book = next(iter(book_positions.values()))
+                else:
+                    book = None
+                    pos = ref_match.start()
+
+                    for bp in book_positions:
+                        if bp > pos:
+                            book = book_positions[bp]
+                            break
+
+                if book is None:
+                    logger.error("No book after reference found: %s - %s", ref_match.group(0), marker_text)
+                    continue
+
+                if ref_match.group("sep") == "bis" and len(refs) > 0:
+                    from_sect = refs[-1].section
+
+                    if sect.isdigit() and from_sect.isdigit():
+                        for between_sect in range(int(from_sect) + 1, int(sect)):
+                            refs.append(Ref.init_law(book=book, section=str(between_sect)))
+
+                refs.append(Ref.init_law(book=book, section=sect))
+
+            marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
             marker.set_uuid()
-            marker.set_references(references)
+            marker.set_references(refs)
+
+            if len(refs) > 0:
+                markers.append(marker)
+                multi_mask_iv.append((marker.start, marker.end))
+            else:
+                logger.warning("No references found in marker: %s ", marker_text)
+        content = _apply_mask_intervals(content, multi_mask_iv)
+
+        # Single refs — use pre-compiled patterns for plain text
+        if not is_html:
+            single_patterns = [
+                self._compiled_patterns["single_book"],
+                self._compiled_patterns["single_abs_alt"],
+                self._compiled_patterns["single_any_book"],
+                self._compiled_patterns["single_ivm"],
+            ]
+        else:
+            sect_pattern = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
+            single_patterns = [
+                re.compile(
+                    section_sign + sect_space + sect_pattern + " (?P<book>" + book_pattern + ")" + book_look_ahead
+                ),
+                re.compile(
+                    section_sign
+                    + sect_space
+                    + sect_pattern
+                    + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>"
+                    + book_pattern
+                    + ")"
+                    + book_look_ahead
+                ),
+                re.compile(
+                    section_sign
+                    + sect_space
+                    + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                    + any_content
+                    + " (?P<book>("
+                    + book_pattern
+                    + "))"
+                    + book_look_ahead
+                ),
+                re.compile(
+                    section_sign
+                    + sect_space
+                    + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                    + any_content
+                    + r" (?P<next_book>(i\.V\.m\.|iVm))"
+                    + book_look_ahead
+                ),
+            ]
+
+        markers_waiting_for_book: list[RefMarker] = []
+
+        for pattern in single_patterns:
+            single_mask_iv: list[tuple[int, int]] = []
+            for marker_match in pattern.finditer(content):
+                marker_text = marker_match.group(0)
+                if "book" in marker_match.groupdict():
+                    book = Ref.clean_book(marker_match.group("book"))
+                else:
+                    book = None
+
+                ref = Ref.init_law(section=marker_match.group("sect"), book=None)
+
+                marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
+                marker.set_uuid()
+
+                if book is not None:
+                    ref.book = book
+                    marker.set_references([ref])
+
+                    single_mask_iv.append((marker.start, marker.end))
+                    markers.append(marker)
+
+                    for waiting in markers_waiting_for_book:
+                        if len(waiting.references) == 1:
+                            waiting.references[0].book = book
+                            single_mask_iv.append((waiting.start, waiting.end))
+                            markers.append(waiting)
+                    markers_waiting_for_book = []
+                else:
+                    if marker_match.group("next_book") is not None:
+                        marker.set_references([ref])
+                        markers_waiting_for_book.append(marker)
+                    else:
+                        raise RefExError("next_book and book are None")
+            content = _apply_mask_intervals(content, single_mask_iv)
+
+        if len(markers_waiting_for_book) > 0:
+            logger.warning("Marker could not be assign to book: %s", markers_waiting_for_book)
+
+        # Full law name references: § 40 des Verwaltungsverfahrensgesetzes
+        if not is_html:
+            full_name_pattern = self._compiled_patterns["full_name"]
+        else:
+            full_name_suffixes = r"(?:gesetzes|gesetzbuches|gesetzbuch|gesetz|ordnung|verordnung|verfassung)"
+            full_name_pattern = re.compile(
+                section_sign
+                + sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?)).{0,80}?\s(?:des|der)\s(?:[a-zäüö][a-zäüöß]+\s)*"
+                + r"(?P<book>[A-ZÄÜÖ][A-Za-zÄÜÖäüöß]+?"
+                + full_name_suffixes
+                + r")"
+                + book_look_ahead
+            )
+
+        full_name_mask_iv: list[tuple[int, int]] = []
+        for marker_match in full_name_pattern.finditer(content):
+            marker_text = marker_match.group(0)
+            book = marker_match.group("book").strip().lower()
+
+            # Strip genitive suffix: "gesetzes" → "gesetz", "gesetzbuches" → "gesetzbuch"
+            if book.endswith("gesetzes") or book.endswith("gesetzbuches"):
+                book = book[:-2]
+
+            sect = marker_match.group("sect")
+            ref = Ref(ref_type=RefType.LAW, book=book, section=Ref.clean_section(sect))
+
+            marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
+            marker.set_uuid()
+            marker.set_references([ref])
 
             markers.append(marker)
+            full_name_mask_iv.append((marker.start, marker.end))
+        content = _apply_mask_intervals(content, full_name_mask_iv)
+
+        # Multi Art refs: "Art. 1, 2, 3 GG" — list of bare numbers separated by , ; und bis
+        # Must contain at least one comma/und/bis separator to qualify as multi
+        if not is_html:
+            art_multi_pattern = self._compiled_patterns["art_multi"]
+        else:
+            art_sign = r"Art(?:ikel|\.?)"
+            art_sect_space = r"\s"
+            art_multi_pattern = re.compile(
+                art_sign
+                + art_sect_space
+                + r"(?P<body>[0-9]+(?:\s?[a-z]?)"
+                + r"(?:\s*(?:,|;|und|bis)\s+[0-9]+(?:\s?[a-z]?))+)"
+                + r"\s+(?P<book>"
+                + book_pattern
+                + r")"
+                + book_look_ahead
+            )
+
+        art_multi_mask_iv: list[tuple[int, int]] = []
+        for marker_match in art_multi_pattern.finditer(content):
+            marker_text = marker_match.group(0)
+            book = Ref.clean_book(marker_match.group("book"))
+            body = marker_match.group("body")
+
+            refs: list[Ref] = []
+            for sect_match in re.finditer(r"([0-9]+(?:\s?[a-z]?))", body):
+                sect = sect_match.group(1).strip()
+                if sect:
+                    refs.append(Ref.init_law(book=book, section=sect))
+
+            if refs:
+                marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
+                marker.set_uuid()
+                marker.set_references(refs)
+                markers.append(marker)
+                art_multi_mask_iv.append((marker.start, marker.end))
+        content = _apply_mask_intervals(content, art_multi_mask_iv)
+
+        # Single Art ref: "Art. 12 Abs. 1 GG" or "Art 12 GG"
+        if not is_html:
+            art_single_pattern = self._compiled_patterns["art_single"]
+        else:
+            art_single_pattern = re.compile(
+                art_sign
+                + art_sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?))"
+                + any_content
+                + r"\s+(?P<book>"
+                + book_pattern
+                + r")"
+                + book_look_ahead
+            )
+
+        art_single_mask_iv: list[tuple[int, int]] = []
+        for marker_match in art_single_pattern.finditer(content):
+            marker_text = marker_match.group(0)
+            book = Ref.clean_book(marker_match.group("book"))
+            sect = marker_match.group("sect").strip()
+
+            ref = Ref.init_law(book=book, section=sect)
+            marker = RefMarker(text=marker_text, start=marker_match.start(), end=marker_match.end())
+            marker.set_uuid()
+            marker.set_references([ref])
+            markers.append(marker)
+            art_single_mask_iv.append((marker.start, marker.end))
+        # The art_single_mask_iv isn't consumed further in this method, but the
+        # batched apply is kept for consistency with the earlier phases — and
+        # cheap when no masks were queued.
+        content = _apply_mask_intervals(content, art_single_mask_iv)
 
         return markers
 
     def get_law_book_codes(self):
         """Book identifiers to build regex"""
-        if self.law_book_codes is None:
-            self.law_book_codes = []
+        return self._law_book_codes
 
-        if len(self.law_book_codes) < 1:
-            # Extend with pre-defined codes
-            self.law_book_codes.extend(self.default_law_book_codes)
+    _GENERIC_BOOK_PATTERN = r"([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
 
-        return self.law_book_codes
+    def _build_law_book_ref_regex(self, law_book_codes):
+        r"""Build regex for the law book part in citation markers.
 
-    def get_law_book_ref_regex(self, law_book_codes, optional=False, group_name=False, to_lower=False):
+        B7: When ``use_precise_book_regex`` is True, builds a precise OR-list
+        from the actual code list (sorted longest-first to avoid partial matches).
+        Falls back to the generic pattern otherwise.
         """
-        Returns regex for law book part in reference markers (OR list).
-
-        Example:
-            - codes: ['ab', 'cd', 'de']
-            - output: ab|cd|de
-
-        """
-
-        # return '[a-zA-Z]'
-
         if len(law_book_codes) < 1:
             raise RefExError("Cannot generate regex, law_book_codes are empty")
 
-        if optional:
-            raise ValueError("optional=True not supported")
-
-        if group_name:
-            raise ValueError("group_name=True not supported")
-
         logger.debug("Law book ref with %i books", len(law_book_codes))
 
-        return "|".join([code.lower() if to_lower else code for code in law_book_codes])
+        if not self.use_precise_book_regex:
+            return self._GENERIC_BOOK_PATTERN
 
-    def get_law_ref_regex(self, law_book_codes) -> str:
-        """
-        Based on a list of law books we build a regex that matches reference markers.
+        # Sort codes by length descending so longer codes match first
+        # (e.g., "SGB X" before "SG", "BauGB" before "BGB")
+        sorted_codes = sorted(law_book_codes, key=len, reverse=True)
 
-        General regex, actual extraction is done with either single or multiple regex.
+        # Escape regex special chars in codes
+        escaped = [re.escape(code) for code in sorted_codes]
 
-        Useful tools:
-        - http://regexr.com/
-        - https://www.debuggex.com/
+        # Build OR-list, wrapped in a non-capturing group
+        or_list = "|".join(escaped)
 
-        Regex Notes:
-        - (a|b|c) == a OR b OR c
-        - ? = optional
-        - {1,2} == length of 1 or 2
+        # Include a conservative generic fallback for codes not in the list.
+        # Only match words that look like German law abbreviations (end with
+        # common suffixes like G, O, V, B or contain these in compound forms).
+        return f"(?:{or_list}|{self._GENERIC_BOOK_PATTERN})"
 
-        :return: regular expression
-        """
-
-        regex = r"(§|§§|Art(\.{,1}))\s"
-        regex += (
-            r"(\s|[0-9]+(\.{,1})|[a-z]|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|f\.|ff\.|und|bis|\,|;|\s"
-            + self.get_law_book_ref_regex(law_book_codes, optional=False, group_name=False)
-            + ")+"
-        )
-        regex += r"\s(" + self.get_law_book_ref_regex(law_book_codes, optional=False, group_name=False) + ")"
-
-        # logger.debug('Regex: %s' % regex)
-
-        return regex
-
-    def get_law_ref_match_single(self, law_book_codes, ref_str):
-        # Single ref
-        regex_a = r"(Art(\.{,1})|§)\s"
-        regex_a += r"((?P<sect>[0-9]+)\s?(?P<sect_az>[a-z])?)"  # f. ff.
-        regex_a += r"(\s?([0-9]+(\.{,1})|[a-z]{1,2}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s))*"
-        # regex_a += '\s?(?:(Abs.|Abs)\s?(?:[0-9]{1,2})\s?((,|und|bis)\s*(([0-9]+)\s?([a-z])?)+)*)?'
-        # regex_a += '\s?((Satz|S\.)\s[0-9]{1,2})?'
-        # regex_a += '\s?(((Nr|Nr\.)\s[0-9]+)' + '(\s?(,|und|bis)\s[0-9]+)*' + ')?'
-        # regex_a += '\s?(((Alt|Alt\.)\s[0-9]+)' + '(\s?(,|und|bis)\s[0-9]+)*' + ')?'
-
-        regex_a += r"\s(?P<book>" + self.get_law_book_ref_regex(law_book_codes, optional=False) + ")"
-
-        return re.search(regex_a, ref_str)
-
-    def get_law_ref_match_multi(self, law_book_codes, ref_str):
-        pattern = r"(?P<delimiter>§§|,|;|und|bis)\s?"
-        pattern += r"((?P<sect>[0-9]+)\s?"
-        # pattern += '(?P<sect_az>[a-z])?)'
-        # (?!.*?bis).*([a-z]).*)
-        # pattern += '(?P<sect_az>(?!.*?bis).*([a-z]).*)?)'
-        # (?!(moscow|outside))
-        # pattern += '(?P<sect_az>(([a-z])(?!(und|bis))))?)'
-        pattern += r"((?P<sect_az>[a-z])(\s|,|;))?)"  # Use \s|, to avoid matching "bis" and "Abs", ...
-
-        pattern += r"(\s?(Abs\.|Abs)\s?([0-9]+))*"
-        pattern += r"(\s?(S\.|Satz|Halbsatz)\s?([0-9]+))*"
-
-        # pattern += '(?:\s(Nr\.|Nr)\s([0-9]+))'
-        # pattern += '(?:\s(S\.|Satz)\s([0-9]+))'
-
-        # pattern += '(?:\s(f\.|ff\.))?'
-        pattern += r"(\s?(f\.|ff\.))*"
-
-        # pattern += '(\s(Abs.|Abs)\s?([0-9]+)((,|und|bis)\s([0-9]+))*)*'
-        # pattern += '\s?(?:(Abs.|Abs)\s?(?:[0-9]{1,2})\s?((,|und|bis)\s*(([0-9]+)\s?([a-z])?)+)*)?'
-
-        # logger.debug('Multi ref regex: %s' % pattern)
-
-        pattern += r"\s?(?:(?P<book>" + self.get_law_book_ref_regex(law_book_codes) + "))?"
-
-        # print('MULTI: ' + ref_str)
-        # print(pattern)
-        #
-        logger.debug(f"Multi ref regex: {pattern}")
-
-        return re.finditer(pattern, ref_str)
-
-    def handle_multiple_law_refs(self, law_book_codes, ref_str, law_ids) -> list[Ref]:
-        # Search for multiple refs
-        matches = self.get_law_ref_match_multi(law_book_codes, ref_str)
-
-        refs_tmp = []
-        prev_sect = None
-        prev_book = None
-
-        logger.debug(f"Multi refs found in: {ref_str}")
-
-        # Loop over all results
-        for match in matches:
-            # If book is not set, use __placeholder__ and replace later
-            if match.group("book") is not None:
-                book = match.group("book").lower()
-            else:
-                book = "__book__"
-
-            # Section must exist
-            if match.group("sect") is not None:
-                sect = str(match.group("sect"))
-            else:
-                raise RefExError("Ref sect is not set")
-
-            if match.group("sect_az") is not None:
-                sect += match.group("sect_az").lower()
-
-            ref = Ref(ref_type=RefType.LAW, book=book, section=sect)
-
-            logger.debug(f"Ref found: {ref} ({match.group(0)})")
-
-            # Check for section ranges
-            if match.group("delimiter") == "bis":
-                logger.debug("Handle section range - Add ids from " + prev_sect + " to " + sect)
-                # TODO how to handle az sects
-                prev_sect = re.sub("[^0-9]", "", prev_sect)
-                sect = re.sub("[^0-9]", "", sect)
-
-                for between_sect in range(int(prev_sect) + 1, int(sect)):
-                    # print(between_sect)
-
-                    refs_tmp.append(
-                        Ref(
-                            ref_type=RefType.LAW,
-                            book=prev_book,
-                            section=str(between_sect),
-                        )
-                    )
-            else:
-                prev_sect = sect
-                prev_book = book
-
-            refs_tmp.append(ref)
-
-        # law_ids.append('multi = ' + ref_str)
-        # handle __book__
-        logger.debug(f"All law ids found: {refs_tmp}")
-
-        refs_tmp.reverse()
-        book = None
-        for id_tmp in refs_tmp:
-            if id_tmp.book != "__book__":
-                book = id_tmp.book
-            elif book is not None:
-                id_tmp.book = book
-            else:
-                # raise RefExError('Cannot determine law book (Should never happen): %s' % ref_str)
-                continue
-
-            law_ids.append(id_tmp)
-
-        return law_ids
-
-    def handle_single_law_ref(self, law_book_codes, ref_str, law_ids) -> list[Ref]:
-        logger.debug(f"Single ref found in: {ref_str}")
-
-        # Single ref
-        mm = self.get_law_ref_match_single(law_book_codes, ref_str)
-
-        # Find book and section (only single result possible)
-        if mm is not None:
-            # mm.groupdict()
-
-            if mm.group("book") is not None:
-                # Found book
-                book = mm.group("book").lower()
-            else:
-                raise RefExError(f"Ref book is not set: {ref_str} ")
-
-            if mm.group("sect") is not None:
-                # Found section
-                sect = str(mm.group("sect"))
-            else:
-                raise RefExError("Ref sect is not set")
-
-            if mm.group("sect_az") is not None:
-                # Found section addon
-                sect += mm.group("sect_az").lower()
-
-            law_id = Ref(ref_type=RefType.LAW, book=book, section=sect)
-
-            logger.debug(f"Law ID: {law_id}")
-
-            law_ids.append(law_id)
-        else:
-            # law_ids.append({'book': 'not matched', 'sect': 'NOT MATCHED (single) %s ' % ref_str})
-            logger.warning(f"Law ID could not be matched: {ref_str}")
-
-        return law_ids
+    # Keep old name as alias for backward compat
+    def get_law_book_ref_regex(self, law_book_codes, optional=False, group_name=False, to_lower=False):
+        if optional:
+            raise ValueError("optional=True not supported")
+        if group_name:
+            raise ValueError("group_name=True not supported")
+        return self._build_law_book_ref_regex(law_book_codes)
 
     def extract_law_ref_markers_with_context(self, content):
         """
@@ -330,8 +642,8 @@ class LawRefExtractorMixin:
         markers = []
 
         book_code = self.law_book_context
-        content = content.replace("&#167;", "§")
-        search_text = str(content)
+        # Normalize HTML entity for § (ported from legacy law.py)
+        search_text = str(content).replace("&#167;", "§")
 
         def multi_sect(match):
             start = int(match.group(1))
@@ -351,19 +663,19 @@ class LawRefExtractorMixin:
         patterns = [
             # §§ 664 bis 670
             {
-                "pattern": "§§ ([0-9]+) (bis|und) ([0-9]+)",
+                "pattern": re.compile("§§ ([0-9]+) (bis|und) ([0-9]+)"),
                 "book": multi_book,
                 "sect": multi_sect,
             },
             # Anlage 3
             {
-                "pattern": "Anlage ([0-9]+)",
+                "pattern": re.compile("Anlage ([0-9]+)"),
                 "book": lambda match: book_code,
                 "sect": lambda match: f"anlage-{int(match.group(1))}",
             },
             # § 1
             {
-                "pattern": r"§ ([0-9]+)(?:\s(Abs\.|Absatz)\s([0-9]+))?(?:\sSatz\s([0-9]+))?",
+                "pattern": re.compile(r"§ ([0-9]+)(?:\s(Abs\.|Absatz)\s([0-9]+))?(?:\sSatz\s([0-9]+))?"),
                 "book": lambda match: book_code,
                 "sect": lambda match: match.group(1),
             },
@@ -372,21 +684,16 @@ class LawRefExtractorMixin:
         for p in patterns:
             regex = p["pattern"]
 
-            res = re.finditer(regex, search_text)  # flags
-
-            for ref_m in res:
+            for ref_m in regex.finditer(search_text):
                 ref_text = ref_m.group(0)
 
-                # Build ref with lambda functions
                 ref_ids = []
                 books = p["book"](ref_m)
                 sects = p["sect"](ref_m)
 
-                # Handle multiple ref ids in a single marker
                 if not isinstance(books, str):
                     for key, book in enumerate(books):
                         ref_ids.append(Ref(ref_type=RefType.LAW, book=book, section=sects[key]))
-
                 else:
                     ref_ids.append(Ref(ref_type=RefType.LAW, book=books, section=sects))
 
@@ -395,16 +702,8 @@ class LawRefExtractorMixin:
                 ref.set_references(ref_ids)
                 markers.append(ref)
 
-                # Remove from search content to avoid duplicate matches
                 search_text = (
                     search_text[: ref_m.start()] + ("_" * (ref_m.end() - ref_m.start())) + search_text[ref_m.end() :]
                 )
-                # print('-------')
-
-        # Sort by start and replace markers
-        # markers.sort(key=lambda r: r.start, reverse=False)
-        # marker_offset = 0
-        # for key, ref in enumerate(markers):
-        #     content, marker_offset = ref.replace_content(content, marker_offset)
 
         return markers

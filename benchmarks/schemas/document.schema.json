@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openlegaldata.io/schemas/benchmark/document.schema.json",
+  "title": "Benchmark Document",
+  "description": "A legal document record for the legal-reference-extraction benchmark.",
+  "type": "object",
+  "required": ["doc_id", "format", "raw", "text", "language", "source"],
+  "properties": {
+    "doc_id": {
+      "type": "string",
+      "description": "Globally unique document identifier."
+    },
+    "format": {
+      "type": "string",
+      "enum": ["plain", "html", "markdown"],
+      "description": "Content format of the 'raw' field."
+    },
+    "raw": {
+      "type": "string",
+      "description": "Document content in the declared format."
+    },
+    "text": {
+      "type": "string",
+      "description": "Canonical plain-text projection of the document."
+    },
+    "source_profile": {
+      "type": "string",
+      "description": "Normaliser profile name used to produce the plain-text projection."
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}$",
+      "description": "ISO 639-1 two-letter language code."
+    },
+    "source": {
+      "type": "string",
+      "description": "URL or identifier of the original document source."
+    },
+    "court": {
+      "type": "string",
+      "description": "Court that issued the decision."
+    },
+    "decision_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the decision (ISO 8601)."
+    },
+    "decision_type": {
+      "type": "string",
+      "description": "Type of decision, e.g. Urteil, Beschluss."
+    }
+  },
+  "additionalProperties": false
+}

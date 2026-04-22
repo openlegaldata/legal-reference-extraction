@@ -111,7 +111,7 @@ BEGDV 3
 BEGDV 6
 BEGebV 2008
 BFStrMG
-BGB
+BGB	paragraph
 BGBEG
 BGSG 1994
 BHO
@@ -481,7 +481,7 @@ GärtnAusbV
 GüKG 1998
 GüKGrKabotageV 2012
 HAG
-HGB
+HGB	paragraph
 HGBEG
 HGrG
 HRG
@@ -808,18 +808,18 @@ SEAG
 SEBG
 SEIVerfMAusbV 2004
 SG
-SGB 1
-SGB 10
-SGB 11
-SGB 12
-SGB 2
-SGB 3
-SGB 4
-SGB 5
-SGB 6
-SGB 7
-SGB 8
-SGB 9
+SGB 1	paragraph
+SGB 10	paragraph
+SGB 11	paragraph
+SGB 12	paragraph
+SGB 2	paragraph
+SGB 3	paragraph
+SGB 4	paragraph
+SGB 5	paragraph
+SGB 6	paragraph
+SGB 7	paragraph
+SGB 8	paragraph
+SGB 9	paragraph
 SGG
 SLV 2002
 SPV
@@ -898,10 +898,10 @@ StBDV
 StBGebV
 StBerG
 StFachAngAusbV
-StGB
+StGB	paragraph
 StGBEG
 StGebO 2011
-StPO
+StPO	paragraph
 StRSaarEG
 StUG
 StV/WasAusbV
@@ -1024,8 +1024,8 @@ VerschG
 ViehVerkV 2007
 VulkAusbV 2004
 VwFAngAusbV 1999
-VwGO
-VwVfG
+VwGO	paragraph
+VwVfG	paragraph
 WDO 2002
 WG
 WHG 2009
@@ -1076,7 +1076,7 @@ ZHG§8DV
 ZIV
 ZO-Zahnärzte
 ZO-Ärzte
-ZPO
+ZPO	paragraph
 ZPOEG
 ZSG
 ZTechAusbV
@@ -1102,4 +1102,846 @@ ZÄPrO
 ÄApprO 2002
 ÄndSchnAusbV
 ÖLGKontrollStZulV
-ÜblG 1
+ÜblG 1A-Ausbildung
+AAV
+AEG
+AELFV
+AEntG
+AFG
+AFKG
+AFWoG
+AG GlüStV NRW
+AG VwGO
+AGB-Gesetz
+AGBG
+AGGVG
+AGGlüStV
+AGVwGO
+AMG
+AO
+AO-SF
+APO
+APO-BK
+APVO-Sozialpädagogik
+ASchO
+ASchO NRW
+ATZV
+AUV
+AVAG
+AVBGasV
+AVBWasserV
+AVG
+AZG
+AZO
+AbfG
+Abgabenordnung
+Abs II BGB
+AbsFondsG
+AbwAG
+Abzahlungsgesetz
+Aktiengesetz
+Alg II-V
+Alg II-VO
+AlgIIV
+AlhiV
+Alternative AufenthG
+Alternative BGB
+Alternative FGO
+Alternative StGB
+Alternative StPO
+AltersteilzeitG
+Amtsordnung
+AnVNG
+AnfG
+Apothekengesetz
+ArEV
+ArVNG
+ArbPlSchG
+Arbeitsförderungsgesetz
+Arbeitsgerichtsgesetz
+Arbeitsplatzschutzgesetz
+Arbeitssicherheit
+ArchG BY
+Arzneimittelgesetz
+AsylG	paragraph
+AsylVfG
+AsylbLG
+Asylverfahrensgesetz
+AufenthG
+Aufenthaltsgesetz
+AuslG
+AuslVZV
+Ausländergesetz
+BAföG-AuslandszuständigkeitsV
+BArchG
+BBG
+BBiG
+BDO
+BDSG
+BErzGG
+BFHEntlG
+BG LSA
+BG NW
+BGB-InfoV
+BGleiG
+BKGG
+BKatV
+BKleingG
+BLV
+BMG
+BNatSchG	paragraph
+BOKraft
+BPflV
+BPolG
+BPolLV
+BRAGO
+BRAGebO
+BRKG
+BRRG
+BSHG
+BSchG
+BUrlG
+BV
+BVO
+BVSG NW
+BWG
+BWO
+BauGB	paragraph
+BauKaG NRW
+BauO BY
+BauO LSA
+BauO NRW
+BauO NW
+BauPrüfVO
+Baubetriebe-Verordnung
+Baugesetzbuch
+Baunutzungsverordnung
+BayAbfAlG
+BayAbfG
+BayAbwAG
+BayBG
+BayBO
+BayBeamtVG
+BayBesG
+BayBlindG
+BayDO
+BayEG
+BayEUG
+BayHSchG
+BayHSchPG
+BayKrG
+BayMG
+BayNatSchG
+BayNpV
+BayPVG
+BayRDG
+BayStrWG
+BayUIG
+BayUniKlinG
+BayVwVfG
+BayWG
+BayWaldG
+Bayerischen Hochschulgesetzes
+Bayern
+BbgBO
+BbgHG
+BbgNatSchG
+BbgRiG
+Beamtenrechtsrahmengesetz
+Beihilfenverordnung
+Beihilfenverordnung-Magermilch
+BerHG
+Bergmannsprämien
+BerlHG
+Berufsbildungsgesetzes
+BesVersEG LSA
+BesÜG
+BetrPrämDurchfG
+Betriebsprüfungsordnung
+Betriebsverfassungsgesetz
+Betäubungsmittelgesetzes
+Bewertungsgesetz
+BezVG
+BhV SL
+BhVO
+BpO
+BremLWO
+BremWahlG
+BtMG
+Bundes
+Bundesartenschutzverordnung
+Bundesbaugesetzes
+Bundesbeamtengesetz
+Bundesbesoldungsgesetz
+Bundeserziehungsgeldgesetz
+Bundesfernstraßengesetzes
+Bundesfinanzhofs
+Bundeskindergeldgesetzes
+Bundeslaufbahnverordnung
+Bundesnaturschutzgesetzes
+Bundespflegesatzverordnung
+Bundesrechtsanwaltsordnung
+Bundessozialhilfegesetz
+Bundesverfassungsgericht
+Bundesversorgungsgesetz
+Bundesvertriebenengesetzes
+BörsG
+Bürgerlichen Gesetzbuches
+Bürgerlichen Gesetzbuchs
+Bürgerliches Gesetzbuch
+Chemikaliengesetzes
+DBA-Luxemburg
+DBGrG
+DDR-EErfG
+DG LSA
+DMBG
+DPMAV
+DSchG
+DSchG NW
+DVAsyl
+DVAuslG
+DVBayKrG
+DVStB
+DVWaffG
+Denkmalschutzgesetzes
+DesignG
+Deutschen Richtergesetzes
+DiszG
+Drittes Buch Sozialgesetzbuch
+DÜG
+EAEG
+EEG
+EFZG
+EG-FGV
+EGBGB
+EGGVG
+EGHGB
+EGStGB
+EGZPO
+EOG
+ESch-VO
+EStDV
+EUStBV
+EUV	article
+EUrlDbV
+EV
+EVZStiftG
+EheG
+EichG
+EigZulG
+Einigungsvertrag
+Einkommensteuergesetz
+ElektroG
+EnWG
+Energiewirtschaftsgesetzes
+EnteigG BY
+EntgFG
+EntschG
+ErbStG
+ErbbauRG
+Erbschaftsteuergesetz
+Ersten Buches Sozialgesetzbuch
+Erstes Buch Sozialgesetzbuch
+ErwZulG
+FAG
+FANG
+FAZuVO
+FEVG
+FG
+FGG
+FGG-RG
+Fachhochschulen
+Fahrerlaubnis-Verordnung
+Fahrerlaubnisverordnung
+Fahrpersonalgesetzes
+FeV
+FernAbsG
+Feststellungsgesetzes
+Feuerwehrgesetzes
+Finanzausgleich
+Finanzgerichtsordnung
+FischG BY
+FlHG
+FluglärmG
+Flurbereinigungsgesetzes
+FrUrlV NRW
+FreizügG/EU
+Fremdrentengesetzes
+FördG
+FüAkV
+Fünften Buchs Sozialgesetzbuch
+Fünftes Buch Sozialgesetzbuch
+G 131
+GAL
+GBV
+GFG
+GFlHG
+GG	article
+GGV
+GKG
+GKG-LSA
+GNotKG
+GO
+GO LSA
+GO NRW
+GOÄ
+GSiG
+GTK
+GUVG
+GV
+GaV
+GasNZV
+GastG
+Gaststättengesetz
+GebG NRW
+GebGBbg
+GebOVerm
+GemO
+Gemeindeordnung
+GerOrgG
+Gerichtskostengesetz
+Gerichtsverfassungsgesetz
+GesO
+GeschmMG
+GewAbfV
+Gewerbeordnung
+Gewerbesteuergesetz
+GkZ
+GlüStV
+Glücksspielstaatsvertrag
+GmbH-Gesetz
+GrEStG
+GrStG
+Grundbuchordnung
+Grunderwerbsteuergesetzes
+Grundsteuergesetz
+GwG
+GüKG
+GüKGrKabotageV
+HBG
+HBO
+HBauO
+HDO
+HG NRW
+HGO
+HGlG
+HHG
+HKG
+HKO
+HKaG
+HOAI
+HPflG
+HS NGO
+HSG LSA
+HSOG
+HSchulNTV NW
+HStrG
+HV
+HVVO
+HVwKostG
+HVwVfG
+HWG
+HWiG
+HZG
+HZV
+Hafenverordnung
+HaftPflG
+Haftung
+Halbsatz ArbGG
+Halbsatz AsylVfG
+Halbsatz BGB
+Halbsatz BauGB
+Halbsatz EStG
+Halbsatz FGO
+Halbsatz SBG
+Halbsatz SchulG
+Halbsatz VwGO
+Halbsatz VwZG
+Halbsatz ZPO
+Handelsgesetzbuch
+HandwO
+Handwerksordnung
+HausratsVO
+HbgPrG
+HeilBG
+HeilBerG
+HeilBerG NRW
+Heilberufe-Kammergesetzes
+Heilberufsgesetzes
+HeilprG
+Heilpraktikergesetzes
+Heimgesetzes
+HeizkostenV
+Hessische Bauordnung
+HintG LSA
+HmbIFG
+HmbPersVG
+HmbTG
+HmbVwVG
+HmbVwVfG
+Hs BGB
+HundVerbrEinfG
+HundVerbrEinfVO
+Häftlingshilfegesetzes
+HöfeO
+IFG
+IFG NRW
+IHKG
+II BGB
+II BRAGO
+II FamFG
+II HGB
+II StPO
+II TMG
+II WEG
+II ZPO
+III BGB
+III GKG
+III ZPO
+IV
+IV ZPO
+ImSchV-ZustVO
+ImSchZuVO
+InVorG
+Informationsfreiheitsgesetzes
+InsVV
+Insolvenzordnung
+IntKfzV
+InvZV
+InvZulG
+Investitionszulagenverordnung
+JAG
+JAPO
+JAPrO
+JFPO
+JMStV
+JWG
+JustG NRW
+KAG
+KAG LSA
+KAG M-V
+KAG NRW
+KAG NW
+KAG-LSA
+KAGG
+KBV
+KDVG
+KG
+KHG NRW
+KO
+KOVVfG
+KSchG
+KStG
+KUG
+KV-DVO
+KVLG
+KVStG
+KWG
+KapV
+KapVO
+KapVO LSA
+KgfEG
+KiFöG
+KiStG NW
+KomWG
+KomWO
+Kommunalabgabengesetz
+Kommunalverfassung
+Kommunalwahlgesetz
+KostO
+Kostenordnung
+KrW-/AbfG
+Krankenhausentgeltgesetz
+Krankenhausfinanzierungsgesetz
+KultGüRückG
+Körperschaftsteuergesetz
+Kündigungsschutzgesetz
+LAbfG
+LAbfWZustVO
+LBG LSA
+LBG NRW
+LBO
+LBauO
+LBesG
+LBesG LSA
+LDG
+LDG NRW
+LFoG
+LG
+LHG
+LHO
+LImschG
+LKomBesVO
+LMBG
+LMG
+LPVG
+LPVG NW
+LRHG
+LRKG
+LRiG
+LRiStaG
+LStHVDV
+LStVG
+LStrG
+LUFV
+LV
+LVG LSA
+LVO
+LVV
+LVVO
+LVwG
+LVwVG
+LVwVfG
+LWG
+LWO
+LWaldG
+LWoFG
+LadSchlG
+Land Nordrhein-Westfalen
+Lande Nordrhein-Westfalen
+Landes Sachsen-Anhalt
+Landes Schleswig-Holstein
+Landesbauordnung
+Landesbeamtengesetzes
+Landesdatenschutzgesetzes
+Landesnaturschutzgesetzes
+Landesplanungsgesetz
+Landkreisordnung
+Lastenausgleichsgesetzes
+LbV
+LehrVV
+LlbG
+LogopG
+LuftSiZÜV
+LuftVO
+Luftverkehrsgesetz
+LwAnpG
+LwVG
+LÖG NRW
+LÖG NW
+MG NRW
+MHG
+MPhG
+MV
+MVollzG LSA
+MaBV
+MarkenV
+Markengesetz
+MiLoG
+MsbG
+MustV
+NAGBNatSchG
+NAbfG
+NBG
+NBauO
+NBhVO
+NDG
+NDSchG
+NFAG
+NGG
+NGO
+NGefAG
+NHG
+NKAG
+NKWG
+NKomVG
+NLWG
+NLWO
+NLottG
+NMV
+NPersVG
+NRW.
+NS-VEntschG
+NSchG
+NStrG
+NV
+NVwKostG
+NVwVfG
+NWaldLG
+NatSchG
+NetzDG
+Niedersächsischen Verfassung
+OBG
+OBG NW
+OEG
+OWiG
+Ordnungswidrigkeiten
+PAG
+PAngV
+POG
+PTNeuOG
+PassG
+PatKostZV
+PaßG
+PersVG LSA
+Personalvertretungsgesetzes
+Personenstandsgesetz
+PflSchG
+PflVG
+PolDKlVO
+PolG
+PolG NRW
+PostG
+PostO
+PostUmwG
+PostVerfG
+Preisgesetz
+ProdHaftG
+PsychKG
+PsychThG
+Psychotherapeutengesetz
+QualV
+RAVG
+RBerG
+RGebStV
+RKG
+ROG
+RPflG
+RStV
+RaPO
+Rechtsanwaltsvergütungsgesetz
+Regelsatzverordnung
+Reichsabgabenordnung
+Reichsknappschaftsgesetz
+Reichsversicherungsordnung
+RettAssG
+RsprEinhG
+SAG
+SBG
+SEG
+SGB II	paragraph
+SGB III	paragraph
+SGB IV	paragraph
+SGB IX	paragraph
+SGB VI	paragraph
+SGB VII	paragraph
+SGB VIII	paragraph
+SGB XI	paragraph
+SGB XII	paragraph
+SLV
+SOG
+SOG LSA
+SPersVG
+SVwVfG
+SWG
+Satz EStG
+SchOG
+SchVG
+Schenkungsteuergesetzes
+SchifT-VO
+SchulG
+SchulG LSA
+SchulG NRW
+Schulgesetzes
+SchwbG
+Schweinepest-Verordnung
+Sechstes Buch Sozialgesetzbuch
+Siebtes Buch Sozialgesetzbuch
+SigG
+Signaturgesetzes
+SolZG
+Soldatengesetz
+Soldatenversorgungsgesetzes
+Sozialgerichtsgesetz
+Sozialgesetzbuch Drittes Buch
+Sozialgesetzbuch Erstes Buch
+Sozialgesetzbuch Fünftes Buch
+Sozialgesetzbuch Neuntes Buch
+Sozialgesetzbuch Sechstes Buch
+Sozialgesetzbuch Siebtes Buch
+Sozialgesetzbuch VI
+Sozialgesetzbuch Viertes Buch
+Sozialgesetzbuch Zehntes Buch
+Sozialgesetzbuch Zweites Buch
+Sozialgesetzbuch Zwölftes Buch
+Sozialgesetzbuches
+Sozialgesetzbuchs
+SpTrUG
+SpielbG NRW
+SprengG
+Sprengstoffgesetz
+SpruchG
+StAG
+StBauFG
+StGHG
+StVO
+StVZO
+StabG
+Stellenpoolgesetz
+Steuerberatungsgesetz
+StrEG
+StrG LSA
+StrRehaG
+StrWG
+StrWG NRW
+Strafgesetzbuch
+Strafprozessordnung
+Strafprozeßordnung
+Straßenverkehrs-Ordnung
+Straßenverkehrsgesetz
+StromGVV
+StromStG
+SächsBG
+SächsBO
+SächsBVO
+SächsDO
+SächsDSG
+SächsDSchG
+SächsGemO
+SächsPersVG
+SächsRKG
+SächsRiG
+SächsStrG
+SächsVerf
+SächsVerfGHG
+SächsVwVG
+SächsVwVfG
+SächsWG
+SächsWachdienstG
+SächsWachdienstVO
+SächsWahlG
+Sächsisches Jagdgesetz
+TDG
+TDSV
+TEHG
+TEntgV
+THW-Helferrechtsgesetz
+TKG
+TMG
+TVG
+ThürBG
+ThürBO
+ThürBekVO
+ThürKAG
+ThürKGG
+ThürKWG
+ThürKWO
+ThürKitaG
+ThürLPlG
+ThürOBG
+ThürPersVG
+ThürSportFG
+ThürVSG
+ThürVerf
+ThürVerfGHG
+ThürVwVfG
+TierSG
+Tierschutzgesetz
+TreuhG
+TzBfG
+UStDV
+UStG
+UVG
+UVNG
+UWG
+Umsatzsteuergesetz
+UmwG
+UmwRG
+UmwStG
+Umwandlungsgesetz
+Umwandlungssteuergesetz
+Umwelt-Rechtsbehelfsgesetz
+Urlaubsverordnung
+VAG
+VAHRG
+VAÜG
+VBVG
+VGG
+VGHG SN
+VOB/A
+VOB/B
+VOL/A
+VOL/A-EG
+VOL/B
+VRG
+VStG
+VVG
+VZOG
+VerbrKrG
+Verbraucherkreditgesetz
+VereinsG
+Verf BY
+Verf SN
+Verf TH
+VerfGGBbg
+VerfGHG
+Verfassung
+VergabeVO NRW
+Vergabeverordnung
+VerglO
+Vermögensgesetz
+Versicherungsaufsichtsgesetzes
+VerwVG
+Verwaltungsgerichtsordnung
+Verwaltungskostengesetzes
+Verwaltungsverfahrensgesetz
+Verwaltungszustellungsgesetz
+VfGHG
+VgV
+Viertes Buch Sozialgesetzbuch
+Vorschriften
+VuVO
+VwKostG
+VwKostG LSA
+VwO
+VwVG
+VwVG BB
+VwVG NRW
+VwVfG LSA
+VwVfG M-V
+VwVfG NRW
+VwVfG NW
+VwVfGBbg
+VwZG
+VwZVG
+VwZVG BY
+WBO
+WDO
+WEG
+WG LSA
+WGSVG
+WHG
+WO-BayPVG
+WPflG
+WRV
+WStG
+WZG
+WaffG
+Waffengesetzes
+Wahlprüfungsgesetz
+WahrnV
+WasG BY
+Wasserhaushaltsgesetzes
+Wechselgesetz
+Wehrdisziplinarordnung
+Wehrpflichtgesetz
+WeinG
+Weingesetzes
+WertV
+Wertermittlungsverordnung
+Wettbewerbsbeschränkungen
+Wettwesen
+WiStG
+WoBauG
+WoVermittG
+Wohnungsbindungsgesetz
+ZDG
+ZG
+ZRBG
+ZSEG
+ZV
+ZZVO-FH
+Zehntes Buch Sozialgesetzbuch
+Zivilprozessordnung
+Zivilprozeßordnung
+Zollgesetzes
+ZugabeVO
+ZwVbVO
+ZwVwV
+Zweiten Wohnungsbaugesetzes
+Zweites Buch Sozialgesetzbuch
+ÄAppO
+ÄApprO
+Ärzte-ZV
+ÜAG
+Überwachung

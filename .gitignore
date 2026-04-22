@@ -108,3 +108,13 @@ media/courts/*
 logs/*
 
 workingdir
+
+# Trained CRF model (regenerate with `make train-crf`)
+src/refex/data/crf_model.pkl
+src/refex/data/crf_model.crfsuite
+
+# Transformer training artifacts
+models/
+data/hf_bio/
+wandb/
+

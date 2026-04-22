@@ -1,4 +1,3 @@
-import collections
 import importlib.resources
 import logging
 import re
@@ -10,9 +9,18 @@ logger = logging.getLogger(__name__)
 
 class CaseRefExtractorMixin:
     court_context = None
-    codes = [
-        "Sa",
-    ]
+    _compiled_court_re: re.Pattern | None = None
+    _compiled_file_number_re: re.Pattern | None = None
+    _compiled_sg_re: re.Pattern | None = None
+    _compiled_reporter_re: re.Pattern | None = None
+
+    # E7 — class-level frozenset of codes that the file-number regex
+    # catches but which are never actual case references (currencies,
+    # frequency units, abbreviations).  Was rebuilt on every extract
+    # call.
+    _FILE_NUMBER_FALSE_POSITIVE_CODES: frozenset[str] = frozenset(
+        {"DM", "EUR", "Rn", "Nr", "Abs", "GHz", "MHz", "KHz", "TB", "GB", "MB", "KB"}
+    )
 
     def clean_text_for_tokenizer(self, text):
         """
@@ -53,9 +61,8 @@ class CaseRefExtractorMixin:
 
         :return: regex
         """
-        # TODO Fetch from DB
-        # TODO generate only once
-
+        # NOTE: court lists derived from benchmark TRAIN split only.
+        # Do NOT add entries based on test split analysis.
         federal_courts = [
             "Bundesverfassungsgericht",
             "BVerfG",
@@ -76,6 +83,10 @@ class CaseRefExtractorMixin:
             "Truppendienstgericht Süd",
             "TDG Süd",
             "EUGH",
+            "EuGH",
+            "EuG",
+            "BayObLG",
+            "KG",
             "Truppendienstgericht S&#252;d",
             "TDG S&#252;d",
         ]
@@ -103,18 +114,74 @@ class CaseRefExtractorMixin:
             "SH",
             "Thüringen",
             "Th&#252;ringen",
+            "Bayern",
+            "Bayerisches",
+            "Bayerischer",
+            "Bayrischer",
+            "Hessischer",
+            "Hessisches",
+            "Berlin-Brandenburg",
+            "Berlin-Brbg.",
         ]
         state_courts = [
             "OVG",
             "VGH",
             "LSG",
+            "FG",
+            "LAG",
+            "Oberverwaltungsgericht",
+            "Verwaltungsgerichtshof",
         ]
+        # Cities derived from train split court names (freq >= 3)
         cities = [
-            "Baden-Baden",
-            "Berlin-Brbg.Wedding",
-            "Schleswig",
-            "Koblenz",
+            "Aachen",
+            "Arnsberg",
+            "Berlin",
+            "Bielefeld",
+            "Bochum",
+            "Bonn",
+            "Braunschweig",
+            "Bremen",
+            "Celle",
+            "Cottbus",
+            "Dortmund",
+            "Dresden",
+            "Duisburg",
+            "Düsseldorf",
+            "Flensburg",
+            "Frankfurt",
+            "Frankfurt am Main",
+            "Frankfurt (Oder)",
+            "Freiburg",
+            "Gelsenkirchen",
+            "Gießen",
+            "Göttingen",
+            "Halle",
+            "Hamburg",
             "Hamm",
+            "Hannover",
+            "Karlsruhe",
+            "Koblenz",
+            "Köln",
+            "Leipzig",
+            "Lüneburg",
+            "Mainz",
+            "Mannheim",
+            "Minden",
+            "München",
+            "Münster",
+            "Nürnberg",
+            "Nürnberg-Fürth",
+            "Offenburg",
+            "Oldenburg",
+            "Rostock",
+            "Schleswig",
+            "Sigmaringen",
+            "Stade",
+            "Stuttgart",
+            "Trier",
+            "Tübingen",
+            "Zweibrücken",
         ]
         city_courts = [
             "Amtsgericht",
@@ -124,6 +191,15 @@ class CaseRefExtractorMixin:
             "Oberlandesgericht",
             "OLG",
             "OVG",
+            "Verwaltungsgericht",
+            "VG",
+            "Sozialgericht",
+            "Arbeitsgericht",
+            "ArbG",
+            "Landesarbeitsgericht",
+            "LAG",
+            "Finanzgericht",
+            "FG",
         ]
 
         options = []
@@ -142,7 +218,50 @@ class CaseRefExtractorMixin:
                 options.append(s + " " + c)
         # logger.debug('Court regex: %s' % pattern)
 
-        return r"(?P<court>" + ("|".join(options)) + r")(\s|\.|;|,|:|\))"
+        # E11: char-class `[\s.;,:)]` is equivalent to but cheaper than the
+        # `(\s|\.|;|,|:|\))` alternation + capture group the original used —
+        # regex engines can test a single char class in one step.
+        return r"(?P<court>" + ("|".join(options)) + r")[\s.;,:)]"
+
+    def _get_compiled_court_re(self) -> re.Pattern:
+        """Return the pre-compiled court name regex (lazy init, cached)."""
+        if self._compiled_court_re is None:
+            self._compiled_court_re = re.compile(self.get_court_name_regex())
+        return self._compiled_court_re
+
+    def _get_compiled_file_number_re(self) -> re.Pattern:
+        """Return the pre-compiled file number regex (lazy init, cached)."""
+        if self._compiled_file_number_re is None:
+            self._compiled_file_number_re = re.compile(self.get_file_number_regex())
+        return self._compiled_file_number_re
+
+    def _get_compiled_sg_re(self) -> re.Pattern:
+        """Return the pre-compiled SG regex (lazy init, cached)."""
+        if self._compiled_sg_re is None:
+            self._compiled_sg_re = re.compile(self.get_sozialgerichtsbarkeit_regex())
+        return self._compiled_sg_re
+
+    def _get_compiled_reporter_re(self) -> re.Pattern:
+        """Return the pre-compiled reporter-citation regex (lazy init, cached)."""
+        if self._compiled_reporter_re is None:
+            self._compiled_reporter_re = re.compile(
+                r"(?P<reporter>"
+                r"BGHZ|BGHSt|BGHR|BVerfGE|BVerwGE|BAGE|BSGE|BFHE|BPatGE"
+                r"|RGZ|RGSt"
+                r"|NJW-RR|NJW|NVwZ-RR|NVwZ|MDR|DVBl|DÖV|JZ|BB|DB|JR|RiA|FamRZ|ZfA|ZIP|WM"
+                r"|BFH/NV|BStBl\s?II?|EFG|HFR"
+                r"|StV|NStZ-RR|NStZ|wistra|GA"
+                r"|VersR|VRS|DAR|NZV|NZA-RR|NZA|NZS|NZM|NZG|NZBau|NZWiSt"
+                r"|GrS|BayVBl|NordÖR"
+                r"|ZMR|GRUR-RR|GRUR|ZUM|InfAuslR|AuAS|LKRZ|SozR"
+                r")"
+                r"\s+"
+                r"(?P<volume>[0-9]{1,4})"
+                r",\s*"
+                r"(?P<page>[0-9]+)"
+                r"(?:,\s*(?P<page2>[0-9]+))?"
+            )
+        return self._compiled_reporter_re
 
     def infer_court(self, file_number: str, match: re.Match, content: str) -> str | None:
         """In some cases it is possible to infer the court from the file number.
@@ -154,7 +273,7 @@ class CaseRefExtractorMixin:
             "S": "SG",
         }
 
-        if sg_match := re.match(self.get_sozialgerichtsbarkeit_regex(), file_number):
+        if sg_match := self._get_compiled_sg_re().match(file_number):
             instance = SG_MAPPING[sg_match.group("instance")]
             court_candidate = self.search_court(match, content)
             if court_candidate and instance in court_candidate:  # we can be sure that the correct court was found
@@ -167,26 +286,27 @@ class CaseRefExtractorMixin:
         """Heuristic search. Not yet very reliably (see error cases in test_case_extractor.py)"""
 
         court = None
+        fn_start = match.start(0)
+        fn_end = match.end(0)
+        court_re = self._get_compiled_court_re()  # E6: hoist attr lookup out of loop
+        content_len = len(content)
 
         # Search in surroundings for court names
         for diff in [100, 200, 500]:
-            # TODO maybe search left first, then to the right
-
-            start = max(0, match.start(0) - diff)
-            end = min(len(content), match.end(0) + diff)
+            start = max(0, fn_start - diff)
+            end = min(content_len, fn_end + diff)
             surrounding = content[start:end]
 
-            # print('Surroundings: %s'  % content[start:end])
-
             # File number position in surroundings
-            fn_pos = match.start(0) - start
-            candidates = collections.OrderedDict()
+            fn_pos = fn_start - start
+            # E6: plain dict (Python 3.7+ preserves insertion order, so
+            # first-inserted == next(iter(candidates.values())) semantics
+            # are identical to the OrderedDict used previously).
+            candidates: dict[int, re.Match] = {}
 
-            for court_match in re.finditer(self.get_court_name_regex(), surrounding):
+            for court_match in court_re.finditer(surrounding):
                 candidate_pos = round((court_match.start(0) + court_match.end(0)) / 2)  # Position = center
                 candidate_dist = abs(fn_pos - candidate_pos)  # Distance to file number
-
-                # print('-- Candidate: %s / pos: %i / dist: %i' % (court_match.group(0), candidate_pos, candidate_dist))
 
                 if candidate_dist not in candidates:
                     candidates[candidate_dist] = court_match
@@ -194,7 +314,7 @@ class CaseRefExtractorMixin:
                     logger.warning(f"Court candidate with same distance exist already: {court_match}")
 
             # Court is the candidate with smallest distance to file number
-            if len(candidates) > 0:
+            if candidates:
                 court = next(iter(candidates.values())).group("court")
                 # Stop searching if court was found with this range
                 break
@@ -328,26 +448,45 @@ class CaseRefExtractorMixin:
 
         refs = []
 
-        # TODO More intelligent by search only in sentences.
+        for match in self._get_compiled_reporter_re().finditer(content):
+            reporter = match.group("reporter")
+            volume = match.group("volume")
+            page = match.group("page")
+            marker_text = match.group(0)
 
-        # Find all file numbers
-        for match in re.finditer(self.get_file_number_regex(), content):
+            ref_ids = [Ref(ref_type=RefType.CASE, court="", file_number=f"{reporter} {volume}, {page}")]
+            marker = RefMarker(text=marker_text, start=match.start(0), end=match.end(0))
+            marker.set_uuid()
+            marker.set_references(ref_ids)
+            refs.append(marker)
+
+        fp_codes = self._FILE_NUMBER_FALSE_POSITIVE_CODES
+        # E8: flatten reporter spans to tuples once so the per-file-number
+        # overlap check uses plain tuple indexing instead of RefMarker
+        # attribute lookups.  Reporter markers are added in text order so
+        # the list is naturally sorted on (start, end).
+        reporter_spans = [(r.start, r.end) for r in refs]
+        for match in self._get_compiled_file_number_re().finditer(content):
             file_number = match.group(0)
+            code = match.group("code")
+
+            # Skip false-positive codes (currency, units, etc.)
+            if code in fp_codes:
+                continue
+
+            # Skip if this span is already covered by a reporter match
+            ms = match.start(0)
+            if any(rs <= ms < re_ for rs, re_ in reporter_spans):
+                continue
 
             court = self.infer_court(file_number, match, content) or self.search_court(match, content) or ""
 
-            file_number = match.group(0)
-            ref_ids = [
-                Ref(ref_type=RefType.CASE, court=court, file_number=file_number)  # TODO date field
-            ]
-            # TODO maintain order for case+law refs
-            marker = RefMarker(text=file_number, start=match.start(0), end=match.end(0), line=0)  # TODO line number
+            ref_ids = [Ref(ref_type=RefType.CASE, court=court, file_number=file_number)]
+            marker = RefMarker(text=file_number, start=match.start(0), end=match.end(0))
             marker.set_uuid()
             marker.set_references(ref_ids)
 
             refs.append(marker)
-
-            # print(match.start(0))
 
         return refs
 

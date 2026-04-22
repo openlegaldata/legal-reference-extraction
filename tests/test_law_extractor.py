@@ -1,11 +1,8 @@
 import os
-import re
 
-import pytest
-
-from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
+from refex.extractors.law import DivideAndConquerLawRefExtractorMixin
 from refex.models import Ref, RefType
-from tests.conftest import RESOURCE_DIR, assert_refs, get_book_codes_from_file
+from tests.conftest import RESOURCE_DIR, assert_refs
 
 
 def test_extract(law_extractor):
@@ -201,7 +198,6 @@ def test_extract9(law_extractor):
     )
 
 
-@pytest.mark.skip
 def test_extract10(law_extractor):
     assert_refs(
         law_extractor,
@@ -420,7 +416,6 @@ def test_extract22(law_extractor):
     )
 
 
-@pytest.mark.skip
 def test_extract23(law_extractor):
     assert_refs(
         law_extractor,
@@ -547,12 +542,9 @@ def test_citation_styles(law_extractor):
 
         markers = x.extract_law_ref_markers(content)
 
-        law_extractor.replace_content(content, markers)
-
-
-@pytest.mark.skip
-def test_alternative_law_book_regex(law_extractor):
-    pattern = re.compile(r"([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]*)(V|G|O|B)")
-    for code in get_book_codes_from_file() + ["SGB X", "SGG", "SGB IV"]:
-        if not pattern.search(code):
-            pass
+        # Verify all markers have valid positions and references
+        for m in markers:
+            assert m.start >= 0
+            assert m.end <= len(content)
+            assert m.end > m.start
+            assert len(m.get_references()) > 0

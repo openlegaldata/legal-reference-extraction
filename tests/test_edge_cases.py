@@ -3,11 +3,8 @@
 import pytest
 
 from refex.errors import RefExError
-from refex.extractor import RefExtractor
-from refex.extractors.law_dnc import DivideAndConquerLawRefExtractorMixin
+from refex.extractors.law import DivideAndConquerLawRefExtractorMixin
 from refex.models import BaseRef, Ref, RefMarker, RefType
-
-# --- models.py: line 25 (__hash__) ---
 
 
 def test_base_ref_hash():
@@ -17,9 +14,6 @@ def test_base_ref_hash():
     ref.ref_type = RefType.LAW
     h = hash(ref)
     assert isinstance(h, int)
-
-
-# --- models.py: line 99 (unsupported ref type) ---
 
 
 def test_ref_repr_unsupported_type():
@@ -32,74 +26,43 @@ def test_ref_repr_unsupported_type():
         repr(ref2)
 
 
-# --- extractor.py: lines 37, 41 (overlap detection) ---
-
-
-def test_replace_content_overlap_previous():
-    ext = RefExtractor()
+def test_ref_marker_mask_non_overlapping():
+    """Non-overlapping markers can be masked sequentially."""
     m1 = RefMarker(text="§ 1 BGB", start=0, end=7)
-    m1.uuid = "a"
-    m1.references = [Ref(ref_type=RefType.LAW, book="bgb", section="1")]
+    m2 = RefMarker(text="§ 2 BGB", start=12, end=19)
 
-    m2 = RefMarker(text="§ 1 BGB", start=5, end=12)
-    m2.uuid = "b"
-    m2.references = [Ref(ref_type=RefType.LAW, book="bgb", section="1")]
-
-    content = "§ 1 BGB § 1 BGB rest"
-    with pytest.raises(RefExError, match="overlaps"):
-        ext.replace_content(content, [m1, m2])
+    content = "§ 1 BGB foo § 2 BGB rest"
+    content = m1.replace_content_with_mask(content)
+    content = m2.replace_content_with_mask(content)
+    assert content == "_______ foo _______ rest"
 
 
-def test_replace_content_overlap_next():
-    ext = RefExtractor()
-    m1 = RefMarker(text="§ 1 BGB", start=0, end=10)
-    m1.uuid = "a"
-    m1.references = [Ref(ref_type=RefType.LAW, book="bgb", section="1")]
-
-    m2 = RefMarker(text="§ 2 BGB", start=8, end=15)
-    m2.uuid = "b"
-    m2.references = [Ref(ref_type=RefType.LAW, book="bgb", section="2")]
-
-    content = "§ 1 BGB  § 2 BGB rest"
-    with pytest.raises(RefExError, match="overlaps"):
-        ext.replace_content(content, [m1, m2])
-
-
-# --- law_dnc.py: line 272 (law_book_codes is None) ---
-
-
-def test_law_dnc_get_law_book_codes_none():
+def test_law_get_law_book_codes_none():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_codes = None
     codes = ext.get_law_book_codes()
     assert len(codes) > 0
 
 
-# --- law_dnc.py: lines 300, 303, 306 (get_law_book_ref_regex error paths) ---
-
-
-def test_law_dnc_get_law_book_ref_regex_empty():
+def test_law_get_law_book_ref_regex_empty():
     ext = DivideAndConquerLawRefExtractorMixin()
     with pytest.raises(RefExError, match="Cannot generate regex"):
         ext.get_law_book_ref_regex([])
 
 
-def test_law_dnc_get_law_book_ref_regex_optional():
+def test_law_get_law_book_ref_regex_optional():
     ext = DivideAndConquerLawRefExtractorMixin()
     with pytest.raises(ValueError, match="optional=True"):
         ext.get_law_book_ref_regex(["BGB"], optional=True)
 
 
-def test_law_dnc_get_law_book_ref_regex_group_name():
+def test_law_get_law_book_ref_regex_group_name():
     ext = DivideAndConquerLawRefExtractorMixin()
     with pytest.raises(ValueError, match="group_name=True"):
         ext.get_law_book_ref_regex(["BGB"], group_name=True)
 
 
-# --- law_dnc.py: lines 334-346 (context mode with §§ bis/und) ---
-
-
-def test_law_dnc_context_bis():
+def test_law_context_bis():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_context = "bgb"
 
@@ -115,7 +78,7 @@ def test_law_dnc_context_bis():
     assert "670" in sections
 
 
-def test_law_dnc_context_und():
+def test_law_context_und():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_context = "bgb"
 
@@ -130,10 +93,7 @@ def test_law_dnc_context_und():
     assert "20" in sections
 
 
-# --- law_dnc.py: lines 384-385 (Anlage pattern in context mode) ---
-
-
-def test_law_dnc_context_anlage():
+def test_law_context_anlage():
     ext = DivideAndConquerLawRefExtractorMixin()
     ext.law_book_context = "sgb"
 
@@ -143,10 +103,46 @@ def test_law_dnc_context_anlage():
     assert markers[0].references[0].section == "anlage-3"
 
 
-# --- law_dnc.py: line 187 (no refs found in marker) ---
+# Additional context-mode scenarios (ported from the deleted
+# test_law_legacy.py when the legacy pre-refactor law.py was removed).
 
 
-def test_law_dnc_multi_marker_no_refs(law_extractor):
+def test_law_context_single_section_plaintext():
+    ext = DivideAndConquerLawRefExtractorMixin()
+    ext.law_book_context = "bgb"
+
+    content = "Gemäß § 20 ist dies der Fall."
+    markers = ext.extract_law_ref_markers(content)
+    assert len(markers) == 1
+    assert markers[0].references[0].section == "20"
+    assert markers[0].references[0].book == "bgb"
+
+
+def test_law_context_html_entity_for_section_sign():
+    """``&#167;`` (HTML entity for §) should be normalised in context mode."""
+    ext = DivideAndConquerLawRefExtractorMixin()
+    ext.law_book_context = "zpo"
+
+    content = "Gemäß &#167; 343 ist dies der Fall."
+    markers = ext.extract_law_ref_markers(content)
+    assert len(markers) == 1
+    assert markers[0].references[0].section == "343"
+
+
+def test_law_context_no_duplicate_across_patterns():
+    """Context mode runs several patterns over the text; the same section must
+    not be emitted twice by two different matching patterns."""
+    ext = DivideAndConquerLawRefExtractorMixin()
+    ext.law_book_context = "sgb"
+
+    content = "Es gilt § 1 Abs. 2 Satz 3 dieses Gesetzes und § 5 ist anwendbar."
+    markers = ext.extract_law_ref_markers(content)
+    assert len(markers) == 2
+    sections = sorted([m.references[0].section for m in markers])
+    assert sections == ["1", "5"]
+
+
+def test_law_multi_marker_no_refs(law_extractor):
     """A multi-marker pattern that matches but yields no individual section refs."""
     # This is hard to trigger since the regex is quite specific; we test the warning path
     # by checking that markers without refs are not appended
@@ -157,10 +153,7 @@ def test_law_dnc_multi_marker_no_refs(law_extractor):
     assert len(law_markers) == 0
 
 
-# --- law_dnc.py: lines 248-260 (waiting_for_book / next_book pattern) ---
-
-
-def test_law_dnc_ivm_pattern(law_extractor):
+def test_law_ivm_pattern(law_extractor):
     """Test i.V.m. pattern that creates markers waiting for a book."""
     content = "Nach § 167 VwGO i.V.m. §§ 708 Nr. 11, 711 ZPO ist dies gültig."
     new_content, markers = law_extractor.extract(content)
@@ -169,9 +162,6 @@ def test_law_dnc_ivm_pattern(law_extractor):
         all_refs.extend(m.get_references())
     sections = [r.section for r in all_refs if r.ref_type == RefType.LAW]
     assert "167" in sections
-
-
-# --- case.py: line 30 (repl2 inner function) ---
 
 
 def test_case_clean_text_abbreviation(case_extractor):
@@ -183,22 +173,13 @@ def test_case_clean_text_abbreviation(case_extractor):
     assert "____" in result
 
 
-# --- RefMarker additional coverage ---
-
-
-def test_ref_marker_get_length():
+def test_ref_marker_positions():
     m = RefMarker(text="§ 1 BGB", start=10, end=17)
-    assert m.get_length() == 7
+    assert m.start == 10
+    assert m.end == 17
+    assert m.end - m.start == 7
 
 
-def test_ref_marker_get_positions():
-    m = RefMarker(text="§ 1 BGB", start=10, end=17)
-    assert m.get_start_position() == 10
-    assert m.get_end_position() == 17
-
-
-def test_ref_marker_replace_content_with_mask():
-    content = "Hello § 1 BGB world"
-    m = RefMarker(text="§ 1 BGB", start=6, end=13)
-    result = m.replace_content_with_mask(content)
-    assert result == "Hello _______ world"
+# Note: test_ref_marker_replace_content_with_mask lives in test_models.py;
+# the mask-multiple-non-overlapping case is covered above in
+# test_ref_marker_mask_non_overlapping.
