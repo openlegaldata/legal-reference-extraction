@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import uuid
 from enum import Enum
@@ -86,8 +88,8 @@ class Ref(LawRefMixin, CaseRefMixin, BaseRef):
     """
 
     def __lt__(self, other):
-        # Used by tests and internal sort calls in assert_refs (conftest.py).
-        # Not @total_ordering — only < is actually needed.
+        # Used by tests/conftest.py::assert_refs to sort ref lists before
+        # comparison.  Only ``<`` is actually exercised.
         if not isinstance(other, Ref):
             return NotImplemented
         return (

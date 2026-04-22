@@ -189,6 +189,14 @@ Most users pick exactly one inference engine (`[crf]` *or*
 `[transformers]`).  `[training]` is only needed when fine-tuning a
 transformer via `scripts/train_transformer.py`.
 
+The default transformer model is
+[`openlegaldata/legal-reference-extraction-base-de`](https://huggingface.co/openlegaldata/legal-reference-extraction-base-de)
+(a fine-tune of `EuroBERT/EuroBERT-210m`, CC BY-NC 4.0) — so
+`TransformerExtractor()` with no arguments downloads and uses it
+automatically.  Override via `TransformerExtractor(model="...")`.
+The benchmark harness also honours `REFEX_TRANSFORMER_MODEL` /
+`REFEX_TRANSFORMER_DEVICE` env vars for quick A/B runs.
+
 ## See also
 
 - [CiteURL — citations to U.S. court decisions and U.S. code](https://github.com/raindrum/citeurl)

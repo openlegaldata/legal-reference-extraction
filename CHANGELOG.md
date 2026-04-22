@@ -1,24 +1,88 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 (2026-04-22) — Refactor 2026 (Final)
+
+Closes the remaining §7 open follow-ups from the 0.6.0 refactor and
+ships the first openlegaldata-trained transformer model.  Regex F1
+unchanged on the validation split; transformer adds a measurable
++4.9 pp span-overlap F1 over the regex baseline.
+
+### New Features
+
+- **Default transformer model published** to Hugging Face Hub at
+  [`openlegaldata/legal-reference-extraction-base-de`](https://huggingface.co/openlegaldata/legal-reference-extraction-base-de)
+  (CC BY-NC 4.0) — an EuroBERT-210m fine-tune for German legal law /
+  case citation BIO tagging.  `refex.engines.transformer.DEFAULT_MODEL`
+  now points at this repo, so `TransformerExtractor()` with no args
+  loads it by default.
+- **`default_unit` column** in `law_book_codes.txt` (Stream E2).
+  Optional tab-separated `<unit>` column (`article` / `paragraph`);
+  when present, overrides the text-prefix heuristic in
+  `_law_markers_to_citations`.  23 high-confidence annotations
+  curated (`GG`/`EUV` = article; `BGB`/`HGB`/`StGB`/`StPO`/`ZPO`/…
+  = paragraph).  New `get_unit_hint(code)` helper on the law
+  extractor mixin.
+- **Structure key-level accuracy metric** in `BenchmarkResult`
+  (§7/#1 — A2c).  `field_accuracy['structure']` accumulates
+  per-key correct / incorrect / missing_pred / missing_gold on
+  exact-matched law pairs.
+- **Relation-edge F1 metric** in `BenchmarkResult` (§7/#2 — A2d).
+  `relation_exact: PRF` scored as `(source_span, target_span,
+  relation)` triples.  Benchmark runner accepts `extract_fn`
+  returning either `list[Citation]` (legacy) or `(citations,
+  relations)`.
+- **`REFEX_PRECISE_BOOK_REGEX` env var** (§7/#3 — B7).  Toggles
+  `use_precise_book_regex` at runtime for A/B measurement of the
+  precise vs generic book-code regex.  Default `True` (matches the
+  exact-F1 optimization metric).
+
+### Improvements
+
+- **Interval-based marker masking** in `law.py` (§7/#10).  Each
+  extraction phase now collects match spans and applies a single
+  O(len(content)) mask pass instead of O(N × len) per-marker calls.
+  +1 % throughput on the validation split; F1 unchanged.
 
 ### Breaking
 
-- **Removed `refex.compat.to_ref_marker_string`.** Deprecated in 0.6.0
-  with a ``DeprecationWarning``; it emitted the legacy
+- **Removed `refex.compat.to_ref_marker_string`.** Deprecated in
+  0.6.0 with a ``DeprecationWarning``; it emitted the legacy
   ``[ref=UUID]…[/ref]`` inline-marker string.  Use
   ``ExtractionResult.citations`` directly and a serializer from
-  ``refex.serializers`` (e.g. ``to_jsonl``, ``to_web_annotation``) for
-  persistence / round-tripping.
+  ``refex.serializers`` (e.g. ``to_jsonl``, ``to_web_annotation``).
 - **Removed `RefMarker.replace_content`** and the
   ``_MARKER_OPEN_FORMAT`` / ``_MARKER_CLOSE_FORMAT`` constants — only
   ``to_ref_marker_string`` called them.  ``RefMarker.set_uuid`` is
   still present for ``citations_to_ref_markers``.
+- **Removed dead model surface:** `BaseRef.sentence`,
+  `RefMarker.get_length` / `get_start_position` / `get_end_position`,
+  `Ref.get_law_repr` / `get_case_repr`, `@total_ordering` on `Ref`
+  — none had external callers.
+- **Renamed `src/refex/extractors/law_dnc.py` → `law.py`.**  The
+  legacy `law.py` (pre-refactor, deleted in 0.6.0 Stream B9) is
+  gone; the divide-and-conquer extractor now lives at the canonical
+  filename.
 
-### Cleanup
+### Closed follow-ups (measured and rejected)
 
-- Removed dead ``BaseRef.sentence`` attribute — never set or read
-  externally; it was part of the hash/eq tuple but otherwise inert.
+- **Aho–Corasick court-name index** (§7/#8) — pure-Python variant
+  regressed throughput −35.6 % because Python's C ``re`` engine
+  beats a single-pass scan on typical docs; a C-backed AC dep is
+  out of scope.
+- **Per-`(doc_id, fn_span)` court cache** (§7/#9) — 16.9 % same-fn
+  recurrence is real, but court resolution is position-dependent;
+  cache-first regresses span F1, fresh-first with cache fallback
+  regresses court-field accuracy and throughput.  See
+  ``docs/refactor2026/optimization_log.md`` §"§7/#8" and §"§7/#9".
+
+### Tests & benchmarks
+
+- **334 → 337+ tests.**  New: `test_benchmark_metrics.py` (A2c/A2d),
+  `test_unit_hints.py` (E2), plus env-var and interval-mask
+  coverage.  Removed: `test_law_legacy.py` (coverage merged into
+  `test_law_extractor.py` / `test_edge_cases.py`), duplicate
+  `test_ref_marker_replace_content_with_mask`, two perpetually
+  skipped tests.
 
 ## 0.6.0 (2026-04-19) — Refactor 2026
 

@@ -7,7 +7,7 @@
 - `src/refex/citations.py` — typed citation models (`LawCitation`, `CaseCitation`, `Span`)
 - `src/refex/document.py` — `Document` model, HTML/Markdown normalization, offset mapping
 - `src/refex/engines/regex.py` — regex-based extraction engines
-- `src/refex/extractors/` — legacy law (`law.py`, divide-and-conquer) and case (`case.py`) extractors (internal)
+- `src/refex/extractors/` — internal regex engines: `law.py` (divide-and-conquer multi-ref matcher) and `case.py` (file-number + court heuristic)
 - `src/refex/serializers.py` — output format adapters (JSONL, BIO, spaCy, etc.)
 - `src/refex/resolver.py` — short-form citation resolution (a.a.O., ebenda, i.V.m.)
 - `src/refex/data/` — bundled data files (`law_book_codes.txt`, `file_number_codes.csv`)
@@ -39,7 +39,7 @@ make diagnose      # error analysis on validation split
 ## Architecture
 
 - **`CitationExtractor`** (orchestrator.py) is the public API. It runs multiple `Extractor` engines and merges results.
-- **`RegexLawExtractor`** + **`RegexCaseExtractor`** (engines/regex.py) wrap the legacy extractors and emit typed `LawCitation`/`CaseCitation` objects.
+- **`RegexLawExtractor`** + **`RegexCaseExtractor`** (engines/regex.py) wrap the internal extractors in `extractors/law.py` and `extractors/case.py` and emit typed `LawCitation`/`CaseCitation` objects.  Default transformer engine (`engines/transformer.py`) loads `openlegaldata/legal-reference-extraction-base-de` (EuroBERT-210m fine-tune).
 - **`Document`** (document.py) wraps input with format metadata. Supports plain text, HTML, and Markdown. HTML/Markdown is normalized to plain text with character-level offset maps for span round-tripping.
 - **Legacy `RefExtractor`** (extractor.py) is deprecated but preserved for backward compatibility. Internally delegates to the mixin extractors which produce `RefMarker`/`Ref` objects (internal types, not public API).
 - Law extraction uses divide-and-conquer: multi-refs (`§§`) first, then single-refs (`§`), masking matched regions.

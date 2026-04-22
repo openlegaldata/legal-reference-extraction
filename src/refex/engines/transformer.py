@@ -4,11 +4,12 @@ Uses a HuggingFace ``transformers`` token-classification model to predict
 BIO tags over sub-word tokens, then aligns predictions back to character
 spans and converts them to typed ``Citation`` objects.
 
-Default weights: ``PaDaS-Lab/gbert-legal-ner`` — a BERT model fine-tuned
-on German legal NER.  Users can override with any HuggingFace
-token-classification model whose labels match the BIO scheme
-``{B,I}-{LAW,CASE}_REF`` or the compatible aliases produced by
-:func:`refex.engines.crf.spans_to_citations`.
+Default weights: ``openlegaldata/legal-reference-extraction-base-de``
+— a fine-tune of ``EuroBERT/EuroBERT-210m`` on German legal law /
+case citation spans (Stream G).  Users can override with any
+HuggingFace token-classification model whose labels match the BIO
+scheme ``{B,I}-{LAW,CASE}_REF`` or the compatible aliases in
+``DEFAULT_LABEL_MAP``.
 
 Inference runs on CPU by default; pass ``device="cuda"``, ``"mps"``, or
 a torch device object to use GPU/MPS.  Batch inference (``extract_batch``)

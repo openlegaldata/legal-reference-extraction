@@ -123,6 +123,45 @@ def test_law_context_anlage():
     assert markers[0].references[0].section == "anlage-3"
 
 
+# Additional context-mode scenarios (ported from the deleted
+# test_law_legacy.py when the legacy pre-refactor law.py was removed).
+
+
+def test_law_context_single_section_plaintext():
+    ext = DivideAndConquerLawRefExtractorMixin()
+    ext.law_book_context = "bgb"
+
+    content = "Gemäß § 20 ist dies der Fall."
+    markers = ext.extract_law_ref_markers(content)
+    assert len(markers) == 1
+    assert markers[0].references[0].section == "20"
+    assert markers[0].references[0].book == "bgb"
+
+
+def test_law_context_html_entity_for_section_sign():
+    """``&#167;`` (HTML entity for §) should be normalised in context mode."""
+    ext = DivideAndConquerLawRefExtractorMixin()
+    ext.law_book_context = "zpo"
+
+    content = "Gemäß &#167; 343 ist dies der Fall."
+    markers = ext.extract_law_ref_markers(content)
+    assert len(markers) == 1
+    assert markers[0].references[0].section == "343"
+
+
+def test_law_context_no_duplicate_across_patterns():
+    """Context mode runs several patterns over the text; the same section must
+    not be emitted twice by two different matching patterns."""
+    ext = DivideAndConquerLawRefExtractorMixin()
+    ext.law_book_context = "sgb"
+
+    content = "Es gilt § 1 Abs. 2 Satz 3 dieses Gesetzes und § 5 ist anwendbar."
+    markers = ext.extract_law_ref_markers(content)
+    assert len(markers) == 2
+    sections = sorted([m.references[0].section for m in markers])
+    assert sections == ["1", "5"]
+
+
 # --- law.py: line 187 (no refs found in marker) ---
 
 
@@ -173,8 +212,6 @@ def test_ref_marker_positions():
     assert m.end - m.start == 7
 
 
-def test_ref_marker_replace_content_with_mask():
-    content = "Hello § 1 BGB world"
-    m = RefMarker(text="§ 1 BGB", start=6, end=13)
-    result = m.replace_content_with_mask(content)
-    assert result == "Hello _______ world"
+# Note: test_ref_marker_replace_content_with_mask lives in test_models.py;
+# the mask-multiple-non-overlapping case is covered above in
+# test_ref_marker_mask_non_overlapping.

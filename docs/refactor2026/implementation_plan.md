@@ -233,8 +233,9 @@ use `--engine regex+crf` when recall matters more than speed.
 ### Stream G — Phase 3: Transformer engine (optional, gated on F plateau)
 
 - [x] G1. `TransformerExtractor` in `src/refex/engines/transformer.py` with
-  `PaDaS-Lab/gbert-legal-ner` as the default model.  Supports custom
-  HuggingFace models via the ``model=`` parameter.
+  `openlegaldata/legal-reference-extraction-base-de` (EuroBERT-210m fine-tune,
+  published 2026-04-21) as the default model.  Supports custom HuggingFace
+  models via the ``model=`` parameter.
 - [x] G2. `[transformers]` extra pulls `transformers>=4.48,<5.0` + `torch`.
   `[training]` extra adds `wandb`, `seqeval`, `datasets`, `accelerate`
   for fine-tuning.

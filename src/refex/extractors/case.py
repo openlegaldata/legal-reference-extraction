@@ -61,9 +61,6 @@ class CaseRefExtractorMixin:
 
         :return: regex
         """
-        # TODO Fetch from DB
-        # TODO generate only once
-
         # NOTE: court lists derived from benchmark TRAIN split only.
         # Do NOT add entries based on test split analysis.
         federal_courts = [
@@ -296,8 +293,6 @@ class CaseRefExtractorMixin:
 
         # Search in surroundings for court names
         for diff in [100, 200, 500]:
-            # TODO maybe search left first, then to the right
-
             start = max(0, fn_start - diff)
             end = min(content_len, fn_end + diff)
             surrounding = content[start:end]
