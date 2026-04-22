@@ -136,8 +136,7 @@ adds a measurable +4.9 pp span-overlap F1 over the regex baseline.
 - **Per-`(doc_id, fn_span)` court cache** — 16.9 % same-fn
   recurrence is real, but court resolution is position-dependent;
   cache-first regresses span F1, fresh-first with cache fallback
-  regresses court-field accuracy and throughput.  See
-  `docs/refactor2026/optimization_log.md` §"§7/#8" and §"§7/#9".
+  regresses court-field accuracy and throughput.
 
 ### Metrics (benchmark validation split, 821 docs)
 
