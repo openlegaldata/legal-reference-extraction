@@ -36,6 +36,23 @@ def test_extract(law_extractor):
     new_content, markers = law_extractor.extract(content_html)
 
 
+def test_extract_at_end_of_string(law_extractor):
+    """A citation that ends the document must still be extracted.
+
+    The book-code lookahead historically required a trailing word
+    delimiter (whitespace, punctuation, or HTML angle bracket), and
+    silently dropped citations at end-of-string. Real-world documents
+    routinely end on a citation — e.g. plain-text projections of HTML
+    where the final ``</p>`` has been stripped — so end-of-string is
+    now a valid terminator alongside the existing delimiters.
+    """
+    text = "Komplexe Zitate gibt es auch §§ 3, 3b AsylG"
+    _, markers = law_extractor.extract(text)
+    sections = [r.section for m in markers for r in m.references]
+    assert "3" in sections, sections
+    assert "3b" in sections, sections
+
+
 def test_with_law_book_context(law_extractor):
     """Book context is used for extracting law references from within law text, where book is not
     explicitly mentioned."""

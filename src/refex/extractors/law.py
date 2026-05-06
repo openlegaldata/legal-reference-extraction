@@ -202,7 +202,9 @@ class DivideAndConquerLawRefExtractorMixin:
         sect_space = r"\s"
         bp = self._book_ref_regex
         wd = self._default_word_delimiter
-        bla = "(?=" + wd + ")"
+        # End-of-string is a valid terminator: a citation that ends the
+        # document has no delimiter after the book code but should still match.
+        bla = "(?:(?=" + wd + ")|$)"
         ac = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"
         sp = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
         art_sign = r"Art(?:ikel|\.?)"
@@ -303,7 +305,10 @@ class DivideAndConquerLawRefExtractorMixin:
         # Use \s for the space after § to handle both regular and non-breaking spaces
         sect_space = r"\s"
 
-        book_look_ahead = "(?=" + word_delimiter + ")"
+        # End-of-string is a valid terminator: a citation that ends the
+        # document ("Komplexe Zitate gibt es auch §§ 3, 3b AsylG") has no
+        # delimiter after the book code, but should still match.
+        book_look_ahead = "(?:(?=" + word_delimiter + ")|$)"
         book_pattern = self._book_ref_regex
 
         any_content = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"  # noqa: E501
