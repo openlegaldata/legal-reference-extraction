@@ -107,9 +107,7 @@ class TestCitationExtractor:
         sorted_cits = sorted(result.citations, key=lambda c: c.span.start)
         for i in range(len(sorted_cits) - 1):
             a, b = sorted_cits[i], sorted_cits[i + 1]
-            assert a.span.end <= b.span.start or (
-                a.span.start == b.span.start and a.span.end == b.span.end
-            )
+            assert a.span.end <= b.span.start or (a.span.start == b.span.start and a.span.end == b.span.end)
 
     def test_enumeration_keeps_all_sections(self):
         """Co-located cites from one enumeration marker must all survive.
