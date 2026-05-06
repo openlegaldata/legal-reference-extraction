@@ -303,6 +303,8 @@ class _HTMLTextExtractor(HTMLParser):
             "h6",
             "li",
             "tr",
+            "td",
+            "th",
             "dt",
             "dd",
             "blockquote",

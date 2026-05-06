@@ -57,6 +57,32 @@ class TestNormalizeHtml:
         assert "§ 154 Abs. 1 VwGO" in result
         assert "<" not in result
 
+    def test_adjacent_table_cells_get_separator(self):
+        """``<td>`` and ``<th>`` are block-level boundaries.
+
+        Table cells contain semantically separate content that must not
+        run together in the plain-text projection. Without a separator
+        between adjacent ``</td><td>`` cells, a citation in cell A that
+        ends with a book code would concatenate with cell B's leading
+        text and the citation regex's word-delimiter lookahead would
+        miss the match. Real-world impact: legal decisions that lay out
+        norm references in a two-column table (``<td>§ 823 BGB</td>``,
+        ``<td>Schadensersatz</td>``) would yield zero citations.
+        """
+        html = (
+            "<table>"
+            "<tr><td>§ 823 BGB</td><td>Schadensersatz</td></tr>"
+            "<tr><th>§ 280 BGB</th><th>Pflichtverletzung</th></tr>"
+            "</table>"
+        )
+        result = normalize(html, fmt="html")
+        # Cell contents are separated, not concatenated.
+        assert "BGBSchadensersatz" not in result
+        assert "BGBPflichtverletzung" not in result
+        # The citations are still findable by downstream extractors.
+        assert "§ 823 BGB" in result
+        assert "§ 280 BGB" in result
+
 
 class TestNormalizeMarkdown:
     def test_strips_headers(self):
