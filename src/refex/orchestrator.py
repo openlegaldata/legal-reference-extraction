@@ -77,10 +77,14 @@ class CitationExtractor:
 
 
 def _resolve_overlaps(citations: list[Citation]) -> list[Citation]:
-    """Remove overlapping citations, keeping the one with higher confidence.
+    """Remove *proper* overlapping citations, keeping the higher-confidence one.
 
-    When two citations overlap, the one with higher ``confidence`` wins.
-    On ties, the longer span wins.  On further ties, the first one wins.
+    Two citations with **identical** spans are treated as co-located rather
+    than overlapping: enumeration markers like "§§ 500a, 500b BGB" emit one
+    LawCitation per section, all sharing the same marker span, and both
+    must survive. Only spans that partially overlap (different start/end)
+    trigger dedupe; in that case higher ``confidence`` wins, ties broken
+    by longer span, then by first occurrence.
     """
     if not citations:
         return []
@@ -90,16 +94,24 @@ def _resolve_overlaps(citations: list[Citation]) -> list[Citation]:
 
     result: list[Citation] = []
     last_end = -1
+    last_start = -1
 
     for cit in sorted_cits:
         if cit.span.start >= last_end:
+            # No overlap with the previous accepted citation.
             result.append(cit)
+            last_start = cit.span.start
             last_end = cit.span.end
+        elif cit.span.start == last_start and cit.span.end == last_end:
+            # Identical span — co-located citation from the same marker
+            # (e.g. enumeration "§§ 3, 4 BGB" yields one cite per section).
+            result.append(cit)
         else:
-            # Overlap: check if this citation should replace the last one
+            # Proper overlap: keep the higher-confidence citation.
             prev = result[-1]
             if cit.confidence > prev.confidence:
                 result[-1] = cit
+                last_start = cit.span.start
                 last_end = cit.span.end
 
     return result

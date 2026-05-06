@@ -103,9 +103,31 @@ class TestCitationExtractor:
         text = "§ 433 BGB und § 812 BGB"
         ext = CitationExtractor()
         result = ext.extract(text)
+        # Two disjoint cites — neither equals the other's span.
         sorted_cits = sorted(result.citations, key=lambda c: c.span.start)
         for i in range(len(sorted_cits) - 1):
-            assert sorted_cits[i].span.end <= sorted_cits[i + 1].span.start
+            a, b = sorted_cits[i], sorted_cits[i + 1]
+            assert a.span.end <= b.span.start or (
+                a.span.start == b.span.start and a.span.end == b.span.end
+            )
+
+    def test_enumeration_keeps_all_sections(self):
+        """Co-located cites from one enumeration marker must all survive.
+
+        ``RegexLawExtractor`` emits one ``LawCitation`` per section in
+        "§§ 500a, 500b BGB", all sharing the same marker span. The
+        orchestrator's ``_resolve_overlaps`` pass historically treated
+        identical spans as overlaps and dropped all but one — this test
+        pins the corrected behaviour: identical spans are co-located,
+        not overlapping.
+        """
+        text = "Laut §§ 3, 4 BGB gilt dies."
+        ext = CitationExtractor()
+        result = ext.extract(text)
+        law_cits = [c for c in result.citations if isinstance(c, LawCitation)]
+        sections = {c.number for c in law_cits}
+        assert "3" in sections, sections
+        assert "4" in sections, sections
 
 
 class TestResolveOverlaps:
