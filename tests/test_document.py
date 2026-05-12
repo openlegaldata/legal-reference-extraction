@@ -57,6 +57,20 @@ class TestNormalizeHtml:
         assert "§ 154 Abs. 1 VwGO" in result
         assert "<" not in result
 
+    def test_whitespace_only_tag_does_not_crash(self):
+        """A literal ``< >`` in the input must not raise.
+
+        The tag-name parser previously read ``tag_content[0]`` after
+        ``lstrip("/")`` + ``split()`` while only guarding on ``strip("/")``.
+        For ``tag_content`` of pure whitespace, the strip-slashes guard was
+        truthy but ``split()`` returned an empty list — IndexError. Real
+        court HTML in the corpus contains stray ``< >`` and crashed the
+        extractor before this guard was tightened.
+        """
+        result = normalize("<h1>before</h1>< ><p>after</p>", fmt="html")
+        assert "before" in result
+        assert "after" in result
+
     def test_adjacent_table_cells_get_separator(self):
         """``<td>`` and ``<th>`` are block-level boundaries.
 

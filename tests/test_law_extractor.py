@@ -1,4 +1,7 @@
 import os
+import signal
+
+import pytest
 
 from refex.extractors.law import DivideAndConquerLawRefExtractorMixin
 from refex.models import Ref, RefType
@@ -565,3 +568,92 @@ def test_citation_styles(law_extractor):
             assert m.end <= len(content)
             assert m.end > m.start
             assert len(m.get_references()) > 0
+
+
+# Catastrophic-backtracking inputs encountered when bulk-extracting from real
+# German court decisions. Each triggers exponential-time matching in one of
+# the ``ac``-based patterns (``art_single``, ``single_any_book``,
+# ``single_ivm``) when the trailing book / ``i.V.m.`` capture group fails.
+# The fix is the possessive ``ac_book_safe`` / ``ac_ivm_safe`` variants.
+@pytest.mark.parametrize(
+    "content",
+    [
+        # art_single: long Artikel enumeration without a book at the end.
+        # Lifted (and trimmed) from a real extradition decision listing
+        # Italian penal-code articles.
+        (
+            "Die dem Verfolgten zur Last gelegten Taten sind strafbar nach "
+            "Art. 51, 66, 193, 196, 197, 213, 214, 322, 323, 324, 324bis, "
+            "324ter Abs. 1, 325, 326 und 496 des italienischen Codice Penale."
+        ),
+        # single_any_book: long § enumeration without a book at the end.
+        ("Verstoß gegen § 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114."),
+        # single_ivm: long content stretch followed by no i.V.m. terminator.
+        ("§ 263 Abs. 1, Abs. 2, Abs. 3 S. 2 Nr. 4, 266 Abs. 1 2. Alt. und Abs. 2 Schluss der Vorschrift."),
+    ],
+)
+def test_no_catastrophic_backtracking(content):
+    """Pathological inputs must fail to match within a tight time budget.
+
+    Uses ``signal.SIGALRM`` to fail the test if extraction exceeds 2s.
+    Before the possessive-quantifier fix, each of these would run for
+    minutes in production.
+    """
+    ext = DivideAndConquerLawRefExtractorMixin()
+
+    def _timeout(signum, frame):
+        raise TimeoutError("law extraction exceeded budget — backtracking regression")
+
+    prev = signal.signal(signal.SIGALRM, _timeout)
+    signal.setitimer(signal.ITIMER_REAL, 2.0)
+    try:
+        ext.extract_law_ref_markers(content)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, prev)
+
+
+def test_article_enumeration_with_trailing_book_still_matches(law_extractor):
+    """Long Artikel enumerations that *do* end with a book must still match.
+
+    The possessive ``ac_book_safe`` must not regress: an artikel list that
+    properly terminates with a book code remains extractable. Asserts the
+    final body group covers the citation span.
+    """
+    content = "Verstoß gegen Art. 100, 101, 102, 103, 104, 105 GG ist gegeben."
+    _, markers = law_extractor.extract(content)
+    refs = [r for m in markers for r in m.get_references()]
+    assert any(r.book == "gg" for r in refs)
+
+
+def test_section_followed_by_uppercase_book_code(law_extractor):
+    """``§ 154 Abs. 1 VwGO`` must not have its ``V`` of ``VwGO`` consumed.
+
+    The possessive ``ac`` includes ``[IXV]{1,3}`` which can match ``V``.
+    A naive possessive variant would swallow the ``V`` of ``VwGO`` and
+    leave only ``wGO`` for the book capture, mis-identifying the book.
+    The ``(?!\\w)`` guard prevents this.
+    """
+    content = "Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO."
+    _, markers = law_extractor.extract(content)
+    refs = [r for m in markers for r in m.get_references()]
+    assert any(r.book == "vwgo" and r.section == "154" for r in refs), refs
+
+
+def test_single_ivm_pattern_matches():
+    """The ``single_ivm`` regex must still match the canonical shape.
+
+    The possessive ``ac_ivm_safe`` adds a ``(?!i\\.V\\.m\\.|iVm)`` guard so
+    the inner alternation doesn't consume the trailing ``i.V.m.`` /
+    ``iVm`` token itself. This asserts the pattern still matches the
+    common in-conjunction form.
+    """
+    ext = DivideAndConquerLawRefExtractorMixin()
+    pat = ext._precompile_patterns()["single_ivm"]
+    for content, want in [
+        ("§ 1 Abs. 1 i.V.m. § 2 SGB I", "§ 1 Abs. 1 i.V.m."),
+        ("§ 5 Abs. 2 iVm § 6 BGB", "§ 5 Abs. 2 iVm"),
+    ]:
+        m = pat.search(content)
+        assert m is not None, content
+        assert m.group(0) == want, (m.group(0), want)

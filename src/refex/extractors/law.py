@@ -205,7 +205,28 @@ class DivideAndConquerLawRefExtractorMixin:
         # End-of-string is a valid terminator: a citation that ends the
         # document has no delimiter after the book code but should still match.
         bla = "(?:(?=" + wd + ")|$)"
-        ac = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"
+        # Possessive variants of the legacy ``ac`` alternation used by patterns
+        # whose tail is ``(?P<book>BIG_ALTERNATION)`` or
+        # ``(?P<next_book>i\.V\.m\.|iVm)``.
+        # Without possessive repetition, an input like
+        # "Art. 100, 101, ..., 114." (no book at the end) makes the engine
+        # try every split of the comma-list against the ~2000-alternative
+        # book pattern, taking many seconds.
+        #
+        # Two safety adjustments vs. ``ac``:
+        # - ``[IXV]{1,3}(?!\w)`` prevents the Roman-numeral token from
+        #   swallowing the leading uppercase of a book code (e.g. ``V`` of
+        #   ``VwGO``). Roman numerals only match when not followed by a
+        #   word character.
+        # - The ivm-safe variant additionally refuses any iteration that
+        #   would start at ``i.V.m.`` / ``iVm``, so the trailing capture
+        #   group still has those tokens to match.
+        _ac_token = (
+            r"[0-9]{1,5}|\.|[a-z]|[IXV]{1,3}(?!\w)"
+            r"|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s"
+        )
+        ac_book_safe = r"(?:" + _ac_token + r")*+"
+        ac_ivm_safe = r"(?:(?!i\.V\.m\.|iVm)(?:" + _ac_token + r"))*+"
         sp = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
         art_sign = r"Art(?:ikel|\.?)"
         art_sect_space = r"\s"
@@ -225,14 +246,21 @@ class DivideAndConquerLawRefExtractorMixin:
                 section_sign + sect_space + sp + " Abs. ([0-9]+) Alt. ([0-9]+) (?P<book>" + bp + ")" + bla
             ),
             "single_any_book": re.compile(
-                section_sign + sect_space + r"(?P<sect>([0-9]+)(\s?[a-z]?)) " + ac + " (?P<book>(" + bp + "))" + bla
+                section_sign
+                + sect_space
+                + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
+                + ac_book_safe
+                + r"(?P<book>("
+                + bp
+                + r"))"
+                + bla
             ),
             "single_ivm": re.compile(
                 section_sign
                 + sect_space
                 + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                + ac
-                + r" (?P<next_book>(i\.V\.m\.|iVm))"
+                + ac_ivm_safe
+                + r"(?P<next_book>(i\.V\.m\.|iVm))"
                 + bla
             ),
             # Full law name: "§ 40 des Verwaltungsverfahrensgesetzes"
@@ -258,7 +286,14 @@ class DivideAndConquerLawRefExtractorMixin:
             ),
             # Artikel single ref: "Art. 12 Abs. 1 GG"
             "art_single": re.compile(
-                art_sign + art_sect_space + r"(?P<sect>[0-9]+(?:\s?[a-z]?))" + ac + r"\s+(?P<book>" + bp + r")" + bla
+                art_sign
+                + art_sect_space
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?))\s"
+                + ac_book_safe
+                + r"(?P<book>"
+                + bp
+                + r")"
+                + bla
             ),
             # Per-marker section splitter for multi-refs: "§§ 1, 2, 3 BGB" →
             # finds each section number and the separator before it.  Was
@@ -311,7 +346,14 @@ class DivideAndConquerLawRefExtractorMixin:
         book_look_ahead = "(?:(?=" + word_delimiter + ")|$)"
         book_pattern = self._book_ref_regex
 
-        any_content = r"([0-9]{1,5}|\.|[a-z]|[IXV]{1,3}|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s)*"  # noqa: E501
+        # See ``_precompile_patterns`` for why these two possessive variants
+        # are used instead of a single greedy alternation.
+        _any_content_token = (
+            r"[0-9]{1,5}|\.|[a-z]|[IXV]{1,3}(?!\w)"
+            r"|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s"
+        )
+        any_content_book_safe = r"(?:" + _any_content_token + r")*+"
+        any_content_ivm_safe = r"(?:(?!i\.V\.m\.|iVm)(?:" + _any_content_token + r"))*+"
 
         # Lazy-init pre-compiled patterns on first use
         if self._compiled_patterns is None:
@@ -429,8 +471,8 @@ class DivideAndConquerLawRefExtractorMixin:
                     section_sign
                     + sect_space
                     + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                    + any_content
-                    + " (?P<book>("
+                    + any_content_book_safe
+                    + r"(?P<book>("
                     + book_pattern
                     + "))"
                     + book_look_ahead
@@ -439,8 +481,8 @@ class DivideAndConquerLawRefExtractorMixin:
                     section_sign
                     + sect_space
                     + r"(?P<sect>([0-9]+)(\s?[a-z]?)) "
-                    + any_content
-                    + r" (?P<next_book>(i\.V\.m\.|iVm))"
+                    + any_content_ivm_safe
+                    + r"(?P<next_book>(i\.V\.m\.|iVm))"
                     + book_look_ahead
                 ),
             ]
@@ -565,9 +607,9 @@ class DivideAndConquerLawRefExtractorMixin:
             art_single_pattern = re.compile(
                 art_sign
                 + art_sect_space
-                + r"(?P<sect>[0-9]+(?:\s?[a-z]?))"
-                + any_content
-                + r"\s+(?P<book>"
+                + r"(?P<sect>[0-9]+(?:\s?[a-z]?))\s"
+                + any_content_book_safe
+                + r"(?P<book>"
                 + book_pattern
                 + r")"
                 + book_look_ahead

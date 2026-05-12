@@ -148,9 +148,14 @@ def _normalize_html_with_offsets(raw: str, profile: str | None = None) -> tuple[
                 end = n - 1
             tag_content = raw[i + 1 : end]
 
-            # Parse tag name (strip / for closing tags)
+            # Parse tag name (strip / for closing tags). A whitespace-only
+            # ``tag_content`` (from a literal ``< >`` in the input) leaves
+            # ``lstrip("/").split()`` empty, so guard on the split result
+            # rather than on ``strip("/")``, which is still truthy for
+            # pure whitespace.
             is_closing = tag_content.startswith("/")
-            tag_name = tag_content.lstrip("/").split()[0].split("/")[0].lower() if tag_content.strip("/") else ""
+            parts = tag_content.lstrip("/").split()
+            tag_name = parts[0].split("/")[0].lower() if parts else ""
 
             if tag_name in _skip_tags:
                 if is_closing:
