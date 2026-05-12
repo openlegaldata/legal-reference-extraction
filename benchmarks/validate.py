@@ -18,7 +18,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from benchmarks.datasets import BenchmarkDataset, get_data_dir, load_dataset
+from benchmarks.datasets import BenchmarkDataset, get_data_dir, get_hf_repo, load_dataset
 
 VALID_CITATION_TYPES = {"law", "case"}
 VALID_CITATION_KINDS = {"full", "short", "id", "ibid", "supra", "aao", "ebenda"}
@@ -42,9 +42,9 @@ VALID_STRUCTURE_KEYS = {
 }
 
 
-def validate_dataset(data_dir: Path, split: str = "test") -> list[str]:
+def validate_dataset(data_dir: Path | None, split: str = "test", hf_repo: str | None = None) -> list[str]:
     """Run all checks, return list of error strings. Empty = all pass."""
-    dataset = load_dataset(data_dir, split=split)
+    dataset = load_dataset(data_dir, split=split, hf_repo=hf_repo)
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -198,7 +198,20 @@ def main() -> None:
         "--data-dir",
         type=Path,
         default=None,
-        help=f"Path to HF dataset or JSONL directory (default: {get_data_dir()})",
+        help=(
+            f"Path to HF dataset or JSONL directory. If omitted, tries "
+            f"{get_data_dir()} and falls back to the HuggingFace Hub repo."
+        ),
+    )
+    parser.add_argument(
+        "--hf-repo",
+        type=str,
+        default=None,
+        metavar="REPO",
+        help=(
+            "HuggingFace Hub repo id for the dataset fallback "
+            "(default: $BENCH_HF_REPO or openlegaldata/german-legal-references-benchmark)."
+        ),
     )
     parser.add_argument(
         "-s",
@@ -209,13 +222,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    data_dir = args.data_dir or get_data_dir()
-
-    print(f"Validating dataset: {data_dir} (split: {args.split})")
+    source_label = str(args.data_dir) if args.data_dir is not None else f"hf:{args.hf_repo or get_hf_repo()}"
+    print(f"Validating dataset: {source_label} (split: {args.split})")
     print()
 
     try:
-        errors = validate_dataset(data_dir, split=args.split)
+        errors = validate_dataset(args.data_dir, split=args.split, hf_repo=args.hf_repo)
     except FileNotFoundError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
