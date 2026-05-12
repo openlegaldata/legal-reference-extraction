@@ -27,7 +27,7 @@ from pathlib import Path
 from benchmarks.adapter import refmarkers_to_citations
 from benchmarks.datasets import Citation as BenchmarkCitation
 from benchmarks.datasets import Relation as BenchmarkRelation
-from benchmarks.datasets import get_data_dir, load_dataset
+from benchmarks.datasets import get_data_dir, get_hf_repo, load_dataset
 from benchmarks.metrics import BenchmarkResult, score_document, score_relations
 
 logging.basicConfig(
@@ -188,6 +188,7 @@ def run_benchmark(
     engine: str = "regex",
     profile: bool = False,
     profile_output: Path | None = None,
+    hf_repo: str | None = None,
 ) -> tuple[BenchmarkResult, dict]:
     """Run the full benchmark pipeline.
 
@@ -209,7 +210,7 @@ def run_benchmark(
         (BenchmarkResult, timing_stats) tuple.
     """
     t_load_start = time.perf_counter()
-    dataset = load_dataset(data_dir, split=split)
+    dataset = load_dataset(data_dir, split=split, hf_repo=hf_repo)
     t_load = time.perf_counter() - t_load_start
 
     t_init_start = time.perf_counter()
@@ -389,7 +390,20 @@ def main() -> None:
         "--data-dir",
         type=Path,
         default=None,
-        help=f"Path to HF dataset or JSONL directory (default: {get_data_dir()})",
+        help=(
+            f"Path to HF dataset or JSONL directory. If omitted, tries "
+            f"{get_data_dir()} and falls back to the HuggingFace Hub repo."
+        ),
+    )
+    parser.add_argument(
+        "--hf-repo",
+        type=str,
+        default=None,
+        metavar="REPO",
+        help=(
+            "HuggingFace Hub repo id for the dataset fallback "
+            "(default: $BENCH_HF_REPO or openlegaldata/german-legal-references-benchmark)."
+        ),
     )
     parser.add_argument(
         "-s",
@@ -449,7 +463,9 @@ def main() -> None:
     if args.verbose:
         logging.getLogger().setLevel(logging.INFO)
 
-    data_dir = args.data_dir or get_data_dir()
+    # Pass through args.data_dir verbatim so the loader can decide between
+    # local and HF Hub fallback based on whether the user supplied --data-dir.
+    data_dir = args.data_dir
 
     result, timing = run_benchmark(
         data_dir=data_dir,
@@ -458,17 +474,20 @@ def main() -> None:
         engine=args.engine,
         profile=args.profile,
         profile_output=args.profile_output,
+        hf_repo=args.hf_repo,
     )
+
+    resolved_source = str(data_dir) if data_dir is not None else f"hf:{args.hf_repo or get_hf_repo()}"
 
     if args.json:
         out = result.to_dict()
         out["timing"] = timing
         out["split"] = args.split
         out["engine"] = args.engine
-        out["data_dir"] = str(data_dir)
+        out["data_dir"] = resolved_source
         text = json.dumps(out, indent=2, ensure_ascii=False) + "\n"
     else:
-        text = format_summary(result, timing, args.split, data_dir, args.engine) + "\n"
+        text = format_summary(result, timing, args.split, resolved_source, args.engine) + "\n"
 
     if args.output:
         args.output.write_text(text, encoding="utf-8")

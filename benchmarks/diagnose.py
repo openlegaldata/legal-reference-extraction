@@ -21,8 +21,8 @@ from benchmarks.datasets import load_dataset
 from refex.extractor import RefExtractor
 
 
-def diagnose(data_dir=None, split="validation", limit=None):
-    dataset = load_dataset(data_dir, split=split)
+def diagnose(data_dir=None, split="validation", limit=None, hf_repo=None):
+    dataset = load_dataset(data_dir, split=split, hf_repo=hf_repo)
     extractor = RefExtractor()
 
     # Counters
@@ -185,10 +185,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, default=None)
     parser.add_argument(
+        "--hf-repo",
+        type=str,
+        default=None,
+        metavar="REPO",
+        help="HuggingFace Hub repo id for the dataset fallback (default: $BENCH_HF_REPO)",
+    )
+    parser.add_argument(
         "--split",
         default="validation",
         help="Split to analyze (default: validation; avoid test for development)",
     )
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
-    diagnose(args.data_dir, args.split, args.limit)
+    diagnose(args.data_dir, args.split, args.limit, hf_repo=args.hf_repo)
