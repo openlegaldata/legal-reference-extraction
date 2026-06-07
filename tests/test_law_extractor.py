@@ -627,12 +627,13 @@ def test_article_enumeration_with_trailing_book_still_matches(law_extractor):
 
 
 def test_section_followed_by_uppercase_book_code(law_extractor):
-    """``§ 154 Abs. 1 VwGO`` must not have its ``V`` of ``VwGO`` consumed.
+    """``§ 154 Abs. 1 VwGO`` must resolve the book to ``vwgo``, not ``go``.
 
-    The possessive ``ac`` includes ``[IXV]{1,3}`` which can match ``V``.
-    A naive possessive variant would swallow the ``V`` of ``VwGO`` and
-    leave only ``wGO`` for the book capture, mis-identifying the book.
-    The ``(?!\\w)`` guard prevents this.
+    The inter-content alternation contains a Roman-numeral token that can
+    match the leading ``V`` of ``VwGO``. The intuitive ``[IXV]{1,3}(?!\\w)``
+    guard is miscompiled by CPython's possessive engine (it keeps the ``V``
+    partial despite the failing lookahead), leaving only ``wGO`` and
+    mis-resolving the book to ``go``. ``_ROMAN_NUM_TOKEN`` avoids the bug.
     """
     content = "Die Kostenentscheidung beruht auf § 154 Abs. 1 VwGO."
     _, markers = law_extractor.extract(content)
@@ -640,13 +641,24 @@ def test_section_followed_by_uppercase_book_code(law_extractor):
     assert any(r.book == "vwgo" and r.section == "154" for r in refs), refs
 
 
-def test_single_ivm_pattern_matches():
-    """The ``single_ivm`` regex must still match the canonical shape.
+def test_roman_absatz_before_book(law_extractor):
+    """A Roman-numeral Absatz between an ``Abs.`` qualifier and the book code
+    (``§ 5 Abs. 1 III BGB``) is consumed as inter-content, leaving the book
+    intact — the Roman token must match ``III`` without eating into ``BGB``."""
+    content = "Maßgeblich ist § 5 Abs. 1 III BGB."
+    _, markers = law_extractor.extract(content)
+    refs = [r for m in markers for r in m.get_references()]
+    assert any(r.book == "bgb" and r.section == "5" for r in refs), refs
 
-    The possessive ``ac_ivm_safe`` adds a ``(?!i\\.V\\.m\\.|iVm)`` guard so
-    the inner alternation doesn't consume the trailing ``i.V.m.`` /
-    ``iVm`` token itself. This asserts the pattern still matches the
-    common in-conjunction form.
+
+def test_single_ivm_pattern_matches():
+    """The ``single_ivm`` regex must match the canonical in-conjunction shape.
+
+    ``_IVM_SAFE`` must stop the inter-content right before ``i.V.m.`` / ``iVm``
+    so the trailing capture group still has those tokens to match. The
+    natural possessive ``(?:(?!i\\.V\\.m\\.|iVm)(?:…))*+`` is miscompiled
+    (the leading lookahead is ignored, swallowing ``i.V.m.`` and matching
+    nothing); a tempered greedy class is used instead.
     """
     ext = DivideAndConquerLawRefExtractorMixin()
     pat = ext._precompile_patterns()["single_ivm"]

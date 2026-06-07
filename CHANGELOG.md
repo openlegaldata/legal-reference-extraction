@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Fixed — law book-code resolution & i.V.m. relations (possessive-regex miscompilation)
+
+The possessive `ac_*` inter-content sub-patterns relied on regex constructs
+that CPython's possessive-quantifier / atomic-group engine (3.11) miscompiles:
+a bounded quantifier or group followed by a zero-width assertion keeps its
+partial match even when the assertion fails. Two graph-corrupting bugs
+followed; both are now fixed (validation split, 821 docs): **book field
+accuracy 0.865 → 0.957**, law exact F1 0.788 → 0.797 (recall 0.781 → 0.798),
+overall span F1 0.732 → 0.739, precision unchanged.
+
+- **Wrong book code after a qualifier** — `§ 154 Abs. 1 VwGO` resolved to
+  book `go` (the Roman token `[IXV]{1,3}(?!\w)` swallowed the leading `V` of
+  `VwGO` under `*+`, leaving `wGO` → matched the shorter code `GO`). Any book
+  code beginning with `V`/`I`/`X` after an `Abs.`/`Satz`/… qualifier was
+  affected (`VwGO`, `VwVfG`, …), silently mislinking the law-citation edge.
+  Replaced with an explicit numeral list + consumed delimiter
+  (`_ROMAN_NUM_TOKEN`).
+- **i.V.m. relations never detected** — the `single_ivm` pattern matched
+  *nothing*: its `(?:(?!i\.V\.m\.|iVm)(?:…))*+` guard was ignored by the
+  possessive engine, so the loop swallowed the very `i.V.m.` token the next
+  group had to capture. `§ 1 Abs. 1 i.V.m. § 2 SGB` and all "in conjunction
+  with" citations produced zero relation markers. Replaced with a tempered
+  greedy single-character class (`_IVM_SAFE`) — correct and linear/ReDoS-safe.
+
+Known follow-up (pre-existing, separate code path): a Roman Absatz placed
+*directly* after the section with no qualifier (`§ 5 III BGB`) still
+mis-resolves the book to `iii bgb`.
+
 ### Fixed — case file-number recall & accuracy
 
 Closes recall/precision gaps in the regex case extractor that corrupted or
