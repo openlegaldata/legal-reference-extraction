@@ -1135,7 +1135,6 @@ AZG
 AZO
 AbfG
 Abgabenordnung
-Abs II BGB
 AbsFondsG
 AbwAG
 Abzahlungsgesetz
@@ -1447,17 +1446,6 @@ HZV
 Hafenverordnung
 HaftPflG
 Haftung
-Halbsatz ArbGG
-Halbsatz AsylVfG
-Halbsatz BGB
-Halbsatz BauGB
-Halbsatz EStG
-Halbsatz FGO
-Halbsatz SBG
-Halbsatz SchulG
-Halbsatz VwGO
-Halbsatz VwZG
-Halbsatz ZPO
 Handelsgesetzbuch
 HandwO
 Handwerksordnung
@@ -1479,7 +1467,6 @@ HmbPersVG
 HmbTG
 HmbVwVG
 HmbVwVfG
-Hs BGB
 HundVerbrEinfG
 HundVerbrEinfVO
 Häftlingshilfegesetzes
@@ -1711,7 +1698,6 @@ SOG LSA
 SPersVG
 SVwVfG
 SWG
-Satz EStG
 SchOG
 SchVG
 Schenkungsteuergesetzes

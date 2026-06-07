@@ -666,6 +666,21 @@ def test_roman_absatz_directly_after_section(law_extractor):
         assert any(r.book == book and r.section == "5" for r in refs), (content, refs)
 
 
+def test_citation_fragment_not_resolved_as_book(law_extractor):
+    """A citation fragment directly before the code (``§ 5 Halbsatz VwGO``)
+    must resolve the real book, not a ``Halbsatz VwGO`` / ``Abs II BGB``
+    pseudo-code — those polluted ``law_book_codes.txt`` and are now removed.
+    """
+    for content, book in [
+        ("§ 5 Halbsatz VwGO", "vwgo"),
+        ("§ 5 Satz EStG", "estg"),
+        ("§ 5 Abs II BGB", "bgb"),
+    ]:
+        _, markers = law_extractor.extract(content)
+        refs = [r for m in markers for r in m.get_references()]
+        assert any(r.book == book and r.section == "5" for r in refs), (content, refs)
+
+
 def test_single_ivm_pattern_matches():
     """The ``single_ivm`` regex must match the canonical in-conjunction shape.
 

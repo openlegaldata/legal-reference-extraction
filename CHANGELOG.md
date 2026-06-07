@@ -26,10 +26,12 @@ overall span F1 0.732 → 0.739, precision unchanged.
   with" citations produced zero relation markers. Replaced with a tempered
   greedy single-character class (`_IVM_SAFE`) — correct and linear/ReDoS-safe.
 
-- **Bare Roman Absatz mis-read as the book code** — `§ 5 III BGB` resolved to
-  book `iii bgb` and `§ 5 IV ZPO` to `iv`. Two causes: `law_book_codes.txt`
-  contained 13 bogus entries (`II BGB`, `III BGB`, `IV ZPO`, a bare `IV`, …)
-  that are Absatz+code fragments, not codes (removed); and the generic book
+- **Citation fragments mis-read as the book code** — `§ 5 III BGB` resolved to
+  book `iii bgb`, `§ 5 IV ZPO` to `iv`, `§ 5 Halbsatz VwGO` to `halbsatz vwgo`.
+  Two causes: `law_book_codes.txt` contained 27 bogus entries that are
+  Absatz/Halbsatz/Satz fragments + a real code (`II BGB`, `III BGB`, `IV ZPO`,
+  a bare `IV`, `Halbsatz BGB`/`…VwGO`/…, `Hs BGB`, `Satz EStG`, `Abs II BGB`,
+  …) — all removed; and the generic book
   fallback `…(V|G|O|B)` matched bare Roman numerals ending in a suffix letter
   (`IV`/`XV`/`XIV` end in `V`) — now rejected by a leading `(?![IVXLCDM]+\b)`
   lookahead, while real codes like `VwGO` (numeral followed by more letters)
