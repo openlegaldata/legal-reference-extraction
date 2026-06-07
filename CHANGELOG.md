@@ -26,9 +26,15 @@ overall span F1 0.732 → 0.739, precision unchanged.
   with" citations produced zero relation markers. Replaced with a tempered
   greedy single-character class (`_IVM_SAFE`) — correct and linear/ReDoS-safe.
 
-Known follow-up (pre-existing, separate code path): a Roman Absatz placed
-*directly* after the section with no qualifier (`§ 5 III BGB`) still
-mis-resolves the book to `iii bgb`.
+- **Bare Roman Absatz mis-read as the book code** — `§ 5 III BGB` resolved to
+  book `iii bgb` and `§ 5 IV ZPO` to `iv`. Two causes: `law_book_codes.txt`
+  contained 13 bogus entries (`II BGB`, `III BGB`, `IV ZPO`, a bare `IV`, …)
+  that are Absatz+code fragments, not codes (removed); and the generic book
+  fallback `…(V|G|O|B)` matched bare Roman numerals ending in a suffix letter
+  (`IV`/`XV`/`XIV` end in `V`) — now rejected by a leading `(?![IVXLCDM]+\b)`
+  lookahead, while real codes like `VwGO` (numeral followed by more letters)
+  still match. Legitimate Roman *suffix* codes (`SGB IV`, `SGB VIII`) are
+  unaffected.
 
 ### Fixed — case file-number recall & accuracy
 

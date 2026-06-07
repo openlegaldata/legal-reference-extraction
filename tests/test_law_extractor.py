@@ -651,6 +651,21 @@ def test_roman_absatz_before_book(law_extractor):
     assert any(r.book == "bgb" and r.section == "5" for r in refs), refs
 
 
+def test_roman_absatz_directly_after_section(law_extractor):
+    """A bare Roman Absatz directly after the section (``§ 5 III BGB``,
+    ``§ 5 IV ZPO``) must resolve the *book*, not the numeral.
+
+    Two latent bugs caused the numeral to win: bogus ``III BGB`` / ``IV ZPO``
+    entries polluted ``law_book_codes.txt`` (removed), and the generic book
+    fallback matched bare Roman numerals ending in a suffix letter
+    (``IV``/``XV`` end in ``V``) — now rejected by a leading lookahead.
+    """
+    for content, book in [("§ 5 III BGB", "bgb"), ("§ 5 IV ZPO", "zpo"), ("§ 5 II ZPO", "zpo")]:
+        _, markers = law_extractor.extract(content)
+        refs = [r for m in markers for r in m.get_references()]
+        assert any(r.book == book and r.section == "5" for r in refs), (content, refs)
+
+
 def test_single_ivm_pattern_matches():
     """The ``single_ivm`` regex must match the canonical in-conjunction shape.
 

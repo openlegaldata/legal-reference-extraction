@@ -667,7 +667,12 @@ class DivideAndConquerLawRefExtractorMixin:
         """Book identifiers to build regex"""
         return self._law_book_codes
 
-    _GENERIC_BOOK_PATTERN = r"([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
+    # The leading ``(?![IVXLCDM]+\b)`` rejects a *bare* Roman numeral that would
+    # otherwise match because it ends in a suffix letter (``IV``/``XV``/``XIV`` end
+    # in ``V``): those are Absatz indicators, not book codes. Real codes whose
+    # Roman-looking prefix is followed by more letters (``VwGO`` → ``V`` then ``w``)
+    # have no word boundary after the numeral, so they still match.
+    _GENERIC_BOOK_PATTERN = r"(?![IVXLCDM]+\b)([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
 
     def _build_law_book_ref_regex(self, law_book_codes):
         r"""Build regex for the law book part in citation markers.
