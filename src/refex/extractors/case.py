@@ -263,6 +263,27 @@ class CaseRefExtractorMixin:
             )
         return self._compiled_reporter_re
 
+    # EU court case numbers: "C-459/99" (Court of Justice), "T-201/04"
+    # (General Court), "F-1/05" (Civil Service Tribunal, defunct). These
+    # have no "<chamber> <code> <number>/<year>" structure, so the regular
+    # file-number regex never matches them — EU case law (heavily cited in
+    # competition / consumer / data-protection decisions) was extracted with
+    # zero recall before this. An optional trailing " P"/" R" marks
+    # appeals / interim proceedings.
+    _EU_COURT_NAMES = {"C": "EuGH", "T": "EuG", "F": "EuGöD"}
+
+    def _get_compiled_eu_re(self) -> re.Pattern:
+        if self._compiled_eu_re is None:
+            self._compiled_eu_re = re.compile(
+                r"(?<![A-Za-z0-9])"  # not mid-word/identifier
+                r"(?P<eu_prefix>[CTF])-(?P<eu_number>[0-9]{1,4})/(?P<eu_year>[0-9]{2,4})"
+                r"(?:\s(?P<eu_suffix>P|R|REC|DEP|OP))?"
+                r"(?![0-9])"
+            )
+        return self._compiled_eu_re
+
+    _compiled_eu_re: re.Pattern | None = None
+
     def infer_court(self, file_number: str, match: re.Match, content: str) -> str | None:
         """In some cases it is possible to infer the court from the file number.
         This is currently only implemented for Sozialgerichtsbarkeit ("SG").
@@ -387,7 +408,10 @@ class CaseRefExtractorMixin:
 
         pattern = (
             r"((?P<instance_for_sg>(B|L|S))\s)?"  # only for SG
-            + r"(?P<chamber>([0-9]{1,2})[a-z]?|([IVX]+))"
+            # chamber: arabic (opt. trailing letter, e.g. "5a") or roman.
+            # Roman may also carry a trailing lowercase letter — older BGH
+            # senates like "Ib", "Va" (e.g. "Ib ZR 60/62").
+            + r"(?P<chamber>([0-9]{1,2})[a-z]?|([IVX]+[a-z]?))"
             + r"\s"
             + "(?P<code>[A-Z][A-Za-z]{0,4})"
             + r"(\s\(([A-Za-z]{1,6})\))?"
@@ -395,7 +419,11 @@ class CaseRefExtractorMixin:
             + r"\s"
             + "(?P<number>[0-9]{1,6})"
             + r"(\/|\.)"
-            + "(?P<year>[0-9]{2})"
+            # year: 4-digit ("295/2001") preferred, else the usual 2-digit
+            # ("295/01"). Without the 4-digit branch a written 4-digit year
+            # was silently truncated ("295/2001" -> "295/20"), corrupting
+            # the file number and the citation-graph edge it resolves to.
+            + "(?P<year>[0-9]{4}|[0-9]{2})"
             + r"(\s(?P<register>(AR|B|BH|C|GS|K|KH|R|RH|S)))?"  # only for SG
         )
 
@@ -488,7 +516,48 @@ class CaseRefExtractorMixin:
 
             refs.append(marker)
 
+            # Comma-grouped joined proceedings share one chamber+code prefix,
+            # e.g. "1 BvL 39/69, 40/69, 41/69" -> three separate cases. The
+            # trailing "<number>/<year>" groups lack the prefix, so emit them
+            # as additional refs reusing this match's prefix + court.
+            self._expand_grouped_file_numbers(content, match, court, refs)
+
+        # EU court case numbers ("C-459/99", "T-201/04") — separate structure.
+        existing_spans = [(r.start, r.end) for r in refs]
+        for match in self._get_compiled_eu_re().finditer(content):
+            ms, me = match.start(0), match.end(0)
+            if any(s <= ms < e for s, e in existing_spans):
+                continue
+            file_number = match.group(0)
+            court = self._EU_COURT_NAMES.get(match.group("eu_prefix"), "")
+            ref_ids = [Ref(ref_type=RefType.CASE, court=court, file_number=file_number)]
+            marker = RefMarker(text=file_number, start=ms, end=me)
+            marker.set_uuid()
+            marker.set_references(ref_ids)
+            refs.append(marker)
+
         return refs
+
+    # Trailing ", <number>/<year>" groups joined to a file number share its
+    # "<chamber> <code>" prefix and court (joined proceedings).
+    _GROUPED_FN_RE = re.compile(r"\s*,\s*(?P<number>[0-9]{1,6})[/.](?P<year>[0-9]{2,4})")
+
+    def _expand_grouped_file_numbers(
+        self, content: str, match: re.Match, court: str, refs: list
+    ) -> None:
+        # Prefix = everything from the match start up to the running number
+        # (e.g. "1 BvL " for "1 BvL 39/69"). Reused for each joined number.
+        prefix = content[match.start(0) : match.start("number")]
+        pos = match.end(0)
+        while (m := self._GROUPED_FN_RE.match(content, pos)) is not None:
+            file_number = f"{prefix}{m.group('number')}/{m.group('year')}"
+            marker = RefMarker(text=m.group(0).strip(), start=m.start(0), end=m.end(0))
+            marker.set_uuid()
+            marker.set_references(
+                [Ref(ref_type=RefType.CASE, court=court, file_number=file_number)]
+            )
+            refs.append(marker)
+            pos = m.end(0)
 
     def get_codes(self) -> set[str]:
         """Codes used in file numbers"""

@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed — case file-number recall & accuracy
+
+Closes recall/precision gaps in the regex case extractor that corrupted or
+dropped citation-graph edges (audit A3: "case-extraction recall is bimodal").
+Validation split (821 docs): case exact F1 0.613 → 0.628, recall 0.622 →
+0.644, overlap recall 0.835 → 0.854, precision held.
+
+- **4-digit years no longer truncated** — `VIII ZR 295/2001` was parsed as
+  `VIII ZR 295/20` (wrong file number → wrong/missing graph edge); the year
+  group now matches 4 digits then falls back to 2.
+- **EU court case numbers extracted** — `C-459/99` (EuGH), `T-201/04`
+  (EuG), `F-…` (EuGöD), incl. appeal suffixes (` P`/` R`). Previously zero
+  recall — EU case law is heavily cited in competition / consumer /
+  data-protection decisions.
+- **Comma-grouped joined proceedings** — `1 BvL 39/69, 40/69, 41/69` now
+  yields three refs (shared chamber+code prefix) instead of one.
+- **Roman chamber with trailing letter** — older senates like `Ib ZR 60/62`,
+  `Va ZR …` now match.
+
 ## 0.5.0 — Refactor 2026
 
 Major refactoring of the extraction pipeline.  Adds a typed API

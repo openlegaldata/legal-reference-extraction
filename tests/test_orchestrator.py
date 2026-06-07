@@ -68,6 +68,40 @@ class TestRegexCaseExtractor:
         for c in cits:
             assert text[c.span.start : c.span.end] == c.span.text
 
+    def _case_fns(self, text):
+        cits, _ = RegexCaseExtractor().extract(text)
+        return [c.file_number for c in cits if isinstance(c, CaseCitation)]
+
+    def test_four_digit_year_not_truncated(self):
+        # Regression: "295/2001" was truncated to "295/20".
+        assert "VIII ZR 295/2001" in self._case_fns("BGH, VIII ZR 295/2001")
+        # 2-digit year still works.
+        assert "VIII ZR 295/01" in self._case_fns("BGH, VIII ZR 295/01")
+
+    def test_eu_court_case_numbers(self):
+        cits, _ = RegexCaseExtractor().extract(
+            "EuGH, Urteil vom 25.07.2002 - C-459/99 - sowie EuG - T-201/04 -"
+        )
+        cases = {c.file_number: c.court for c in cits if isinstance(c, CaseCitation)}
+        assert cases.get("C-459/99") == "EuGH"
+        assert cases.get("T-201/04") == "EuG"
+
+    def test_eu_court_appeal_suffix(self):
+        assert "C-23/2018 P" in self._case_fns("EuGH - C-23/2018 P -")
+
+    def test_comma_grouped_proceedings(self):
+        fns = self._case_fns("BVerfG, Beschluss - 1 BvL 39/69, 40/69, 41/69 -")
+        assert "1 BvL 39/69" in fns
+        assert "1 BvL 40/69" in fns
+        assert "1 BvL 41/69" in fns
+
+    def test_roman_lowercase_chamber(self):
+        assert "Ib ZR 60/62" in self._case_fns("BGH Ib ZR 60/62")
+
+    def test_bverwg_dot_separator_preserved(self):
+        # No regression for the BVerwG "number.year" form.
+        assert "10 C 23.12" in self._case_fns("BVerwG, Urteil - 10 C 23.12 -")
+
 
 class TestCitationExtractor:
     def test_default_engines(self):
