@@ -79,9 +79,7 @@ class TestRegexCaseExtractor:
         assert "VIII ZR 295/01" in self._case_fns("BGH, VIII ZR 295/01")
 
     def test_eu_court_case_numbers(self):
-        cits, _ = RegexCaseExtractor().extract(
-            "EuGH, Urteil vom 25.07.2002 - C-459/99 - sowie EuG - T-201/04 -"
-        )
+        cits, _ = RegexCaseExtractor().extract("EuGH, Urteil vom 25.07.2002 - C-459/99 - sowie EuG - T-201/04 -")
         cases = {c.file_number: c.court for c in cits if isinstance(c, CaseCitation)}
         assert cases.get("C-459/99") == "EuGH"
         assert cases.get("T-201/04") == "EuG"

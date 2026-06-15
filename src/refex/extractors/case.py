@@ -542,9 +542,7 @@ class CaseRefExtractorMixin:
     # "<chamber> <code>" prefix and court (joined proceedings).
     _GROUPED_FN_RE = re.compile(r"\s*,\s*(?P<number>[0-9]{1,6})[/.](?P<year>[0-9]{2,4})")
 
-    def _expand_grouped_file_numbers(
-        self, content: str, match: re.Match, court: str, refs: list
-    ) -> None:
+    def _expand_grouped_file_numbers(self, content: str, match: re.Match, court: str, refs: list) -> None:
         # Prefix = everything from the match start up to the running number
         # (e.g. "1 BvL " for "1 BvL 39/69"). Reused for each joined number.
         prefix = content[match.start(0) : match.start("number")]
@@ -553,9 +551,7 @@ class CaseRefExtractorMixin:
             file_number = f"{prefix}{m.group('number')}/{m.group('year')}"
             marker = RefMarker(text=m.group(0).strip(), start=m.start(0), end=m.end(0))
             marker.set_uuid()
-            marker.set_references(
-                [Ref(ref_type=RefType.CASE, court=court, file_number=file_number)]
-            )
+            marker.set_references([Ref(ref_type=RefType.CASE, court=court, file_number=file_number)])
             refs.append(marker)
             pos = m.end(0)
 
