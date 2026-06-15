@@ -1,5 +1,62 @@
 # Changelog
 
+## Unreleased
+
+### Fixed — law book-code resolution & i.V.m. relations (possessive-regex miscompilation)
+
+The possessive `ac_*` inter-content sub-patterns relied on regex constructs
+that CPython's possessive-quantifier / atomic-group engine (3.11) miscompiles:
+a bounded quantifier or group followed by a zero-width assertion keeps its
+partial match even when the assertion fails. Two graph-corrupting bugs
+followed; both are now fixed (validation split, 821 docs): **book field
+accuracy 0.865 → 0.957**, law exact F1 0.788 → 0.797 (recall 0.781 → 0.798),
+overall span F1 0.732 → 0.739, precision unchanged.
+
+- **Wrong book code after a qualifier** — `§ 154 Abs. 1 VwGO` resolved to
+  book `go` (the Roman token `[IXV]{1,3}(?!\w)` swallowed the leading `V` of
+  `VwGO` under `*+`, leaving `wGO` → matched the shorter code `GO`). Any book
+  code beginning with `V`/`I`/`X` after an `Abs.`/`Satz`/… qualifier was
+  affected (`VwGO`, `VwVfG`, …), silently mislinking the law-citation edge.
+  Replaced with an explicit numeral list + consumed delimiter
+  (`_ROMAN_NUM_TOKEN`).
+- **i.V.m. relations never detected** — the `single_ivm` pattern matched
+  *nothing*: its `(?:(?!i\.V\.m\.|iVm)(?:…))*+` guard was ignored by the
+  possessive engine, so the loop swallowed the very `i.V.m.` token the next
+  group had to capture. `§ 1 Abs. 1 i.V.m. § 2 SGB` and all "in conjunction
+  with" citations produced zero relation markers. Replaced with a tempered
+  greedy single-character class (`_IVM_SAFE`) — correct and linear/ReDoS-safe.
+
+- **Citation fragments mis-read as the book code** — `§ 5 III BGB` resolved to
+  book `iii bgb`, `§ 5 IV ZPO` to `iv`, `§ 5 Halbsatz VwGO` to `halbsatz vwgo`.
+  Two causes: `law_book_codes.txt` contained 27 bogus entries that are
+  Absatz/Halbsatz/Satz fragments + a real code (`II BGB`, `III BGB`, `IV ZPO`,
+  a bare `IV`, `Halbsatz BGB`/`…VwGO`/…, `Hs BGB`, `Satz EStG`, `Abs II BGB`,
+  …) — all removed; and the generic book
+  fallback `…(V|G|O|B)` matched bare Roman numerals ending in a suffix letter
+  (`IV`/`XV`/`XIV` end in `V`) — now rejected by a leading `(?![IVXLCDM]+\b)`
+  lookahead, while real codes like `VwGO` (numeral followed by more letters)
+  still match. Legitimate Roman *suffix* codes (`SGB IV`, `SGB VIII`) are
+  unaffected.
+
+### Fixed — case file-number recall & accuracy
+
+Closes recall/precision gaps in the regex case extractor that corrupted or
+dropped citation-graph edges (audit A3: "case-extraction recall is bimodal").
+Validation split (821 docs): case exact F1 0.613 → 0.628, recall 0.622 →
+0.644, overlap recall 0.835 → 0.854, precision held.
+
+- **4-digit years no longer truncated** — `VIII ZR 295/2001` was parsed as
+  `VIII ZR 295/20` (wrong file number → wrong/missing graph edge); the year
+  group now matches 4 digits then falls back to 2.
+- **EU court case numbers extracted** — `C-459/99` (EuGH), `T-201/04`
+  (EuG), `F-…` (EuGöD), incl. appeal suffixes (` P`/` R`). Previously zero
+  recall — EU case law is heavily cited in competition / consumer /
+  data-protection decisions.
+- **Comma-grouped joined proceedings** — `1 BvL 39/69, 40/69, 41/69` now
+  yields three refs (shared chamber+code prefix) instead of one.
+- **Roman chamber with trailing letter** — older senates like `Ib ZR 60/62`,
+  `Va ZR …` now match.
+
 ## 0.5.0 — Refactor 2026
 
 Major refactoring of the extraction pipeline.  Adds a typed API

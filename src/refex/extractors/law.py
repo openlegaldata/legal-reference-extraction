@@ -8,6 +8,33 @@ from refex.models import Ref, RefMarker, RefType
 
 logger = logging.getLogger(__name__)
 
+# --- Possessive-quantifier-safe sub-patterns -------------------------------
+# CPython's possessive quantifiers / atomic groups (added in 3.11) miscompile
+# a *bounded* quantifier or group that is immediately followed by a zero-width
+# assertion: under ``(?:…)*+`` the engine keeps a partial match even though the
+# trailing assertion fails. The two sub-patterns below feed the possessive
+# ``ac_*`` alternations and previously relied on exactly that broken behaviour,
+# so they are written to avoid it.
+#
+# Roman-numeral "Absatz" token (e.g. the ``III`` in "§ 5 III BGB"). It must NOT
+# swallow the leading I/V/X of a following book code (the ``V`` of ``VwGO``).
+# The intuitive ``[IXV]{1,3}(?!\w)`` reads correctly but, under ``*+``, keeps
+# its "V" partial — leaving only ``wGO`` and mis-resolving the book code (here:
+# to "GO"). Matching an explicit numeral list followed by a *consumed*
+# delimiter sidesteps the miscompilation while preserving intent.
+_ROMAN_NUM_TOKEN = r"(?:VIII|VII|XIII|XIV|XII|XI|IX|VI|IV|III|II|XX|XV|XL|V|X|I)[ \xa0.,;]"
+
+# "Inter-content up to i.V.m. / iVm" for the conjunction pattern. The natural
+# ``(?:(?!i\.V\.m\.|iVm)(?:<token>))*+`` is likewise miscompiled — the leading
+# negative lookahead is ignored, so the loop swallows the very ``i.V.m.`` the
+# next group must capture, and the pattern matches nothing (zero i.V.m.
+# relations extracted). A tempered greedy single-character class compiles
+# correctly and is linear (ReDoS-safe). Character coverage mirrors the token
+# set it replaces: digits, lowercase, the uppercase letters used by
+# Abs/Satz/Halbsatz/Nr and roman numerals (A,S,H,N,I,X,V), plus ``. , ;`` and
+# whitespace.
+_IVM_SAFE = r"(?:(?!i\.V\.m\.|iVm)[0-9a-zASHNIXV.,;\s])*"
+
 
 def _apply_mask_intervals(content: str, intervals: list[tuple[int, int]]) -> str:
     """Apply ``(start, end)`` mask intervals to ``content`` in one pass (§7/#10).
@@ -213,20 +240,20 @@ class DivideAndConquerLawRefExtractorMixin:
         # try every split of the comma-list against the ~2000-alternative
         # book pattern, taking many seconds.
         #
-        # Two safety adjustments vs. ``ac``:
-        # - ``[IXV]{1,3}(?!\w)`` prevents the Roman-numeral token from
-        #   swallowing the leading uppercase of a book code (e.g. ``V`` of
-        #   ``VwGO``). Roman numerals only match when not followed by a
-        #   word character.
-        # - The ivm-safe variant additionally refuses any iteration that
-        #   would start at ``i.V.m.`` / ``iVm``, so the trailing capture
-        #   group still has those tokens to match.
+        # Two safety adjustments vs. ``ac`` (see ``_ROMAN_NUM_TOKEN`` /
+        # ``_IVM_SAFE`` at module scope for why the obvious ``[IXV]{1,3}(?!\w)``
+        # and ``(?!i\.V\.m\.|iVm)`` guards can't be used under ``*+``):
+        # - the Roman-numeral token must not swallow the leading uppercase of a
+        #   following book code (the ``V`` of ``VwGO``);
+        # - the ivm-safe inter-content must stop before ``i.V.m.`` / ``iVm`` so
+        #   the trailing capture group still has those tokens to match.
         _ac_token = (
-            r"[0-9]{1,5}|\.|[a-z]|[IXV]{1,3}(?!\w)"
-            r"|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s"
+            r"[0-9]{1,5}|\.|[a-z]|"
+            + _ROMAN_NUM_TOKEN
+            + r"|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s"
         )
         ac_book_safe = r"(?:" + _ac_token + r")*+"
-        ac_ivm_safe = r"(?:(?!i\.V\.m\.|iVm)(?:" + _ac_token + r"))*+"
+        ac_ivm_safe = _IVM_SAFE
         sp = r"(?P<sect>([0-9]+)(\s?[a-z]?))"
         art_sign = r"Art(?:ikel|\.?)"
         art_sect_space = r"\s"
@@ -346,14 +373,16 @@ class DivideAndConquerLawRefExtractorMixin:
         book_look_ahead = "(?:(?=" + word_delimiter + ")|$)"
         book_pattern = self._book_ref_regex
 
-        # See ``_precompile_patterns`` for why these two possessive variants
-        # are used instead of a single greedy alternation.
+        # See ``_precompile_patterns`` and the ``_ROMAN_NUM_TOKEN`` /
+        # ``_IVM_SAFE`` module constants for why these variants are shaped this
+        # way (possessive book-safe + tempered ivm-safe).
         _any_content_token = (
-            r"[0-9]{1,5}|\.|[a-z]|[IXV]{1,3}(?!\w)"
-            r"|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s"
+            r"[0-9]{1,5}|\.|[a-z]|"
+            + _ROMAN_NUM_TOKEN
+            + r"|Abs\.|Abs|Satz|Halbsatz|S\.|Nr|Nr\.|Alt|Alt\.|und|bis|,|;|\s"
         )
         any_content_book_safe = r"(?:" + _any_content_token + r")*+"
-        any_content_ivm_safe = r"(?:(?!i\.V\.m\.|iVm)(?:" + _any_content_token + r"))*+"
+        any_content_ivm_safe = _IVM_SAFE
 
         # Lazy-init pre-compiled patterns on first use
         if self._compiled_patterns is None:
@@ -638,7 +667,12 @@ class DivideAndConquerLawRefExtractorMixin:
         """Book identifiers to build regex"""
         return self._law_book_codes
 
-    _GENERIC_BOOK_PATTERN = r"([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
+    # The leading ``(?![IVXLCDM]+\b)`` rejects a *bare* Roman numeral that would
+    # otherwise match because it ends in a suffix letter (``IV``/``XV``/``XIV`` end
+    # in ``V``): those are Absatz indicators, not book codes. Real codes whose
+    # Roman-looking prefix is followed by more letters (``VwGO`` → ``V`` then ``w``)
+    # have no word boundary after the numeral, so they still match.
+    _GENERIC_BOOK_PATTERN = r"(?![IVXLCDM]+\b)([A-ZÄÜÖ][-ÄÜÖäüöA-Za-z]{,20})(V|G|O|B)(?:\s([XIV]{1,5}))?"
 
     def _build_law_book_ref_regex(self, law_book_codes):
         r"""Build regex for the law book part in citation markers.
