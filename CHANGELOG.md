@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Fixed — citation-range expansion
+
+- **`und` is no longer treated as a range separator.** `extract_law_ref_markers_with_context`
+  matched `§§ X (bis|und) Y` and expanded both forms as a range, so
+  "§§ 627 und 1300" produced 674 citations instead of the two sections it
+  names. Production accumulated markers holding 618-862 reference rows this
+  way, the great majority pointing at sections that were never cited.
+- **Section ranges are capped** at `MAX_RANGE_EXPANSION` (500). Beyond that a
+  span is a parser misread rather than a citation: law table-of-contents
+  markup places a section number next to an unrelated number, yielding spans
+  such as "§§ 154 bis 16617" against a code with roughly 200 sections --
+  16,464 citations from a single marker. Over the cap only the two endpoints
+  are emitted, so the citation stays usable. The cap sits well above genuine
+  block citations; the widest observed in a production corpus is
+  "§§ 253 bis 591 ZPO" at 339 sections.
+
 ### Fixed — law book-code resolution & i.V.m. relations (possessive-regex miscompilation)
 
 The possessive `ac_*` inter-content sub-patterns relied on regex constructs
