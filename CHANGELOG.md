@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Fixed — multi-reference span boundary
+
+- **A `§§` marker no longer runs on to a later book code.** The `multi` pattern
+  matches a bounded run of legal-reference characters after `§§` and then
+  requires a book code; that run was greedy, so within its 200-character budget
+  it reached the *farthest* book code rather than the nearest. Whole clauses of
+  prose were swallowed and separate citations merged into one marker:
+
+      §§ 2 bis 9 BauNVO für die darin beschriebenen Baugebiete ist die
+      allgemeine Zweckbestimmung in § 10 BauNVO
+
+  now yields `§§ 2 bis 9 BauNVO` and `§ 10 BauNVO` as two citations. Ordinary
+  enumerations (`§§ 1, 2 und 3 BGB`, `§§ 664 bis 670 BGB`,
+  `§§ 305, 307, 308 Nr. 1 BGB`) are unchanged.
+
+  Exact-span benchmark improves: F1 0.750 -> 0.760, precision 0.780 -> 0.787,
+  recall 0.723 -> 0.736 (TP 391 -> 398, FP 110 -> 108, FN 150 -> 143).
+
 ### Fixed — citation-range expansion
 
 - **`und` is no longer treated as a range separator.** `extract_law_ref_markers_with_context`
