@@ -97,6 +97,16 @@ class DivideAndConquerLawRefExtractorMixin:
     law_book_context = None
     _compiled_patterns: dict | None = None
 
+    #: Widest "§§ X bis Y" span that is expanded section by section.
+    #:
+    #: Real block citations do get wide -- "§§ 253 bis 591 ZPO" (339 sections,
+    #: Book 2) and "§§ 704 bis 959 ZPO" (256) are genuine -- so the cap sits
+    #: well above them. Beyond it the span is a misread rather than a citation:
+    #: table-of-contents markup places a section number next to an unrelated
+    #: number, producing spans such as "§§ 154 bis 16617" against a code with
+    #: roughly 200 sections. Over the cap only the endpoints are emitted.
+    MAX_RANGE_EXPANSION = 500
+
     # B6: default_law_book_codes as class constant (immutable reference list)
     default_law_book_codes = [
         "AsylG",
@@ -726,23 +736,56 @@ class DivideAndConquerLawRefExtractorMixin:
         # Normalize HTML entity for § (ported from legacy law.py)
         search_text = str(content).replace("&#167;", "§")
 
-        def multi_sect(match):
+        def _enumerated_sections(match) -> list[str]:
+            """Sections named by a "§§ X <sep> Y" marker.
+
+            The separator decides the shape, and conflating the two was a bug:
+
+            * ``bis`` ("to") is a **range** -- "§§ 664 bis 670" cites all seven
+              sections 664..670.
+            * ``und`` ("and") names exactly **two** sections. Expanding it as a
+              range turned "§§ 627 und 1300" into 674 citations, 672 of which
+              were never cited. Production accumulated markers holding 618-862
+              rows this way.
+
+            Ranges are also capped. A span wider than
+            ``MAX_RANGE_EXPANSION`` is a parser misread rather than a citation:
+            law table-of-contents markup puts a section number beside an
+            unrelated number, yielding "§§ 154 bis 16617" -- 16,464 sections
+            against a code that has roughly 200. Over the cap only the two
+            endpoints are emitted, which keeps the citation useful without
+            materialising thousands of rows that resolve to nothing.
+            """
             start = int(match.group(1))
-            end = int(match.group(3)) + 1
-            sects = []
+            separator = match.group(2)
+            end = int(match.group(3))
 
-            for sect in range(start, end):
-                sects.append(str(sect))
+            if separator == "und" or end < start:
+                return [str(start), str(end)]
 
-            return sects
+            span = end - start + 1
+            if span > self.MAX_RANGE_EXPANSION:
+                logger.warning(
+                    "Refusing to expand implausible section range %d bis %d "
+                    "(%d sections, limit %d); emitting endpoints only. "
+                    "Likely a parser misread.",
+                    start,
+                    end,
+                    span,
+                    self.MAX_RANGE_EXPANSION,
+                )
+                return [str(start), str(end)]
+
+            return [str(sect) for sect in range(start, end + 1)]
+
+        def multi_sect(match):
+            return _enumerated_sections(match)
 
         def multi_book(match):
-            start = int(match.group(1))
-            end = int(match.group(3)) + 1
-            return [book_code] * (end - start)
+            return [book_code] * len(_enumerated_sections(match))
 
         patterns = [
-            # §§ 664 bis 670
+            # §§ 664 bis 670  /  §§ 627 und 1300
             {
                 "pattern": re.compile("§§ ([0-9]+) (bis|und) ([0-9]+)"),
                 "book": multi_book,
