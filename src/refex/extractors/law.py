@@ -276,7 +276,7 @@ class DivideAndConquerLawRefExtractorMixin:
             # catastrophic backtracking that occurs with the alternation-based
             # pattern on long comma-separated section lists.
             "multi": re.compile(
-                section_sign + section_sign + sect_space + r"[0-9a-zäöüA-ZÄÖÜ§ ,;.\-/]{4,200}\s(" + bp + ")" + bla
+                section_sign + section_sign + sect_space + r"[0-9a-zäöüA-ZÄÖÜ§ ,;.\-/]{4,200}?\s(" + bp + ")" + bla
             ),
             "single_book": re.compile(section_sign + sect_space + sp + " (?P<book>" + bp + ")" + bla),
             "single_abs_alt": re.compile(
